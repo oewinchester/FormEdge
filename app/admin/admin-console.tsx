@@ -13,6 +13,7 @@ import {
   FileJson2,
   FileSpreadsheet,
   Fingerprint,
+  FlaskConical,
   Gauge,
   GitMerge,
   HeartPulse,
@@ -269,6 +270,7 @@ export function AdminConsole({ user, signOutPath }: Props) {
           <a href="#import"><UploadCloud size={17} />Veri içe aktar</a>
           <a href="#mappings"><GitMerge size={17} />Eşleme kuyruğu</a>
           <a href="#runs"><Fingerprint size={17} />Snapshot geçmişi</a>
+          <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>
         </nav>
         <div className="admin-sidebar-note"><ShieldAlert size={18} /><b>Beta güvenlik kapısı</b><p>Site şu an yalnız sahibine açık. Beta erişimi genişletilmeden önce ilk-kullanıcı admin ataması kapatılmalıdır.</p></div>
         <a className="admin-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a>
