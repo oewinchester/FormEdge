@@ -262,6 +262,80 @@ export const lineupSnapshots = sqliteTable(
   ],
 );
 
+export const featureDatasetRuns = sqliteTable(
+  "feature_dataset_runs",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    leagueId: text("league_id").notNull().references(() => leagues.id),
+    leagueLabel: text("league_label").notNull(),
+    market: text("market", { enum: ["1X2"] }).notNull().default("1X2"),
+    status: text("status", { enum: ["building", "completed", "failed"] }).notNull().default("building"),
+    predictionHorizonHours: integer("prediction_horizon_hours").notNull(),
+    minimumHistoryMatches: integer("minimum_history_matches").notNull(),
+    resultAvailabilityHours: integer("result_availability_hours").notNull(),
+    statsAvailabilityPolicy: text("stats_availability_policy", {
+      enum: ["fixture_end_plus_buffer"],
+    }).notNull().default("fixture_end_plus_buffer"),
+    sourceFixtureCount: integer("source_fixture_count").notNull().default(0),
+    eligibleSampleCount: integer("eligible_sample_count").notNull().default(0),
+    rejectedSampleCount: integer("rejected_sample_count").notNull().default(0),
+    averageDataCompleteness: real("average_data_completeness").notNull().default(0),
+    oddsCoverage: real("odds_coverage").notNull().default(0),
+    featureSchemaVersion: text("feature_schema_version").notNull(),
+    builderVersion: text("builder_version").notNull(),
+    configJson: text("config_json").notNull(),
+    datasetChecksumSha256: text("dataset_checksum_sha256").notNull(),
+    auditJson: text("audit_json").notNull().default("{}"),
+    createdByEmail: text("created_by_email").notNull(),
+    errorMessage: text("error_message"),
+    startedAt: text("started_at").notNull(),
+    completedAt: text("completed_at"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("feature_dataset_runs_checksum_unique").on(table.datasetChecksumSha256),
+    index("feature_dataset_runs_league_idx").on(table.leagueId, table.startedAt),
+    index("feature_dataset_runs_status_idx").on(table.status),
+  ],
+);
+
+export const featureDatasetSamples = sqliteTable(
+  "feature_dataset_samples",
+  {
+    id: text("id").primaryKey(),
+    datasetRunId: text("dataset_run_id").notNull().references(() => featureDatasetRuns.id),
+    fixtureId: text("fixture_id").notNull().references(() => fixtures.id),
+    predictionAt: text("prediction_at").notNull(),
+    kickoffAt: text("kickoff_at").notNull(),
+    featureCutoffAt: text("feature_cutoff_at").notNull(),
+    resultKnownAt: text("result_known_at").notNull(),
+    actualOutcome: text("actual_outcome", { enum: ["1", "X", "2"] }).notNull(),
+    probabilityHome: real("probability_home").notNull(),
+    probabilityDraw: real("probability_draw").notNull(),
+    probabilityAway: real("probability_away").notNull(),
+    dataCompleteness: real("data_completeness").notNull(),
+    featureFingerprint: text("feature_fingerprint").notNull(),
+    oddsBookmaker: text("odds_bookmaker"),
+    oddsCapturedAt: text("odds_captured_at"),
+    oddsHome: real("odds_home"),
+    oddsDraw: real("odds_draw"),
+    oddsAway: real("odds_away"),
+    closingOddsCapturedAt: text("closing_odds_captured_at"),
+    closingHome: real("closing_home"),
+    closingDraw: real("closing_draw"),
+    closingAway: real("closing_away"),
+    featureJson: text("feature_json").notNull(),
+    sampleJson: text("sample_json").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("feature_dataset_samples_run_fixture_unique").on(table.datasetRunId, table.fixtureId),
+    index("feature_dataset_samples_run_idx").on(table.datasetRunId),
+    index("feature_dataset_samples_kickoff_idx").on(table.kickoffAt),
+  ],
+);
+
 export const modelDefinitions = sqliteTable(
   "model_definitions",
   {

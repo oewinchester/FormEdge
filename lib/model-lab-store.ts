@@ -17,6 +17,7 @@ import {
   type ReleaseStage,
   runBacktest,
 } from "@/lib/model-lab";
+import { getPointInTimeDatasetOverview } from "@/lib/point-in-time-dataset-store";
 
 const MODEL_DEFINITION_ID = "model_form_dominance_baseline";
 
@@ -37,11 +38,13 @@ export async function getModelLabOverview(actor: AdminActor) {
     [{ total: versionCount }],
     [{ total: runCount }],
     [{ total: gateCount }],
+    datasetOverview,
   ] = await Promise.all([
     db.select({ total: count() }).from(modelDefinitions),
     db.select({ total: count() }).from(modelVersions),
     db.select({ total: count() }).from(backtestRuns),
     db.select({ total: count() }).from(releaseGates),
+    getPointInTimeDatasetOverview(),
   ]);
   const runs = await db.select({
     id: backtestRuns.id,
@@ -94,7 +97,15 @@ export async function getModelLabOverview(actor: AdminActor) {
 
   return {
     actor,
-    counts: { definitions: definitionCount, versions: versionCount, runs: runCount, gates: gateCount },
+    counts: {
+      definitions: definitionCount,
+      versions: versionCount,
+      datasets: datasetOverview.count,
+      runs: runCount,
+      gates: gateCount,
+    },
+    datasets: datasetOverview.datasets,
+    datasetReadiness: datasetOverview.readiness,
     runs,
     gates,
     versions,
@@ -106,6 +117,7 @@ export async function getModelLabOverview(actor: AdminActor) {
       minimumOdds: 1.2,
       minimumRecommendationDataCompleteness: 0.85,
       featureSchemaVersion: FEATURE_SCHEMA_VERSION,
+      dataset: datasetOverview.policy,
     },
   };
 }

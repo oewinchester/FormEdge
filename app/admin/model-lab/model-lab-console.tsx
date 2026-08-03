@@ -64,9 +64,53 @@ type ReleaseGate = {
   decidedAt: string;
 };
 
+type FeatureDataset = {
+  id: string;
+  name: string;
+  leagueId: string;
+  leagueLabel: string;
+  market: "1X2";
+  status: "building" | "completed" | "failed";
+  predictionHorizonHours: number;
+  minimumHistoryMatches: number;
+  resultAvailabilityHours: number;
+  sourceFixtureCount: number;
+  eligibleSampleCount: number;
+  rejectedSampleCount: number;
+  averageDataCompleteness: number;
+  oddsCoverage: number;
+  featureSchemaVersion: string;
+  builderVersion: string;
+  datasetChecksumSha256: string;
+  leakageViolationCount: number;
+  availabilityAssumption: string;
+  createdByEmail: string;
+  errorMessage: string | null;
+  startedAt: string;
+  completedAt: string | null;
+};
+
+type DatasetReadiness = {
+  leagueId: string;
+  leagueLabel: string;
+  countryCode: string;
+  coverageLevel: "basic" | "advanced" | "verified";
+  fixtureCount: number;
+  finishedFixtureCount: number;
+  statFixtureCount: number;
+  oddsFixtureCount: number;
+  statFixtureCoverage: number;
+  oddsFixtureCoverage: number;
+  earliestKickoffAt: string | null;
+  latestKickoffAt: string | null;
+  canAttemptBuild: boolean;
+};
+
 type Overview = {
   actor: { email: string; displayName: string; role: "admin" | "editor" };
-  counts: { definitions: number; versions: number; runs: number; gates: number };
+  counts: { definitions: number; versions: number; datasets: number; runs: number; gates: number };
+  datasets: FeatureDataset[];
+  datasetReadiness: DatasetReadiness[];
   runs: ModelRun[];
   gates: ReleaseGate[];
   versions: Array<{
@@ -86,6 +130,12 @@ type Overview = {
     minimumOdds: number;
     minimumRecommendationDataCompleteness: number;
     featureSchemaVersion: string;
+    dataset: {
+      minimumPersistedSamples: number;
+      defaultResultAvailabilityHours: number;
+      statsAvailabilityPolicy: "fixture_end_plus_buffer";
+      researchOnly: boolean;
+    };
   };
 };
 
@@ -127,7 +177,11 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
   const [latestResult, setLatestResult] = useState<RunResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [buildingDataset, setBuildingDataset] = useState(false);
   const [sampleCount, setSampleCount] = useState(180);
+  const [selectedLeagueId, setSelectedLeagueId] = useState("");
+  const [predictionHorizonHours, setPredictionHorizonHours] = useState(48);
+  const [minimumHistoryMatches, setMinimumHistoryMatches] = useState(5);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -139,6 +193,7 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
       const data = await response.json() as Overview & { error?: string };
       if (!response.ok) throw new Error(data.error ?? "Model laboratuvarı alınamadı.");
       setOverview(data);
+      setSelectedLeagueId((current) => current || data.datasetReadiness.find((league) => league.canAttemptBuild)?.leagueId || data.datasetReadiness[0]?.leagueId || "");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Model laboratuvarı alınamadı.");
     } finally {
@@ -179,7 +234,50 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
     }
   };
 
+  const buildHistoricalDataset = async () => {
+    const readiness = overview?.datasetReadiness.find((league) => league.leagueId === selectedLeagueId);
+    if (!readiness) {
+      setError("Önce veri içeren bir lig seçin.");
+      return;
+    }
+    if (!readiness.canAttemptBuild) {
+      setError(`Bu ligde yalnız ${readiness.finishedFixtureCount} bitmiş maç var; değişmez dataset için en az ${overview?.policy.dataset.minimumPersistedSamples ?? 20} uygun örnek gerekir.`);
+      return;
+    }
+
+    setBuildingDataset(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/admin/model-lab/datasets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          leagueId: selectedLeagueId,
+          predictionHorizonHours,
+          minimumHistoryMatches,
+        }),
+      });
+      const payload = await response.json() as {
+        result?: { dataset: FeatureDataset; reused: boolean };
+        error?: string;
+        violations?: Array<{ message: string }>;
+      };
+      if (!response.ok || !payload.result) {
+        throw new Error(payload.violations?.[0]?.message ?? payload.error ?? "Dataset üretilemedi.");
+      }
+      const dataset = payload.result.dataset;
+      setNotice(`${payload.result.reused ? "Aynı değişmez dataset yeniden kullanıldı" : "Dataset donduruldu"} · ${dataset.eligibleSampleCount} uygun örnek · ${dataset.leakageViolationCount} zaman sızıntısı`);
+      await loadOverview();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Dataset üretilemedi.");
+    } finally {
+      setBuildingDataset(false);
+    }
+  };
+
   const latestRun = overview?.runs[0] ?? null;
+  const selectedLeague = overview?.datasetReadiness.find((league) => league.leagueId === selectedLeagueId) ?? null;
   const headline = latestResult?.metrics ?? (latestRun ? {
     sampleCount: latestRun.sampleCount,
     foldCount: latestRun.foldCount,
@@ -210,6 +308,7 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
         <nav>
           <a href="/admin"><Database size={17} />Veri konsolu</a>
           <a className="active" href="#overview"><FlaskConical size={17} />Model Lab</a>
+          <a href="#datasets"><Database size={17} />D1 dataset</a>
           <a href="#pipeline"><GitBranch size={17} />Walk-forward</a>
           <a href="#metrics"><BarChart3 size={17} />Kalibrasyon</a>
           <a href="#gates"><LockKeyhole size={17} />Yayın kapıları</a>
@@ -221,7 +320,7 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
 
       <section className="admin-main">
         <header className="admin-topbar">
-          <div><a href="/admin"><ArrowLeft size={15} />Veri konsolu</a><span>MODEL LAB · PHASE 03</span></div>
+          <div><a href="/admin"><ArrowLeft size={15} />Veri konsolu</a><span>MODEL LAB · PHASE 03 · CP07</span></div>
           <div className="admin-user"><span>{initials(user.displayName)}</span><p><b>{user.displayName}</b><small>{overview?.actor.role ?? "yetki kontrol ediliyor"}</small></p></div>
         </header>
 
@@ -235,15 +334,55 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
 
         <section className="model-policy-strip">
           <span><ShieldCheck size={16} />POINT-IN-TIME</span>
-          <p>Gelecek oran, sonradan açıklanan kadro veya maç sonrası veri görülürse koşu tamamen reddedilir.</p>
-          <em>ÖNERİ KAPISI: KAPALI</em>
+          <p>Her özellik tahmin anında dondurulur. D1 istatistik revizyon zamanı henüz kanıtlanmadığı için bu checkpoint yalnız araştırma dataseti üretir.</p>
+          <em>RESEARCH ONLY</em>
         </section>
 
         <section className="admin-count-grid model-count-grid">
           <article><span><BrainCircuit size={17} /></span><small>MODEL TANIMI</small><b>{loading ? "—" : overview?.counts.definitions ?? 0}</b></article>
           <article><span><GitBranch size={17} /></span><small>SÜRÜM</small><b>{loading ? "—" : overview?.counts.versions ?? 0}</b></article>
+          <article><span><Database size={17} /></span><small>DONDURULMUŞ DATASET</small><b>{loading ? "—" : overview?.counts.datasets ?? 0}</b></article>
           <article><span><Activity size={17} /></span><small>BACKTEST</small><b>{loading ? "—" : overview?.counts.runs ?? 0}</b></article>
           <article><span><LockKeyhole size={17} /></span><small>LİG × PAZAR KAPISI</small><b>{loading ? "—" : overview?.counts.gates ?? 0}</b></article>
+        </section>
+
+        <section className="model-dataset-card" id="datasets">
+          <header><div><small>REAL D1 · IMMUTABLE INPUT</small><h2>Point-in-time dataset builder</h2></div><span>v{overview?.policy.featureSchemaVersion ?? "form-dominance-v1"}</span></header>
+          <div className="model-dataset-grid">
+            <div className="model-dataset-context">
+              <div className="model-dataset-lock"><ShieldAlert size={19} /><div><b>Yayın kanıtı değildir</b><p>Mevcut normalize istatistikler için kaynak revizyon zamanı tutulmuyor. Sonuç ve maç sonu verilerinin kickoff + {overview?.policy.dataset.defaultResultAvailabilityHours ?? 4} saatte bilindiği varsayılır; üretilen kayıt yalnız model araştırmasında kullanılabilir.</p></div></div>
+              {selectedLeague ? <div className="model-readiness-grid">
+                <article><small>BİTMİŞ MAÇ</small><b>{selectedLeague.finishedFixtureCount}</b><p>{selectedLeague.fixtureCount} toplam kayıt</p></article>
+                <article><small>STAT KAPSAMI</small><b>%{Math.round(selectedLeague.statFixtureCoverage * 100)}</b><p>{selectedLeague.statFixtureCount} fixture</p></article>
+                <article><small>1X2 ORAN KAPSAMI</small><b>%{Math.round(selectedLeague.oddsFixtureCoverage * 100)}</b><p>{selectedLeague.oddsFixtureCount} fixture</p></article>
+                <article><small>KAYNAK DURUMU</small><b>{selectedLeague.canAttemptBuild ? "Aday" : "Yetersiz"}</b><p>{selectedLeague.coverageLevel} · {selectedLeague.countryCode}</p></article>
+              </div> : <div className="model-empty-state compact"><Database size={18} /><b>Henüz D1 lig verisi yok.</b><p>Kontrollü import tamamlandığında burada dataset adayı görünür.</p></div>}
+            </div>
+
+            <div className="model-dataset-form">
+              <label><span>Pilot lig</span><select value={selectedLeagueId} onChange={(event) => setSelectedLeagueId(event.target.value)} disabled={buildingDataset || loading}>
+                {(overview?.datasetReadiness ?? []).map((league) => <option key={league.leagueId} value={league.leagueId}>{league.countryCode} · {league.leagueLabel} · {league.finishedFixtureCount} maç</option>)}
+              </select></label>
+              <div>
+                <label><span>Tahmin ufku</span><select value={predictionHorizonHours} onChange={(event) => setPredictionHorizonHours(Number(event.target.value))} disabled={buildingDataset}><option value={24}>24 saat</option><option value={48}>48 saat</option><option value={72}>72 saat</option></select></label>
+                <label><span>Minimum takım geçmişi</span><select value={minimumHistoryMatches} onChange={(event) => setMinimumHistoryMatches(Number(event.target.value))} disabled={buildingDataset}><option value={5}>5 maç</option><option value={8}>8 maç</option><option value={10}>10 maç</option></select></label>
+              </div>
+              <ul>
+                <li><Check size={13} />Tahmin sonrası sonuç ve oran otomatik dışlanır.</li>
+                <li><Check size={13} />Feature payload ve config SHA-256 ile dondurulur.</li>
+                <li><LockKeyhole size={13} />Dataset hiçbir yayın kapısını otomatik açamaz.</li>
+              </ul>
+              <button type="button" onClick={() => void buildHistoricalDataset()} disabled={buildingDataset || !selectedLeague?.canAttemptBuild}>{buildingDataset ? <LoaderCircle className="spin" size={17} /> : <Database size={16} />}{buildingDataset ? "D1 geçmişi donduruluyor" : "Değişmez dataset üret"}</button>
+            </div>
+          </div>
+        </section>
+
+        <section className="admin-runs-card model-dataset-runs-card">
+          <header><div><small>IMMUTABLE DATASET LOG</small><h2>Dataset geçmişi</h2></div><span>FEATURE + PROVENANCE + SHA-256</span></header>
+          <div className="admin-table-wrap"><table><thead><tr><th>Dataset</th><th>Lig / ufuk</th><th>Kaynak → uygun</th><th>Veri</th><th>Oran</th><th>Denetim</th><th>Kimlik</th></tr></thead><tbody>
+            {(overview?.datasets ?? []).length === 0 && <tr><td colSpan={7}><div className="admin-empty">Henüz dondurulmuş tarihsel dataset yok.</div></td></tr>}
+            {(overview?.datasets ?? []).map((dataset) => <tr key={dataset.id}><td><b>{dataset.name}</b><small>{formatDate(dataset.startedAt)} · {dataset.builderVersion}</small></td><td><b>{dataset.leagueLabel}</b><small>{dataset.predictionHorizonHours}s · min {dataset.minimumHistoryMatches} maç</small></td><td>{dataset.sourceFixtureCount} → <b>{dataset.eligibleSampleCount}</b><small>{dataset.rejectedSampleCount} reddedildi</small></td><td>%{decimal(dataset.averageDataCompleteness * 100, 1)}</td><td>%{decimal(dataset.oddsCoverage * 100, 1)}</td><td><span className={`dataset-status ${dataset.status}`}>{dataset.status}</span><small>{dataset.leakageViolationCount} sızıntı ihlali</small></td><td><code>{dataset.datasetChecksumSha256.slice(0, 12)}</code><small>{dataset.featureSchemaVersion}</small></td></tr>)}
+          </tbody></table></div>
         </section>
 
         <section className="model-lab-grid" id="pipeline">
