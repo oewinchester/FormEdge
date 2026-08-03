@@ -113,6 +113,7 @@ type Overview = {
     materialProbabilityShift: number;
     currentStage: "research_only";
     notificationChannelsPlanned: readonly string[];
+    notificationDeliveryStatus: "active_cp14";
   };
 };
 
@@ -268,6 +269,7 @@ export function PredictionOpsConsole({ user, signOutPath }: Props) {
           <a className="active" href="#overview"><ListChecks size={17} />Prediction Ops</a>
           <a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a>
           <a href="/admin/context-ops"><CloudSun size={17} />Context Ops</a>
+          <a href="/admin/notification-ops"><BellRing size={17} />Notification Ops</a>
           <a href="#lifecycle"><GitBranch size={17} />Durum protokolü</a>
           <a href="#candidates"><Sparkles size={17} />Aday havuzu</a>
           <a href="#threads"><Fingerprint size={17} />Sürüm geçmişi</a>
@@ -311,7 +313,7 @@ export function PredictionOpsConsole({ user, signOutPath }: Props) {
             <article><span>03</span><div><b>Geri çekildi</b><p>Seçim, kadro veya olasılıkta maddi değişiklik anlık olay üretir.</p></div><BellRing size={17} /></article>
             <article><span>04</span><div><b>Süresi doldu</b><p>Kickoff’a kadar finalleşmeyen izleme kaydı arşive geçer.</p></div><FileClock size={17} /></article>
           </div>
-          <footer><Fingerprint size={14} /><span>Her sürüm SHA-256 kanıt kimliği taşır; update/delete yerine yeni version + event yazılır.</span><em>Push + Telegram · CP14 planlı</em></footer>
+          <footer><Fingerprint size={14} /><span>Her sürüm SHA-256 kanıt kimliği taşır; update/delete yerine yeni version + event yazılır.</span><em>Web içi aktif · Push/Telegram config’e bağlı</em></footer>
         </section>
 
         <section className="prediction-candidate-card" id="candidates">

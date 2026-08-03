@@ -131,7 +131,7 @@ export function BankrollWorkspace({
           <a href="/dashboard#matches"><Bookmark size={18} />Maç analizleri</a>
           <a href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a>
           <a className="active" href="/dashboard/bankroll"><WalletCards size={18} />Kasa ve kupon<i>{workspace.counts.savedCoupons}</i></a>
-          <span><Bell size={18} />Bildirimler<em>CP14</em></span>
+          <a href="/dashboard/notifications"><Bell size={18} />Bildirimler</a>
         </nav>
         <section className="user-plan-card transparency"><ShieldCheck size={17} /><div><small>GÜVENLİK POLİTİKASI</small><b>Çeyrek-Kelly + sert limit</b><p>Hiçbir hesap gerçek para taşımaz; bu alan yalnızca kişisel kayıt ve karar desteğidir.</p></div></section>
         <a className="user-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a>
@@ -172,7 +172,7 @@ export function BankrollWorkspace({
 
         <section className="bankroll-ledger-card"><header><div><small>DEĞİŞMEZ HAREKET DEFTERİ</small><h2>Son kasa kayıtları</h2></div><span>{workspace.entries.length} kayıt</span></header>{!workspace.entries.length ? <HonestEmpty title="Kasa hareketi yok." text="Açılış bakiyesi kaydedildiğinde ilk append-only defter satırı burada görünecek." /> : <div>{workspace.entries.map((entry) => <article key={entry.id}><span className={entry.amountSigned >= 0 ? "positive" : "negative"}>{entry.amountSigned >= 0 ? "+" : "−"}</span><div><b>{entryType(entry.entryType)}</b><small>{date(entry.occurredAt)} · {entry.note ?? "Not yok"}</small></div><p><b>{money(Math.abs(entry.amountSigned), account.currency)}</b><small>Bakiye {money(entry.balanceAfter, account.currency)}</small></p></article>)}</div>}</section>
 
-        <nav className="user-mobile-nav"><a href="/dashboard"><LayoutDashboard size={18} /><small>Genel</small></a><a href="/dashboard/performance"><LineChart size={18} /><small>Geçmiş</small></a><a className="active" href="/dashboard/bankroll"><WalletCards size={18} /><small>Kasa</small></a><span><Bell size={18} /><small>Bildirim</small></span></nav>
+        <nav className="user-mobile-nav"><a href="/dashboard"><LayoutDashboard size={18} /><small>Genel</small></a><a href="/dashboard/performance"><LineChart size={18} /><small>Geçmiş</small></a><a className="active" href="/dashboard/bankroll"><WalletCards size={18} /><small>Kasa</small></a><a href="/dashboard/notifications"><Bell size={18} /><small>Bildirim</small></a></nav>
       </section>
     </main>
   );

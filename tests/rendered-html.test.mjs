@@ -53,6 +53,15 @@ test("renders the signed-out Context Ops protection wall", async () => {
   assert.match(html, /signin-with-chatgpt/i);
 });
 
+test("renders the signed-out Notification Ops protection wall", async () => {
+  const response = await renderRoute("/admin/notification-ops");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Bildirim operasyonları korumalıdır/i);
+  assert.match(html, /IDEMPOTENT OUTBOX/i);
+  assert.match(html, /signin-with-chatgpt/i);
+});
+
 test("renders the signed-out member dashboard protection wall", async () => {
   const response = await renderRoute("/dashboard");
   assert.equal(response.status, 200);
@@ -77,6 +86,15 @@ test("renders the signed-out bankroll and coupon protection wall", async () => {
   const html = await response.text();
   assert.match(html, /Kasa ve kupon alanı giriş gerektirir/i);
   assert.match(html, /TRACKING ONLY · NO PAYMENT/i);
+  assert.match(html, /signin-with-chatgpt/i);
+});
+
+test("renders the signed-out notification center protection wall", async () => {
+  const response = await renderRoute("/dashboard/notifications");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Bildirim merkezi giriş gerektirir/i);
+  assert.match(html, /ACCOUNT-BOUND DELIVERY/i);
   assert.match(html, /signin-with-chatgpt/i);
 });
 

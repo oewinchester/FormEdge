@@ -940,6 +940,148 @@ export const releaseGates = sqliteTable(
   ],
 );
 
+export const userNotificationPreferences = sqliteTable("user_notification_preferences", {
+  userEmail: text("user_email").primaryKey().references(() => userProfiles.email),
+  finalAnalysisEnabled: integer("final_analysis_enabled", { mode: "boolean" }).notNull().default(true),
+  valueOpportunityEnabled: integer("value_opportunity_enabled", { mode: "boolean" }).notNull().default(true),
+  predictionWithdrawnEnabled: integer("prediction_withdrawn_enabled", { mode: "boolean" }).notNull().default(true),
+  inAppEnabled: integer("in_app_enabled", { mode: "boolean" }).notNull().default(true),
+  browserPushEnabled: integer("browser_push_enabled", { mode: "boolean" }).notNull().default(false),
+  telegramEnabled: integer("telegram_enabled", { mode: "boolean" }).notNull().default(false),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const browserPushSubscriptions = sqliteTable(
+  "browser_push_subscriptions",
+  {
+    id: text("id").primaryKey(),
+    userEmail: text("user_email").notNull().references(() => userProfiles.email),
+    endpoint: text("endpoint").notNull(),
+    endpointHash: text("endpoint_hash").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    status: text("status", { enum: ["active", "revoked"] }).notNull().default("active"),
+    userAgent: text("user_agent"),
+    failureCount: integer("failure_count").notNull().default(0),
+    lastErrorCode: text("last_error_code"),
+    lastSeenAt: text("last_seen_at").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("browser_push_subscriptions_endpoint_unique").on(table.endpointHash),
+    index("browser_push_subscriptions_user_status_idx").on(table.userEmail, table.status),
+  ],
+);
+
+export const telegramConnections = sqliteTable(
+  "telegram_connections",
+  {
+    userEmail: text("user_email").primaryKey().references(() => userProfiles.email),
+    status: text("status", { enum: ["disconnected", "pending", "connected", "revoked"] }).notNull().default("disconnected"),
+    pairingCodeHash: text("pairing_code_hash"),
+    pairingExpiresAt: text("pairing_expires_at"),
+    chatId: text("chat_id"),
+    chatUsername: text("chat_username"),
+    verifiedAt: text("verified_at"),
+    lastErrorCode: text("last_error_code"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("telegram_connections_pairing_hash_unique").on(table.pairingCodeHash),
+    index("telegram_connections_status_idx").on(table.status, table.updatedAt),
+  ],
+);
+
+export const notificationOutbox = sqliteTable(
+  "notification_outbox",
+  {
+    id: text("id").primaryKey(),
+    eventKey: text("event_key").notNull(),
+    sourceEventId: text("source_event_id").notNull().references(() => predictionEvents.id),
+    threadId: text("thread_id").notNull().references(() => predictionThreads.id),
+    versionId: text("version_id").references(() => predictionVersions.id),
+    fixtureId: text("fixture_id").notNull().references(() => fixtures.id),
+    engineSchemaVersion: text("engine_schema_version").notNull(),
+    eventType: text("event_type", {
+      enum: ["final_analysis", "value_opportunity", "prediction_withdrawn"],
+    }).notNull(),
+    audienceScope: text("audience_scope", { enum: ["watchers", "all_members"] }).notNull(),
+    priority: text("priority", { enum: ["normal", "high", "critical"] }).notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    href: text("href").notNull(),
+    payloadJson: text("payload_json").notNull(),
+    status: text("status", {
+      enum: ["pending", "processing", "delivered", "partial", "failed", "suppressed"],
+    }).notNull().default("pending"),
+    suppressionCode: text("suppression_code"),
+    targetUserCount: integer("target_user_count").notNull().default(0),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    availableAt: text("available_at").notNull(),
+    lastAttemptAt: text("last_attempt_at"),
+    completedAt: text("completed_at"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("notification_outbox_event_key_unique").on(table.eventKey),
+    index("notification_outbox_status_available_idx").on(table.status, table.availableAt),
+    index("notification_outbox_source_event_idx").on(table.sourceEventId),
+    index("notification_outbox_thread_idx").on(table.threadId, table.createdAt),
+  ],
+);
+
+export const userNotifications = sqliteTable(
+  "user_notifications",
+  {
+    id: text("id").primaryKey(),
+    userEmail: text("user_email").notNull().references(() => userProfiles.email),
+    outboxId: text("outbox_id").notNull().references(() => notificationOutbox.id),
+    eventType: text("event_type", {
+      enum: ["final_analysis", "value_opportunity", "prediction_withdrawn"],
+    }).notNull(),
+    priority: text("priority", { enum: ["normal", "high", "critical"] }).notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    href: text("href").notNull(),
+    readAt: text("read_at"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("user_notifications_outbox_user_unique").on(table.outboxId, table.userEmail),
+    index("user_notifications_user_time_idx").on(table.userEmail, table.createdAt),
+    index("user_notifications_user_read_idx").on(table.userEmail, table.readAt),
+  ],
+);
+
+export const notificationDeliveries = sqliteTable(
+  "notification_deliveries",
+  {
+    id: text("id").primaryKey(),
+    outboxId: text("outbox_id").notNull().references(() => notificationOutbox.id),
+    userEmail: text("user_email").notNull().references(() => userProfiles.email),
+    channel: text("channel", { enum: ["in_app", "browser_push", "telegram"] }).notNull(),
+    status: text("status", {
+      enum: ["pending", "delivered", "failed", "skipped", "configuration_required"],
+    }).notNull().default("pending"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    providerMessageId: text("provider_message_id"),
+    lastErrorCode: text("last_error_code"),
+    nextAttemptAt: text("next_attempt_at"),
+    sentAt: text("sent_at"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("notification_deliveries_outbox_user_channel_unique").on(table.outboxId, table.userEmail, table.channel),
+    index("notification_deliveries_status_retry_idx").on(table.status, table.nextAttemptAt),
+    index("notification_deliveries_user_idx").on(table.userEmail, table.createdAt),
+  ],
+);
+
 export const auditLogs = sqliteTable(
   "audit_logs",
   {

@@ -7,7 +7,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.5.1 · Checkpoint 13 · Aşama 5 / Context, Bankroll & Coupon Safety Layer**
+**v0.5.2 · Checkpoint 14 · Aşama 5 / Notification Outbox & Delivery Control**
 
 - Responsive, 3D destekli ürün landing sayfası
 - D1 tabanlı futbol veri çekirdeği ve R2 ham veri arşivi
@@ -61,6 +61,14 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 - Aynı maçtan iki seçim, tekrar eden takım, lig yoğunlaşması ve düşük oran yoğunlaşmasını engelleyen deterministik kupon korelasyon motoru
 - Değer kapısını geçen seçimlerden en iyi tekliler, 3 maçlık dengeli ve 4–6 maçlık yüksek oran alternatifleri üreten; oran/olasılık snapshotıyla kupon taslağı saklayan kullanıcı çalışma alanı
 - Gerçek para veya ödeme hareketi yapmadığını açıkça belirten tracking-only sorumlu kullanım sınırı
+- Final analiz, değer fırsatı ve maddi geri çekmeyi ayrı olay türleri olarak yönlendiren saf bildirim sözleşmesi
+- Araştırma-only ve önemsiz olayları teslim etmeden `suppressed` kanıtıyla saklayan güvenlik filtresi
+- Tahmin olayından D1 outbox’a, kullanıcı hedefinden kanal teslimine kadar idempotent ve yeniden denenebilir bildirim defteri
+- Okunma durumu ve olay tercihleri D1’de saklanan korumalı web içi bildirim merkezi
+- VAPID anahtarı ve cihaz aboneliği varsa gerçek Web Push gönderen service worker + sunucu adaptörü
+- Bot token, webhook sırrı ve 10 dakikalık tek kullanımlık kodla bağlanan Telegram teslim adaptörü
+- Kanal yapılandırması eksikse başarı yazmayan; `configuration_required`, `skipped`, `partial` ve `failed` durumlarını ayrı izleyen teslim politikası
+- Yönetici ve analiz editörü için uzlaştırma, kuyruk işleme, yeniden deneme ve kanal sağlık görünümü sunan Notification Ops konsolu
 
 ## Sürüm ve checkpoint yol haritası
 
@@ -75,8 +83,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.4.0 | CP10 | Değişmez tahmin sürümleri, izleme/final/geri çekme durum makinesi ve Prediction Ops | Tamamlandı |
 | v0.4.1 | CP11 | Kullanıcı dashboardı, maç analizi ve filtrelenebilir, şeffaf performans geçmişi | Tamamlandı |
 | v0.5.0 | CP12 | De-vig piyasa uzlaşısı, değişmez oran/değer kanıtı ve anomali kontrolleri | Tamamlandı |
-| **v0.5.1** | **CP13** | **Kadro/bağlam yeniden skoru, kupon korelasyon kontrolü ve çeyrek-Kelly kasa defteri** | **Mevcut** |
-| v0.5.2 | CP14 | Web içi, tarayıcı push ve Telegram bildirim motoru | Planlandı |
+| v0.5.1 | CP13 | Kadro/bağlam yeniden skoru, kupon korelasyon kontrolü ve çeyrek-Kelly kasa defteri | Tamamlandı |
+| **v0.5.2** | **CP14** | **İdempotent outbox, web içi bildirim merkezi, Web Push/Telegram adaptörleri ve Notification Ops** | **Mevcut** |
 | v0.6 | CP15–CP16 | Waitlist, Free/Pro/Expert, kartsız beta denemesi ve 100–300 kişilik davetli beta | Planlandı |
 | v0.7 | CP17 | Shadow validation, drift takibi, performans ve fiyat araştırması | Planlandı |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
@@ -116,21 +124,33 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 28. Kasa önerisi çeyrek-Kelly kullanır; negatif edge her risk profilinde sıfır stake üretir ve risk profili model olasılığını değiştiremez.
 29. Aynı maçtan iki seçim, tekrar eden takım veya ikiden fazla aynı lig seçimi otomatik kupona giremez.
 30. Kasa alanı gerçek para tutmaz ve bahis şirketine işlem göndermez; tüm bakiyeler kişisel takip defteridir.
+31. Araştırma-only tahmin olayları hiçbir kullanıcı kanalına teslim edilemez; bastırma gerekçesi outbox defterinde kalır.
+32. Final olmayan veya maddi olmayan değişiklikler anlık bildirim üretemez; geri çekme yalnız yaşam döngüsü olayından türetilir.
+33. Bildirim olayı, kullanıcı kaydı ve her kanal teslimi idempotent anahtarla yazılır; yeniden deneme aynı bildirimi çoğaltamaz.
+34. Web Push veya Telegram çalışma sırları eksikse teslim başarılı gösterilemez; yapılandırma gereksinimi ayrı durum olarak saklanır.
+35. Telegram bot tokenı, webhook sırrı ve Web Push private key’i kaynak koduna veya kullanıcı API yanıtına yazılamaz.
 
 ## Teknoloji
 
 - Next.js 16, React 19, TypeScript ve Vinext
 - Cloudflare Sites/Workers, D1 ve R2
 - Drizzle ORM ve sürümlü SQLite migration’ları
-- GSAP ve Three.js
+- GSAP, Three.js ve standart Web Push
 - Node test runner ve ESLint
 
 ## Veri depolama mimarisi
 
-- **D1 ana ilişkisel veritabanıdır:** lig, takım, fikstür, istatistik, oran ve bağlam snapshotları, de-vig değer kanıtı, model kanıtı, tahmin yaşam döngüsü, kullanıcı profili, tercih, izleme listesi, kasa/kupon defteri ve performans settlement kayıtları burada tutulur.
+- **D1 ana ilişkisel veritabanıdır:** lig, takım, fikstür, istatistik, oran ve bağlam snapshotları, de-vig değer kanıtı, model kanıtı, tahmin yaşam döngüsü, kullanıcı profili, tercih, izleme listesi, kasa/kupon defteri, performans settlement kayıtları, bildirim outbox’ı ve kanal teslimleri burada tutulur.
 - **R2 ham ve büyük nesne katmanıdır:** kaynak snapshotları, kontrollü import dosyaları ve gelecekte üretilecek PDF/CSV dışa aktarımları burada tutulur.
 - MVP için ayrı bir PostgreSQL veya analitik veritabanı gerekmez. Trafik ve tarihsel hacim D1 sorgu sınırlarını anlamlı biçimde aşarsa yalnız raporlama amaçlı bir warehouse eklenir; ürünün doğruluk kaynağı D1 kalır.
 - Tarayıcı depolaması kalıcı ürün verisi için kullanılmaz; yalnız geçici arayüz durumu için kullanılabilir.
+
+## Dış bildirim kanalı aktivasyonu
+
+- Web Push için üretim ortamında `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` ve `VAPID_SUBJECT` gerekir. Yalnız public key kullanıcı API’sine dönebilir.
+- Telegram için `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` ve `TELEGRAM_WEBHOOK_SECRET` gerekir. Telegram webhook hedefi `/api/integrations/telegram/webhook` rotasıdır.
+- Bu değerlerin hiçbiri kaynak koda veya Git geçmişine yazılmaz. Eksik yapılandırma `configuration_required` olarak görünür; başarılı teslim gibi sayılmaz.
+- Zamanlayıcı bağlanana kadar yeni outbox kayıtları Notification Ops üzerinden uzlaştırılıp işlenebilir. Otomatik periyodik işleme davetli beta açılmadan önce zorunlu operasyon kapısıdır.
 
 ## Ana dizinler
 
@@ -158,6 +178,8 @@ lib/context-ops-store.ts         Değişmez D1 bağlam snapshotı ve Context Ops
 lib/bankroll-engine.ts           Çeyrek-Kelly, risk profili ve açık risk üst limitleri
 lib/coupon-engine.ts             Aynı maç/takım/lig korelasyon korumaları ve deterministik alternatifler
 lib/bankroll-store.ts            Kullanıcı kasa defteri, stake projeksiyonu ve kupon taslakları
+lib/notification-engine.ts       Saf olay yönlendirme, kanal planlama ve outbox durum sözleşmesi
+lib/notification-store.ts        D1 outbox, web içi kayıt, Web Push/Telegram adaptörleri ve Notification Ops
 lib/admin-data.ts            Veri alımı, kalite ve yönetici yetkilendirmesi
 tests/                       Veri ve model güvenlik testleri
 ```

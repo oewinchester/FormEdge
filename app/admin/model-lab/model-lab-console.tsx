@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   BarChart3,
   BadgeDollarSign,
+  BellRing,
   BrainCircuit,
   Check,
   CheckCircle2,
@@ -570,6 +571,7 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
           <a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a>
           <a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a>
           <a href="/admin/context-ops"><CloudSun size={17} />Context Ops</a>
+          <a href="/admin/notification-ops"><BellRing size={17} />Notification Ops</a>
           <a href="#datasets"><Database size={17} />D1 dataset</a>
           <a href="#benchmarks"><Sigma size={17} />Benchmarklar</a>
           <a href="#evidence"><ShieldCheck size={17} />Kanıt matrisi</a>

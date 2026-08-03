@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   BarChart3,
   BadgeDollarSign,
+  Bell,
   Bookmark,
   BookmarkCheck,
   CalendarDays,
@@ -73,7 +74,7 @@ export function MatchAnalysisView({
 
   return (
     <main className="user-shell match-analysis-shell">
-      <aside className="user-sidebar"><a className="user-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a><nav><a href="/dashboard"><LayoutDashboard size={18} />Genel bakış</a><a className="active" href="/dashboard#matches"><CalendarDays size={18} />Maç analizleri</a><a href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a><a href="/dashboard/bankroll"><WalletCards size={18} />Kasa ve kupon</a></nav><section className="user-plan-card transparency"><LockKeyhole size={17} /><div><small>YÖNTEM POLİTİKASI</small><b>Sonuçlar açık</b><p>Olasılık, veri zamanı ve sürüm görünür; özel ağırlık formülü gizlidir.</p></div></section><a className="user-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a></aside>
+      <aside className="user-sidebar"><a className="user-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a><nav><a href="/dashboard"><LayoutDashboard size={18} />Genel bakış</a><a className="active" href="/dashboard#matches"><CalendarDays size={18} />Maç analizleri</a><a href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a><a href="/dashboard/bankroll"><WalletCards size={18} />Kasa ve kupon</a><a href="/dashboard/notifications"><Bell size={18} />Bildirimler</a></nav><section className="user-plan-card transparency"><LockKeyhole size={17} /><div><small>YÖNTEM POLİTİKASI</small><b>Sonuçlar açık</b><p>Olasılık, veri zamanı ve sürüm görünür; özel ağırlık formülü gizlidir.</p></div></section><a className="user-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a></aside>
       <section className="user-main">
         <header className="user-topbar"><div><a href="/dashboard"><ArrowLeft size={14} />Dashboard</a><span>MATCH INTELLIGENCE · {analysis.thread.market}</span></div><div className="match-top-actions"><button type="button" className={analysis.thread.saved ? "saved" : ""} onClick={() => void toggleSaved()} disabled={saving}>{saving ? <LoaderCircle size={15} className="spin" /> : analysis.thread.saved ? <BookmarkCheck size={15} /> : <Bookmark size={15} />}{analysis.thread.saved ? "Kaydedildi" : "İzlemeye ekle"}</button></div></header>
         {error && <div className="user-message error"><XCircle size={16} />{error}</div>}

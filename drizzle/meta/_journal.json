@@ -71,6 +71,13 @@
       "when": 1785770780354,
       "tag": "0009_even_sabretooth",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1785784079677,
+      "tag": "0010_tidy_speedball",
+      "breakpoints": true
     }
   ]
 }

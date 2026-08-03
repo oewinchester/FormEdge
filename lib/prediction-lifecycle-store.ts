@@ -54,6 +54,7 @@ import {
   type MatchContextInput,
   type TeamContextInput,
 } from "@/lib/context-engine";
+import { enqueuePredictionNotificationEvent } from "@/lib/notification-store";
 
 const INITIAL_WINDOW_HOURS = 72;
 const MINIMUM_TIME_TO_KICKOFF_MINUTES = 30;
@@ -184,6 +185,7 @@ export async function getPredictionOpsOverview(actor?: AdminActor) {
       materialProbabilityShift: MATERIAL_PROBABILITY_SHIFT,
       currentStage: "research_only" as const,
       notificationChannelsPlanned: ["web_in_app", "browser_push", "telegram"] as const,
+      notificationDeliveryStatus: "active_cp14" as const,
     },
   };
 }
@@ -545,8 +547,9 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
   });
   if (autoWithdrawn) {
     const withdrawalKey = await predictionIdentity({ threadId, event: "withdrawn", versionFingerprint, reasons: change.reasons });
+    const withdrawalEventId = crypto.randomUUID();
     const withdrawalEvent = db.insert(predictionEvents).values({
-      id: crypto.randomUUID(),
+      id: withdrawalEventId,
       threadId,
       sequence: eventSequence + 1,
       versionId,
@@ -569,6 +572,7 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
       threadUpdate,
       auditInsert,
     ]);
+    await enqueueNotificationSafely(withdrawalEventId);
   } else {
     await db.batch([
       db.insert(predictionVersions).values(versionValues),
@@ -649,9 +653,10 @@ export async function transitionPrediction(
     versionId: version.id,
     sequence: thread.eventCount + 1,
   });
+  const eventId = crypto.randomUUID();
   await db.batch([
     db.insert(predictionEvents).values({
-      id: crypto.randomUUID(),
+      id: eventId,
       threadId: thread.id,
       sequence: thread.eventCount + 1,
       versionId: version.id,
@@ -691,6 +696,9 @@ export async function transitionPrediction(
       detailsJson: canonicalPredictionJson({ versionId: version.id, from: thread.status, to: nextStatus, reasonCode }),
     }),
   ]);
+  if (eventType === "finalized" || eventType === "withdrawn") {
+    await enqueueNotificationSafely(eventId);
+  }
   return {
     thread: await hydrateThreadById(thread.id),
     eventType,
@@ -953,5 +961,17 @@ function parseJson<T>(value: string, fallback: T): T {
     return JSON.parse(value) as T;
   } catch {
     return fallback;
+  }
+}
+
+async function enqueueNotificationSafely(eventId: string) {
+  try {
+    return await enqueuePredictionNotificationEvent(eventId);
+  } catch (error) {
+    console.error("Prediction transition committed but notification enqueue failed", {
+      eventId,
+      error: error instanceof Error ? error.message : "UNKNOWN_NOTIFICATION_ERROR",
+    });
+    return null;
   }
 }

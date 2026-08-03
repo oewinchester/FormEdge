@@ -1,9 +1,11 @@
 import {
   and,
   asc,
+  count,
   desc,
   eq,
   inArray,
+  isNull,
   lt,
 } from "drizzle-orm";
 import type { ChatGPTUser } from "@/app/chatgpt-auth";
@@ -17,6 +19,8 @@ import {
   predictionVersions,
   teamMatchStats,
   teams,
+  userNotificationPreferences,
+  userNotifications,
   userDashboardPreferences,
   userPredictionWatchlist,
   userProfiles,
@@ -33,9 +37,14 @@ export type DashboardPreferenceInput = {
 
 export async function getUserDashboardOverview(user: ChatGPTUser) {
   const account = await ensureUserProductAccount(user);
-  const [matches, history] = await Promise.all([
+  const db = await getDb();
+  const [matches, history, unreadRows] = await Promise.all([
     loadVisiblePredictionCards(user.email),
     loadPublishedPerformanceRecords(),
+    db.select({ total: count() }).from(userNotifications).where(and(
+      eq(userNotifications.userEmail, user.email),
+      isNull(userNotifications.readAt),
+    )),
   ]);
   const settledRows = history
     .filter((record) => record.resultStatus !== "pending")
@@ -63,6 +72,7 @@ export async function getUserDashboardOverview(user: ChatGPTUser) {
       marketAnomalies: visibleMatches.filter((match) => match.value?.status === "market_anomaly").length,
       publishedHistory: history.length,
       settledHistory: settledRows.length,
+      notificationsUnread: Number(unreadRows[0]?.total ?? 0),
     },
     matches: visibleMatches.slice(0, 24),
     latestHistory: history.slice(0, 6),
@@ -73,7 +83,7 @@ export async function getUserDashboardOverview(user: ChatGPTUser) {
       valueEngineStatus: "active_cp12" as const,
       bankrollStatus: "active_cp13" as const,
       couponStatus: "active_cp13" as const,
-      notificationStatus: "planned_cp14" as const,
+      notificationStatus: "active_cp14" as const,
       publicIdentityStatus: "planned_cp15" as const,
     },
   };
@@ -303,6 +313,8 @@ export async function ensureUserProductAccount(user: ChatGPTUser) {
       set: { displayName: user.displayName, lastSeenAt: nowIso, updatedAt: nowIso },
     }),
     db.insert(userDashboardPreferences).values({ userEmail: user.email })
+      .onConflictDoNothing(),
+    db.insert(userNotificationPreferences).values({ userEmail: user.email })
       .onConflictDoNothing(),
   ]);
   const [[profile], [preferences]] = await Promise.all([
