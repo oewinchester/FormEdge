@@ -450,7 +450,7 @@ export function FormEdgeExperience() {
         <div className="header-actions">
           <button className="language" type="button" onClick={() => setLanguage(language === "tr" ? "en" : "tr")}>{language === "tr" ? "EN" : "TR"}</button>
           <button className="header-icon notification" type="button" aria-label={tx("Bildirimler", "Notifications")}><Bell size={19} /><i>2</i></button>
-          <button className="login" type="button" onClick={() => window.location.assign("/admin")}><UserRound size={18} /><span>{tx("Giriş", "Sign in")}</span></button>
+          <button className="login" type="button" onClick={() => window.location.assign("/dashboard")}><UserRound size={18} /><span>{tx("Giriş", "Sign in")}</span></button>
           <button className="trial" type="button" onClick={() => scrollTo("#paketler")}>{tx("Beta listesine katıl", "Join the beta")}<ArrowUpRight size={16} /></button>
         </div>
       </header>

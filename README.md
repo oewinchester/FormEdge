@@ -7,7 +7,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.4.0 · Checkpoint 10 · Aşama 4 / Prediction Lifecycle**
+**v0.4.1 · Checkpoint 11 · Aşama 4 / Member Product Layer**
 
 - Responsive, 3D destekli ürün landing sayfası
 - D1 tabanlı futbol veri çekirdeği ve R2 ham veri arşivi
@@ -36,6 +36,13 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 - İki kesin kadro, `%85` veri tamlığı, açık yayın kapısı ve üretim-onaylı kaynak olmadan finali engelleyen kadro sonrası yayın kapısı
 - Seçim değişimi, en az `%8` olasılık kayması veya kesin kadro değişiminde final tahmini otomatik geri çekmeye hazırlayan maddi değişiklik protokolü
 - Yönetici ve analiz editörü için korumalı, responsive Prediction Ops konsolu
+- ChatGPT oturumuyla korunan, mobil ve masaüstü uyumlu kullanıcı dashboardı
+- D1 üzerinde kalıcı kullanıcı profili, görünüm tercihi ve kişisel izleme listesi
+- Araştırma-only kayıtları kullanıcı yüzeyinden veri katmanında ayıran yayın projeksiyonu
+- Hızlı/detaylı maç analizi; 1-X-2 olasılıkları, form, dominasyon, H2H, kadro ve sürüm kanıtı
+- Kazanan, kaybeden, void, geri çekilen ve bekleyen tüm final tahminlerini kalıcı gösteren performans geçmişi
+- Dönem, lig, pazar, sonuç ve takım/sürüm aramasıyla filtreleme; filtrelenmiş CSV dışa aktarma
+- Final maçları gerçek skorla bağlayan değişmez settlement kayıtları ve yönetici sonuçlandırma işlemi
 
 ## Sürüm ve checkpoint yol haritası
 
@@ -47,8 +54,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.3.2 | CP07 | Gerçek D1 point-in-time dataset builder ve değişmez provenance | Tamamlandı |
 | v0.3.3 | CP08 | Elo ve Poisson/Dixon–Coles karşılaştırma modelleri | Tamamlandı |
 | v0.3.4 | CP09 | Ablation, kalibrasyon, holdout ve lig × pazar kanıt matrisi | Tamamlandı |
-| **v0.4.0** | **CP10** | **Değişmez tahmin sürümleri, izleme/final/geri çekme durum makinesi ve Prediction Ops** | **Mevcut** |
-| v0.4.1 | CP11 | Kullanıcı maç analizleri ve filtrelenebilir, şeffaf performans geçmişi | Sıradaki |
+| v0.4.0 | CP10 | Değişmez tahmin sürümleri, izleme/final/geri çekme durum makinesi ve Prediction Ops | Tamamlandı |
+| **v0.4.1** | **CP11** | **Kullanıcı dashboardı, maç analizi ve filtrelenebilir, şeffaf performans geçmişi** | **Mevcut** |
 | v0.5 | CP12–CP14 | De-vig/değer filtresi, kadro-bağlam yeniden skoru, kupon, kasa ve bildirim motoru | Planlandı |
 | v0.6 | CP15–CP16 | Waitlist, Free/Pro/Expert, kartsız beta denemesi ve 100–300 kişilik davetli beta | Planlandı |
 | v0.7 | CP17 | Shadow validation, drift takibi, performans ve fiyat araştırması | Planlandı |
@@ -77,6 +84,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 16. Yayınlanmış bir tahmin güncellenemez veya silinemez; her yeniden skor ayrı sürüm, her durum değişikliği ayrı olaydır.
 17. İzleme kaydı kullanıcı önerisi değildir; final etiketi yalnız kesin kadro ve tüm yayın kapıları birlikte geçildiğinde verilebilir.
 18. Final tahminde seçim/kadro değişimi veya en az `%8` olasılık kayması geri çekme olayı üretir; eski sürüm denetim geçmişinde kalır.
+19. Araştırma-only tahminler kullanıcı sorgularında filtrelenir; yalnız yayın kapısını geçmiş sürümler dashboarda taşınabilir.
+20. Final sonuçları tahmin sürümü ve yayın olayı başına yalnız bir kez yazılır; kazanan veya kaybeden kayıt sonradan silinemez.
 
 ## Teknoloji
 
@@ -85,6 +94,13 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 - Drizzle ORM ve sürümlü SQLite migration’ları
 - GSAP ve Three.js
 - Node test runner ve ESLint
+
+## Veri depolama mimarisi
+
+- **D1 ana ilişkisel veritabanıdır:** lig, takım, fikstür, istatistik, oran snapshotı, model kanıtı, tahmin yaşam döngüsü, kullanıcı profili, tercih, izleme listesi ve performans settlement kayıtları burada tutulur.
+- **R2 ham ve büyük nesne katmanıdır:** kaynak snapshotları, kontrollü import dosyaları ve gelecekte üretilecek PDF/CSV dışa aktarımları burada tutulur.
+- MVP için ayrı bir PostgreSQL veya analitik veritabanı gerekmez. Trafik ve tarihsel hacim D1 sorgu sınırlarını anlamlı biçimde aşarsa yalnız raporlama amaçlı bir warehouse eklenir; ürünün doğruluk kaynağı D1 kalır.
+- Tarayıcı depolaması kalıcı ürün verisi için kullanılmaz; yalnız geçici arayüz durumu için kullanılabilir.
 
 ## Ana dizinler
 
@@ -102,6 +118,9 @@ lib/evidence-lab.ts          Ablation, kalibrasyon ve temporal holdout çekirde�
 lib/evidence-lab-store.ts    Tek-seferlik kanıt koşusu ve lig × pazar matrisi
 lib/prediction-lifecycle.ts  Saf durum makinesi, final kapısı ve maddi değişiklik protokolü
 lib/prediction-lifecycle-store.ts D1 tahmin sürümü, olay günlüğü ve operasyon projeksiyonu
+lib/prediction-settlement-store.ts Final yayınları gerçek maç sonucuyla değişmez biçimde bağlayan settlement akışı
+lib/user-dashboard-store.ts      Kullanıcı profili, izleme, maç analizi ve performans projeksiyonu
+lib/user-performance.ts          Saf sonuçlandırma ve performans özetleme kuralları
 lib/admin-data.ts            Veri alımı, kalite ve yönetici yetkilendirmesi
 tests/                       Veri ve model güvenlik testleri
 ```

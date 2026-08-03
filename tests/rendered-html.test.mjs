@@ -34,6 +34,33 @@ test("renders the signed-out Prediction Ops protection wall", async () => {
   assert.match(html, /admin%2Fpredictions|admin\/predictions/i);
 });
 
+test("renders the signed-out member dashboard protection wall", async () => {
+  const response = await renderRoute("/dashboard");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Kullanıcı dashboardı giriş gerektirir/i);
+  assert.match(html, /D1 PERSISTENT PROFILE/i);
+  assert.match(html, /signin-with-chatgpt/i);
+});
+
+test("renders the signed-out immutable performance protection wall", async () => {
+  const response = await renderRoute("/dashboard/performance");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Performans geçmişi giriş gerektirir/i);
+  assert.match(html, /NO CHERRY PICKING/i);
+  assert.match(html, /signin-with-chatgpt/i);
+});
+
+test("renders the signed-out match analysis protection wall", async () => {
+  const response = await renderRoute("/dashboard/matches/test-fixture");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Maç analizi giriş gerektirir/i);
+  assert.match(html, /RESULTS OPEN/i);
+  assert.match(html, /signin-with-chatgpt/i);
+});
+
 async function renderRoute(pathname) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${Math.random()}`);

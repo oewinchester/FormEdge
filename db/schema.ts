@@ -22,6 +22,46 @@ export const appMembers = sqliteTable("app_members", {
   updatedAt: updatedAt(),
 });
 
+export const userProfiles = sqliteTable(
+  "user_profiles",
+  {
+    email: text("email").primaryKey(),
+    displayName: text("display_name").notNull(),
+    locale: text("locale", { enum: ["tr", "en"] }).notNull().default("tr"),
+    plan: text("plan", { enum: ["free", "pro", "expert"] }).notNull().default("free"),
+    subscriptionStatus: text("subscription_status", {
+      enum: ["beta", "trial", "active", "paused", "cancelled"],
+    }).notNull().default("beta"),
+    riskProfile: text("risk_profile", { enum: ["cautious", "balanced", "bold"] }),
+    riskAssessmentStatus: text("risk_assessment_status", {
+      enum: ["pending", "completed"],
+    }).notNull().default("pending"),
+    responsibleUseAcknowledgedAt: text("responsible_use_acknowledged_at"),
+    lastSeenAt: text("last_seen_at").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("user_profiles_plan_idx").on(table.plan, table.subscriptionStatus),
+    index("user_profiles_last_seen_idx").on(table.lastSeenAt),
+  ],
+);
+
+export const userDashboardPreferences = sqliteTable("user_dashboard_preferences", {
+  userEmail: text("user_email").primaryKey().references(() => userProfiles.email),
+  defaultAnalysisView: text("default_analysis_view", {
+    enum: ["quick", "detailed"],
+  }).notNull().default("quick"),
+  performanceMode: text("performance_mode", {
+    enum: ["system", "personal"],
+  }).notNull().default("system"),
+  timezone: text("timezone").notNull().default("Europe/Istanbul"),
+  oddsFormat: text("odds_format", { enum: ["decimal"] }).notNull().default("decimal"),
+  showWithdrawn: integer("show_withdrawn", { mode: "boolean" }).notNull().default(true),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
 export const dataSources = sqliteTable(
   "data_sources",
   {
@@ -625,6 +665,49 @@ export const predictionEvents = sqliteTable(
     uniqueIndex("prediction_events_idempotency_unique").on(table.idempotencyKey),
     index("prediction_events_thread_time_idx").on(table.threadId, table.occurredAt),
     index("prediction_events_type_idx").on(table.eventType),
+  ],
+);
+
+export const userPredictionWatchlist = sqliteTable(
+  "user_prediction_watchlist",
+  {
+    userEmail: text("user_email").notNull().references(() => userProfiles.email),
+    threadId: text("thread_id").notNull().references(() => predictionThreads.id),
+    source: text("source", { enum: ["manual", "system"] }).notNull().default("manual"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userEmail, table.threadId] }),
+    index("user_prediction_watchlist_thread_idx").on(table.threadId),
+    index("user_prediction_watchlist_created_idx").on(table.userEmail, table.createdAt),
+  ],
+);
+
+export const predictionSettlements = sqliteTable(
+  "prediction_settlements",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("thread_id").notNull().references(() => predictionThreads.id),
+    finalVersionId: text("final_version_id").notNull().references(() => predictionVersions.id),
+    publicationEventId: text("publication_event_id").notNull().references(() => predictionEvents.id),
+    fixtureId: text("fixture_id").notNull().references(() => fixtures.id),
+    predictedOutcome: text("predicted_outcome", { enum: ["1", "X", "2"] }).notNull(),
+    actualOutcome: text("actual_outcome", { enum: ["1", "X", "2", "void"] }).notNull(),
+    settlementStatus: text("settlement_status", {
+      enum: ["won", "lost", "void", "withdrawn"],
+    }).notNull(),
+    homeScore: integer("home_score"),
+    awayScore: integer("away_score"),
+    withdrawalEventId: text("withdrawal_event_id").references(() => predictionEvents.id),
+    settledAt: text("settled_at").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("prediction_settlements_version_unique").on(table.finalVersionId),
+    uniqueIndex("prediction_settlements_publication_unique").on(table.publicationEventId),
+    index("prediction_settlements_thread_idx").on(table.threadId, table.settledAt),
+    index("prediction_settlements_fixture_idx").on(table.fixtureId),
+    index("prediction_settlements_status_idx").on(table.settlementStatus, table.settledAt),
   ],
 );
 

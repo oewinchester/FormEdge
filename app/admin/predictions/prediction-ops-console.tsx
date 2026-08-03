@@ -22,6 +22,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Trophy,
   UserRoundCheck,
   XCircle,
 } from "lucide-react";
@@ -143,6 +144,7 @@ export function PredictionOpsConsole({ user, signOutPath }: Props) {
   const [withdrawReasons, setWithdrawReasons] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [settling, setSettling] = useState(false);
 
   const loadOverview = useCallback(async () => {
     setLoading(true);
@@ -222,6 +224,29 @@ export function PredictionOpsConsole({ user, signOutPath }: Props) {
     }
   };
 
+  const settleFinished = async () => {
+    setSettling(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/admin/predictions/settle", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+      });
+      const payload = await response.json() as {
+        result?: { processed: number; alreadySettled: number; pending: number; excludedResearch: number };
+        error?: string;
+      };
+      if (!response.ok || !payload.result) throw new Error(payload.error ?? "Final sonuçları işlenemedi.");
+      setNotice(`${payload.result.processed} final kayıt sonuçlandırıldı; ${payload.result.pending} kayıt maç sonucunu bekliyor, ${payload.result.excludedResearch} araştırma kaydı kullanıcı geçmişinden hariç tutuldu.`);
+      await loadOverview();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Final sonuçları işlenemedi.");
+    } finally {
+      setSettling(false);
+    }
+  };
+
   const selectedCandidate = overview?.candidates.find((candidate) => candidate.id === selectedFixtureId) ?? null;
   const countCards = useMemo(() => ([
     { key: "total" as const, label: "TOPLAM KAYIT", value: overview?.counts.total ?? 0, icon: ListChecks },
@@ -255,7 +280,10 @@ export function PredictionOpsConsole({ user, signOutPath }: Props) {
 
         <section className="admin-intro prediction-intro" id="overview">
           <div><small>DEĞİŞMEZ TAHMİN YAŞAM DÖNGÜSÜ</small><h1>Tahmini değiştirme. Yeni kanıtı yeni sürümle kaydet.</h1><p>Maçtan 72 saat önce izleme kaydı açılır; kesin kadrolar geldiğinde yeniden skorlanır. Final sonrası maddi değişiklik eski kaydı silmez, otomatik geri çekme olayı üretir.</p></div>
-          <button type="button" onClick={() => void loadOverview()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} />Yenile</button>
+          <div className="prediction-intro-actions">
+            <button className="settle" type="button" onClick={() => void settleFinished()} disabled={settling}><Trophy size={16} />{settling ? "Sonuçlandırılıyor" : "Final sonuçlarını işle"}</button>
+            <button type="button" onClick={() => void loadOverview()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} />Yenile</button>
+          </div>
         </section>
 
         {error && <div className="admin-message error"><ShieldAlert size={17} /><span>{error}</span></div>}
