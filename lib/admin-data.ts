@@ -5,14 +5,18 @@ import {
   appMembers,
   auditLogs,
   dataSources,
+  fixtureMappings,
   fixtures,
+  ingestionIssues,
   ingestionRuns,
   leagues,
   lineupSnapshots,
   oddsSnapshots,
+  teamAliases,
   teamMatchStats,
   teams,
 } from "@/db/schema";
+import { type DataQualityIssue, evaluatePayloadQuality } from "@/lib/data-quality";
 import {
   type AdminImportEnvelope,
   recordCount,
@@ -24,8 +28,13 @@ export type AdminActor = {
   role: "admin" | "editor";
 };
 
+export type ImportOptions = {
+  importFormat?: "json" | "csv";
+  externalIssues?: DataQualityIssue[];
+};
+
 export class AdminAccessError extends Error {
-  constructor(public status: 401 | 403, message: string) {
+  constructor(public status: 400 | 401 | 403 | 404, message: string) {
     super(message);
   }
 }
@@ -67,11 +76,26 @@ export async function requireAdminActor(): Promise<AdminActor> {
 
 export async function getAdminOverview(actor: AdminActor) {
   const db = await getDb();
-  const [[{ total: leagueCount }], [{ total: teamCount }], [{ total: fixtureCount }], [{ total: runCount }]] = await Promise.all([
+  const [
+    [{ total: leagueCount }],
+    [{ total: teamCount }],
+    [{ total: fixtureCount }],
+    [{ total: runCount }],
+    [{ total: issueCount }],
+    [{ total: pendingAliasCount }],
+    [{ total: pendingFixtureCount }],
+    [{ total: eligibleRunCount }],
+    [{ total: failedRunCount }],
+  ] = await Promise.all([
     db.select({ total: count() }).from(leagues),
     db.select({ total: count() }).from(teams),
     db.select({ total: count() }).from(fixtures),
     db.select({ total: count() }).from(ingestionRuns),
+    db.select({ total: count() }).from(ingestionIssues),
+    db.select({ total: count() }).from(teamAliases).where(eq(teamAliases.status, "review")),
+    db.select({ total: count() }).from(fixtureMappings).where(eq(fixtureMappings.status, "review")),
+    db.select({ total: count() }).from(ingestionRuns).where(eq(ingestionRuns.recommendationEligible, true)),
+    db.select({ total: count() }).from(ingestionRuns).where(eq(ingestionRuns.status, "failed")),
   ]);
   const sources = await db.select({
     id: dataSources.id,
@@ -89,6 +113,15 @@ export async function getAdminOverview(actor: AdminActor) {
     status: ingestionRuns.status,
     capturedAt: ingestionRuns.capturedAt,
     recordCount: ingestionRuns.recordCount,
+    importFormat: ingestionRuns.importFormat,
+    dataGrade: ingestionRuns.dataGrade,
+    qualityScore: ingestionRuns.qualityScore,
+    completenessScore: ingestionRuns.completenessScore,
+    consistencyScore: ingestionRuns.consistencyScore,
+    freshnessScore: ingestionRuns.freshnessScore,
+    warningCount: ingestionRuns.warningCount,
+    errorCount: ingestionRuns.errorCount,
+    recommendationEligible: ingestionRuns.recommendationEligible,
     checksumSha256: ingestionRuns.checksumSha256,
     createdByEmail: ingestionRuns.createdByEmail,
     completedAt: ingestionRuns.completedAt,
@@ -96,22 +129,62 @@ export async function getAdminOverview(actor: AdminActor) {
     .leftJoin(dataSources, eq(ingestionRuns.sourceId, dataSources.id))
     .orderBy(desc(ingestionRuns.createdAt))
     .limit(12);
+  const pendingAliases = await db.select({
+    id: teamAliases.id,
+    externalTeamKey: teamAliases.externalTeamKey,
+    externalTeamName: teamAliases.externalTeamName,
+    canonicalTeamName: teams.name,
+    confidence: teamAliases.confidence,
+    sourceName: dataSources.name,
+  }).from(teamAliases)
+    .innerJoin(teams, eq(teamAliases.teamId, teams.id))
+    .innerJoin(dataSources, eq(teamAliases.sourceId, dataSources.id))
+    .where(eq(teamAliases.status, "review"))
+    .orderBy(desc(teamAliases.createdAt))
+    .limit(12);
+  const pendingFixtures = await db.select({
+    id: fixtureMappings.id,
+    externalFixtureKey: fixtureMappings.externalFixtureKey,
+    kickoffAt: fixtureMappings.sourceKickoffAt,
+    confidence: fixtureMappings.confidence,
+    sourceName: dataSources.name,
+  }).from(fixtureMappings)
+    .innerJoin(dataSources, eq(fixtureMappings.sourceId, dataSources.id))
+    .where(eq(fixtureMappings.status, "review"))
+    .orderBy(desc(fixtureMappings.createdAt))
+    .limit(12);
+  const latestCompleted = runs.find((run) => run.status === "completed") ?? null;
 
   return {
     actor,
     counts: { leagues: leagueCount, teams: teamCount, fixtures: fixtureCount, runs: runCount },
+    health: {
+      latestGrade: latestCompleted?.dataGrade ?? null,
+      latestQualityScore: latestCompleted?.qualityScore ?? null,
+      latestCompletedAt: latestCompleted?.completedAt ?? null,
+      issueCount,
+      pendingAliasCount,
+      pendingFixtureCount,
+      eligibleRunCount,
+      failedRunCount,
+    },
     sources,
     runs,
+    pendingAliases,
+    pendingFixtures,
   };
 }
 
-export async function importFootballSnapshot(actor: AdminActor, envelope: AdminImportEnvelope) {
+export async function importFootballSnapshot(
+  actor: AdminActor,
+  envelope: AdminImportEnvelope,
+  options: ImportOptions = {},
+) {
   const db = await getDb();
   const bucket = await getBucket();
   const raw = JSON.stringify(envelope);
   const checksumSha256 = await sha256(raw);
-  const sourceNameChecksum = await sha256(envelope.source.name.trim().toLowerCase());
-  const sourceId = `src_${slugify(envelope.source.name)}_${sourceNameChecksum.slice(0, 8)}`;
+  const sourceId = await buildSourceId(envelope.source.name);
   const runId = crypto.randomUUID();
   const capturedDate = new Date(envelope.capturedAt);
   const snapshotKey = [
@@ -150,6 +223,7 @@ export async function importFootballSnapshot(actor: AdminActor, envelope: AdminI
     capturedAt: envelope.capturedAt,
     snapshotKey,
     checksumSha256,
+    importFormat: options.importFormat ?? "json",
     recordCount: 0,
     createdByEmail: actor.email,
   });
@@ -264,9 +338,34 @@ export async function importFootballSnapshot(actor: AdminActor, envelope: AdminI
     }
 
     const importedRecords = recordCount(payload);
+    const quality = evaluatePayloadQuality(payload, {
+      capturedAt: envelope.capturedAt,
+      externalIssues: options.externalIssues,
+    });
+    if (quality.issues.length) {
+      await db.insert(ingestionIssues).values(quality.issues.map((item) => ({
+        id: crypto.randomUUID(),
+        ingestionRunId: runId,
+        severity: item.severity,
+        code: item.code,
+        entityType: item.entityType,
+        entityKey: item.entityKey,
+        field: item.field,
+        message: item.message,
+        detailsJson: JSON.stringify(item.details ?? {}),
+      })));
+    }
     await db.update(ingestionRuns).set({
       status: "completed",
       recordCount: importedRecords,
+      dataGrade: quality.grade,
+      qualityScore: quality.qualityScore,
+      completenessScore: quality.completenessScore,
+      consistencyScore: quality.consistencyScore,
+      freshnessScore: quality.freshnessScore,
+      warningCount: quality.warningCount,
+      errorCount: quality.errorCount,
+      recommendationEligible: quality.recommendationEligible,
       completedAt: now,
     }).where(eq(ingestionRuns.id, runId));
     await db.insert(auditLogs).values({
@@ -278,7 +377,7 @@ export async function importFootballSnapshot(actor: AdminActor, envelope: AdminI
       detailsJson: JSON.stringify({ sourceId, snapshotKey, checksumSha256, importedRecords }),
     });
 
-    return { runId, sourceId, snapshotKey, checksumSha256, recordCount: importedRecords };
+    return { runId, sourceId, snapshotKey, checksumSha256, recordCount: importedRecords, quality };
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 500) : "Import failed";
     await db.update(ingestionRuns).set({
@@ -288,6 +387,50 @@ export async function importFootballSnapshot(actor: AdminActor, envelope: AdminI
     }).where(eq(ingestionRuns.id, runId));
     throw error;
   }
+}
+
+export async function reviewDataMapping(
+  actor: AdminActor,
+  kind: "team_alias" | "fixture",
+  id: string,
+) {
+  if (actor.role !== "admin") throw new AdminAccessError(403, "Only administrators can approve mappings.");
+  if (!/^[a-z0-9-]{4,96}$/i.test(id)) throw new AdminAccessError(400, "A valid mapping id is required.");
+  const db = await getDb();
+  const now = new Date().toISOString();
+
+  if (kind === "team_alias") {
+    const [mapping] = await db.select({ id: teamAliases.id }).from(teamAliases).where(eq(teamAliases.id, id)).limit(1);
+    if (!mapping) throw new AdminAccessError(404, "Team alias mapping not found.");
+    await db.update(teamAliases).set({
+      status: "matched",
+      confidence: 1,
+      reviewedByEmail: actor.email,
+      reviewedAt: now,
+      updatedAt: now,
+    }).where(eq(teamAliases.id, id));
+  } else if (kind === "fixture") {
+    const [mapping] = await db.select({ id: fixtureMappings.id }).from(fixtureMappings).where(eq(fixtureMappings.id, id)).limit(1);
+    if (!mapping) throw new AdminAccessError(404, "Fixture mapping not found.");
+    await db.update(fixtureMappings).set({
+      status: "matched",
+      confidence: 1,
+      reviewedByEmail: actor.email,
+      reviewedAt: now,
+      updatedAt: now,
+    }).where(eq(fixtureMappings.id, id));
+  } else {
+    throw new AdminAccessError(400, "Unsupported mapping kind.");
+  }
+
+  await db.insert(auditLogs).values({
+    id: crypto.randomUUID(),
+    actorEmail: actor.email,
+    action: `${kind}.approved`,
+    entityType: kind,
+    entityId: id,
+  });
+  return { id, kind, status: "matched" as const };
 }
 
 export async function getRawSnapshot(actor: AdminActor, runId: string) {
@@ -338,4 +481,9 @@ function slugify(value: string) {
   const slug = value.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 48);
   return slug || "source";
+}
+
+export async function buildSourceId(name: string) {
+  const sourceNameChecksum = await sha256(name.trim().toLowerCase());
+  return `src_${slugify(name)}_${sourceNameChecksum.slice(0, 8)}`;
 }

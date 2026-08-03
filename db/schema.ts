@@ -56,7 +56,16 @@ export const ingestionRuns = sqliteTable(
     capturedAt: text("captured_at").notNull(),
     snapshotKey: text("snapshot_key").notNull(),
     checksumSha256: text("checksum_sha256").notNull(),
+    importFormat: text("import_format", { enum: ["json", "csv"] }).notNull().default("json"),
     recordCount: integer("record_count").notNull().default(0),
+    dataGrade: text("data_grade", { enum: ["A", "B", "C", "D"] }).notNull().default("D"),
+    qualityScore: integer("quality_score").notNull().default(0),
+    completenessScore: integer("completeness_score").notNull().default(0),
+    consistencyScore: integer("consistency_score").notNull().default(0),
+    freshnessScore: integer("freshness_score").notNull().default(0),
+    warningCount: integer("warning_count").notNull().default(0),
+    errorCount: integer("error_count").notNull().default(0),
+    recommendationEligible: integer("recommendation_eligible", { mode: "boolean" }).notNull().default(false),
     createdByEmail: text("created_by_email").notNull(),
     errorMessage: text("error_message"),
     completedAt: text("completed_at"),
@@ -66,6 +75,27 @@ export const ingestionRuns = sqliteTable(
     index("ingestion_runs_source_idx").on(table.sourceId),
     index("ingestion_runs_status_idx").on(table.status),
     index("ingestion_runs_captured_at_idx").on(table.capturedAt),
+  ],
+);
+
+export const ingestionIssues = sqliteTable(
+  "ingestion_issues",
+  {
+    id: text("id").primaryKey(),
+    ingestionRunId: text("ingestion_run_id").notNull().references(() => ingestionRuns.id),
+    severity: text("severity", { enum: ["warning", "error"] }).notNull(),
+    code: text("code").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityKey: text("entity_key"),
+    field: text("field"),
+    message: text("message").notNull(),
+    detailsJson: text("details_json").notNull().default("{}"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("ingestion_issues_run_idx").on(table.ingestionRunId),
+    index("ingestion_issues_severity_idx").on(table.severity),
+    index("ingestion_issues_code_idx").on(table.code),
   ],
 );
 
@@ -95,6 +125,30 @@ export const teams = sqliteTable(
   (table) => [index("teams_country_idx").on(table.countryCode)],
 );
 
+export const teamAliases = sqliteTable(
+  "team_aliases",
+  {
+    id: text("id").primaryKey(),
+    sourceId: text("source_id").notNull().references(() => dataSources.id),
+    externalTeamKey: text("external_team_key").notNull(),
+    externalTeamName: text("external_team_name").notNull(),
+    normalizedName: text("normalized_name").notNull(),
+    teamId: text("team_id").notNull().references(() => teams.id),
+    status: text("status", { enum: ["matched", "review"] }).notNull().default("review"),
+    confidence: real("confidence").notNull().default(0),
+    createdByRunId: text("created_by_run_id").references(() => ingestionRuns.id),
+    reviewedByEmail: text("reviewed_by_email"),
+    reviewedAt: text("reviewed_at"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("team_aliases_source_key_unique").on(table.sourceId, table.externalTeamKey),
+    index("team_aliases_team_idx").on(table.teamId),
+    index("team_aliases_status_idx").on(table.status),
+  ],
+);
+
 export const fixtures = sqliteTable(
   "fixtures",
   {
@@ -118,6 +172,31 @@ export const fixtures = sqliteTable(
     index("fixtures_league_kickoff_idx").on(table.leagueId, table.kickoffAt),
     index("fixtures_home_team_idx").on(table.homeTeamId),
     index("fixtures_away_team_idx").on(table.awayTeamId),
+  ],
+);
+
+export const fixtureMappings = sqliteTable(
+  "fixture_mappings",
+  {
+    id: text("id").primaryKey(),
+    sourceId: text("source_id").notNull().references(() => dataSources.id),
+    externalFixtureKey: text("external_fixture_key").notNull(),
+    fixtureId: text("fixture_id").notNull().references(() => fixtures.id),
+    homeTeamId: text("home_team_id").notNull().references(() => teams.id),
+    awayTeamId: text("away_team_id").notNull().references(() => teams.id),
+    sourceKickoffAt: text("source_kickoff_at").notNull(),
+    status: text("status", { enum: ["matched", "review"] }).notNull().default("review"),
+    confidence: real("confidence").notNull().default(0),
+    createdByRunId: text("created_by_run_id").references(() => ingestionRuns.id),
+    reviewedByEmail: text("reviewed_by_email"),
+    reviewedAt: text("reviewed_at"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("fixture_mappings_source_key_unique").on(table.sourceId, table.externalFixtureKey),
+    index("fixture_mappings_fixture_idx").on(table.fixtureId),
+    index("fixture_mappings_status_idx").on(table.status),
   ],
 );
 
