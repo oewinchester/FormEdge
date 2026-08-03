@@ -129,7 +129,7 @@ export const membershipEvents = sqliteTable(
     id: text("id").primaryKey(),
     userEmail: text("user_email").notNull().references(() => userProfiles.email),
     eventType: text("event_type", {
-      enum: ["onboarding_completed", "trial_started", "trial_expired", "access_changed", "plan_changed"],
+      enum: ["onboarding_completed", "trial_started", "trial_expired", "invitation_accepted", "access_changed", "plan_changed"],
     }).notNull(),
     fromPlan: text("from_plan", { enum: ["free", "pro", "expert"] }),
     toPlan: text("to_plan", { enum: ["free", "pro", "expert"] }),
@@ -171,6 +171,90 @@ export const userFeatureUsage = sqliteTable(
       table.resourceId,
     ),
     index("user_feature_usage_daily_idx").on(table.userEmail, table.feature, table.usageDay),
+  ],
+);
+
+export const betaProgramSettings = sqliteTable("beta_program_settings", {
+  id: text("id").primaryKey(),
+  capacityLimit: integer("capacity_limit").notNull().default(100),
+  invitationsEnabled: integer("invitations_enabled", { mode: "boolean" }).notNull().default(false),
+  invitationTtlHours: integer("invitation_ttl_hours").notNull().default(72),
+  updatedByEmail: text("updated_by_email"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const betaInvitations = sqliteTable(
+  "beta_invitations",
+  {
+    id: text("id").primaryKey(),
+    waitlistEntryId: text("waitlist_entry_id").notNull().references(() => betaWaitlistEntries.id),
+    email: text("email").notNull(),
+    displayName: text("display_name"),
+    locale: text("locale", { enum: ["tr", "en"] }).notNull().default("tr"),
+    tokenHash: text("token_hash").notNull(),
+    tokenCiphertext: text("token_ciphertext").notNull(),
+    tokenIv: text("token_iv").notNull(),
+    status: text("status", {
+      enum: ["queued", "sent", "accepted", "expired", "revoked", "failed"],
+    }).notNull().default("queued"),
+    deliveryStatus: text("delivery_status", {
+      enum: ["pending", "sent", "failed", "configuration_required"],
+    }).notNull().default("pending"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    availableAt: text("available_at").notNull(),
+    lastAttemptAt: text("last_attempt_at"),
+    lastErrorCode: text("last_error_code"),
+    expiresAt: text("expires_at").notNull(),
+    sentAt: text("sent_at"),
+    acceptedAt: text("accepted_at"),
+    revokedAt: text("revoked_at"),
+    createdByEmail: text("created_by_email").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("beta_invitations_token_hash_unique").on(table.tokenHash),
+    uniqueIndex("beta_invitations_idempotency_unique").on(table.idempotencyKey),
+    index("beta_invitations_status_available_idx").on(table.status, table.availableAt),
+    index("beta_invitations_email_status_idx").on(table.email, table.status),
+    index("beta_invitations_expiry_idx").on(table.expiresAt),
+  ],
+);
+
+export const publicRateLimitBuckets = sqliteTable(
+  "public_rate_limit_buckets",
+  {
+    id: text("id").primaryKey(),
+    scope: text("scope", { enum: ["global", "email", "network"] }).notNull(),
+    windowStartedAt: text("window_started_at").notNull(),
+    hitCount: integer("hit_count").notNull().default(1),
+    expiresAt: text("expires_at").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("public_rate_limit_scope_window_idx").on(table.scope, table.windowStartedAt),
+    index("public_rate_limit_expiry_idx").on(table.expiresAt),
+  ],
+);
+
+export const betaOperationRuns = sqliteTable(
+  "beta_operation_runs",
+  {
+    id: text("id").primaryKey(),
+    trigger: text("trigger", { enum: ["admin", "scheduler"] }).notNull(),
+    status: text("status", { enum: ["processing", "completed", "failed"] }).notNull(),
+    actorEmail: text("actor_email"),
+    resultJson: text("result_json").notNull().default("{}"),
+    errorCode: text("error_code"),
+    startedAt: text("started_at").notNull(),
+    completedAt: text("completed_at"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("beta_operation_runs_status_time_idx").on(table.status, table.startedAt),
   ],
 );
 

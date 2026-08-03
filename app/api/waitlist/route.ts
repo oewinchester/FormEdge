@@ -1,4 +1,5 @@
 import { ModelLabValidationError } from "@/lib/model-lab";
+import { BetaAccessHttpError } from "@/lib/beta-access-store";
 import { submitBetaWaitlist, type WaitlistInput } from "@/lib/membership-store";
 
 export const dynamic = "force-dynamic";
@@ -11,15 +12,29 @@ export async function POST(request: Request) {
   try {
     let body: WaitlistInput;
     try {
-      body = await request.json() as WaitlistInput;
+      const rawBody = await request.text();
+      if (new TextEncoder().encode(rawBody).byteLength > 8_192) {
+        return Response.json({ error: "İstek boyutu sınırı aşıldı." }, { status: 413 });
+      }
+      body = JSON.parse(rawBody) as WaitlistInput;
     } catch {
       return Response.json({ error: "Geçerli JSON gereklidir." }, { status: 400 });
     }
-    return Response.json(await submitBetaWaitlist(body), {
+    return Response.json(await submitBetaWaitlist(body, {
+      networkAddress: request.headers.get("cf-connecting-ip"),
+    }), {
       status: 202,
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
+    if (error instanceof BetaAccessHttpError) {
+      return Response.json({ error: error.message, code: error.code }, {
+        status: error.status,
+        headers: error.retryAfterSeconds
+          ? { "Retry-After": String(error.retryAfterSeconds), "Cache-Control": "no-store" }
+          : { "Cache-Control": "no-store" },
+      });
+    }
     if (error instanceof ModelLabValidationError) {
       return Response.json({ error: error.message }, { status: 400 });
     }

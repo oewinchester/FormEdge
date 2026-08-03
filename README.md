@@ -7,7 +7,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.6.0 · Checkpoint 15 · Aşama 6 / Controlled Beta Membership & Onboarding**
+**v0.6.1 · Checkpoint 16 · Aşama 6 / Controlled Beta Access Operations**
 
 - Responsive, 3D destekli ürün landing sayfası
 - D1 tabanlı futbol veri çekirdeği ve R2 ham veri arşivi
@@ -79,7 +79,15 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 - Beta boyunca kart istemeyen, tek kullanımlık ve tam 72 saat süren Pro deneme yaşam döngüsü
 - Onboarding, risk testi, trial başlangıcı/bitişi ve erişim değişikliklerini append-only üyelik olaylarında saklayan denetim izi
 - Kullanıcı için üyelik/profil merkezi; yönetici için PII-korumalı, salt-okunur waitlist ve Member Ops konsolu
-- Davet gönderimini public kimlik sağlayıcısı, hız limiti, e-posta teslimi ve kapasite kilidi tamamlanana kadar kapatan CP16 kapısı
+- Public erişim, beta bayrağı, desteklenen kimlik, e-posta relay’i, scheduler, token şifreleme, ağ hız limiti ve canonical origin birlikte doğrulanmadan davetleri açmayan sekiz maddeli fail-closed hazırlık kapısı
+- İlk beta için yönetici tarafından 100–300 arasında ayarlanan; aktif kullanıcı ve gönderilmemiş/gönderilmiş davetleri atomik olarak birlikte sayan kapasite rezervasyonu
+- Yalnız SHA-256 lookup hash’i ve AES-GCM ciphertext’i saklanan, açık metni hiçbir yönetici API’sine dönmeyen, tam 72 saatlik tekil davet tokenı
+- Davet edilen e-posta ile ChatGPT SIWC oturum e-postasının birebir eşleşmesini zorunlu tutan idempotent kabul ve onboarding geçişi
+- Yapılandırılabilir HTTPS e-posta relay’i, en fazla üç teslim denemesi, geri alma/yeniden deneme ve kalıcı teslim durumu sunan davet outbox’ı
+- Global, e-posta ve gizli anahtarla hash’lenen ağ kapsamlarında sabit pencereli public waitlist hız limiti; ham IP adresini saklamayan veri minimizasyonu
+- Süresi dolan davetleri ve 72 saatlik Pro trial’ları kapatan, hız limiti kovalarını temizleyen ve davet kuyruğunu işleyen secret-authenticated bakım endpoint’i
+- Yöneticiye yazma, analiz editörüne salt-okunur görünüm veren kapasite, hazırlık matrisi, waitlist, davet outbox’ı ve operasyon geçmişi içeren Member Ops konsolu
+- Google, Apple ve e-posta/şifre girişini sahte OAuth akışı üretmeden dış kimlik sağlayıcısı aktivasyon kapısında tutan platform sözleşmesi; mevcut Sites çalışma yolunda yalnız ChatGPT SIWC desteklenir
 
 ## Sürüm ve checkpoint yol haritası
 
@@ -96,13 +104,13 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.5.0 | CP12 | De-vig piyasa uzlaşısı, değişmez oran/değer kanıtı ve anomali kontrolleri | Tamamlandı |
 | v0.5.1 | CP13 | Kadro/bağlam yeniden skoru, kupon korelasyon kontrolü ve çeyrek-Kelly kasa defteri | Tamamlandı |
 | v0.5.2 | CP14 | İdempotent outbox, web içi bildirim merkezi, Web Push/Telegram adaptörleri ve Notification Ops | Tamamlandı |
-| **v0.6.0** | **CP15** | **Waitlist, onboarding/risk testi, Free–Pro–Expert entitlement ve kartsız 72 saatlik deneme temeli** | **Mevcut** |
-| v0.6.1 | CP16 | Public kimlik sağlayıcısı, davet/kapasite operasyonu, zamanlayıcı ve 100–300 kişilik kontrollü beta açılışı | Planlandı |
+| v0.6.0 | CP15 | Waitlist, onboarding/risk testi, Free–Pro–Expert entitlement ve kartsız 72 saatlik deneme temeli | Tamamlandı |
+| **v0.6.1** | **CP16** | **Fail-closed davet/kapasite operasyonu, şifreli token, rate limit, teslim outbox’ı ve zamanlayıcı sözleşmesi** | **Mevcut** |
 | v0.7 | CP17 | Shadow validation, drift takibi, performans ve fiyat araştırması | Planlandı |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 
-Ücretli veya herkese açık beta öncesindeki dış bağımlılık kapıları: 3–5 lisanslı pilot lig kaynağı, public kimlik sağlayıcısı, zamanlayıcı, veri revizyon zamanları, şirket/ödeme altyapısı ve ülke bazlı hukuk incelemesidir. Bu kapılar kapanmadan model araştırması ilerleyebilir; kullanıcıya bahis önerisi yayını ilerleyemez.
+Ücretli veya herkese açık beta öncesindeki dış bağımlılık kapıları: 3–5 lisanslı pilot lig kaynağı, public site erişimi, üretim kimlik sağlayıcısı, e-posta relay’i, zamanlayıcı, veri revizyon zamanları, şirket/ödeme altyapısı ve ülke bazlı hukuk incelemesidir. CP16 bu bağımlılıkların kod ve operasyon sözleşmesini hazırlar; bunları varmış gibi göstermez. Kapılar kapanmadan model araştırması ilerleyebilir, kullanıcı daveti ve bahis önerisi yayını ilerleyemez.
 
 ## Model güvenlik kuralları
 
@@ -146,6 +154,11 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 38. Bekleme listesine kayıt ürün erişimi vermez; normal kullanıcı için aktif davet ve tamamlanmış onboarding birlikte gerekir.
 39. Beta Pro denemesi tek kullanımlık, kartsız ve tam 72 saattir; süre sonunda ücret veya otomatik abonelik oluşmaz.
 40. Paket kısıtları yalnız arayüzde gizlenmez; geçmiş, kupon ve dış bildirim işlemleri sunucu tarafında aynı entitlement sözleşmesiyle doğrulanır.
+41. Beta daveti sekiz dış hazırlık kapısının tamamı açıkça doğrulanmadan etkinleştirilemez; eksik konfigürasyon başarısız değil hazır gibi gösterilemez.
+42. Davet tokenının açık metni D1’de, loglarda, yönetici yanıtlarında veya Git geçmişinde tutulamaz; lookup için hash, kontrollü yeniden teslim için AES-GCM ciphertext kullanılır.
+43. Beta kapasitesi 100–300 aralığındadır; aktif kullanıcılar ile etkin davet rezervasyonları aynı atomik ekleme sorgusunda birlikte sayılır.
+44. Davet kabulü yalnız token etkin, süre dolmamış ve oturum e-postası davet e-postasıyla eşleşmişse yapılabilir; tekrar kabul aynı üyelik olayını çoğaltamaz.
+45. Scheduler ve ağ hız limiti sırları en az 32 karakter olmalı, kaynak koda yazılmamalı ve public API yanıtlarına dönmemelidir.
 
 ## Teknoloji
 
@@ -157,7 +170,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Veri depolama mimarisi
 
-- **D1 ana ilişkisel veritabanıdır:** lig, takım, fikstür, istatistik, oran ve bağlam snapshotları, de-vig değer kanıtı, model kanıtı, tahmin yaşam döngüsü, waitlist, kullanıcı profili, risk testi, üyelik olayları, günlük özellik kullanımı, tercih, izleme listesi, kasa/kupon defteri, performans settlement kayıtları, bildirim outbox’ı ve kanal teslimleri burada tutulur.
+- **D1 ana ilişkisel veritabanıdır:** lig, takım, fikstür, istatistik, oran ve bağlam snapshotları, de-vig değer kanıtı, model kanıtı, tahmin yaşam döngüsü, waitlist, şifreli beta davetleri, kapasite ayarı, hız limiti kovaları, erişim operasyon koşuları, kullanıcı profili, risk testi, üyelik olayları, günlük özellik kullanımı, tercih, izleme listesi, kasa/kupon defteri, performans settlement kayıtları, bildirim outbox’ı ve kanal teslimleri burada tutulur.
 - **R2 ham ve büyük nesne katmanıdır:** kaynak snapshotları, kontrollü import dosyaları ve gelecekte üretilecek PDF/CSV dışa aktarımları burada tutulur.
 - MVP için ayrı bir PostgreSQL veya analitik veritabanı gerekmez. Trafik ve tarihsel hacim D1 sorgu sınırlarını anlamlı biçimde aşarsa yalnız raporlama amaçlı bir warehouse eklenir; ürünün doğruluk kaynağı D1 kalır.
 - Tarayıcı depolaması kalıcı ürün verisi için kullanılmaz; yalnız geçici arayüz durumu için kullanılabilir.
@@ -168,6 +181,18 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 - Telegram için `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` ve `TELEGRAM_WEBHOOK_SECRET` gerekir. Telegram webhook hedefi `/api/integrations/telegram/webhook` rotasıdır.
 - Bu değerlerin hiçbiri kaynak koda veya Git geçmişine yazılmaz. Eksik yapılandırma `configuration_required` olarak görünür; başarılı teslim gibi sayılmaz.
 - Zamanlayıcı bağlanana kadar yeni outbox kayıtları Notification Ops üzerinden uzlaştırılıp işlenebilir. Otomatik periyodik işleme davetli beta açılmadan önce zorunlu operasyon kapısıdır.
+
+## Kontrollü beta aktivasyonu
+
+CP16 davet operasyonunu varsayılan olarak kapalı getirir. Açılabilmesi için üretim ortamında aşağıdaki değerlerin tamamı gerekir:
+
+- `PUBLIC_SITE_ACCESS_CONFIRMED=true` ve `PUBLIC_BETA_ENABLED=true`
+- Mevcut Sites kimlik yolu için `PUBLIC_IDENTITY_PROVIDER=chatgpt_siwc`; Google, Apple ve e-posta/şifre ayrı sağlayıcı entegrasyonu tamamlanana kadar planlı kalır
+- HTTPS canonical adresi için `PUBLIC_APP_ORIGIN`
+- Relay sözleşmesi için `INVITE_EMAIL_ENDPOINT`, `INVITE_EMAIL_TOKEN` ve `INVITE_EMAIL_FROM`
+- Birbirinden bağımsız, en az 32 karakterlik `INVITE_TOKEN_SECRET`, `WAITLIST_RATE_LIMIT_SECRET` ve `MEMBERSHIP_SCHEDULER_SECRET`
+
+Scheduler, `POST /api/integrations/membership/scheduler` isteğinde `x-formedge-scheduler-secret` başlığını doğrular. Hiçbir secret kaynak koda, migration’a veya istemci yanıtına yazılmaz.
 
 ## Ana dizinler
 
@@ -199,6 +224,8 @@ lib/notification-engine.ts       Saf olay yönlendirme, kanal planlama ve outbox
 lib/notification-store.ts        D1 outbox, web içi kayıt, Web Push/Telegram adaptörleri ve Notification Ops
 lib/membership-engine.ts         Risk testi, Free/Pro/Expert entitlement ve 72 saatlik trial sözleşmesi
 lib/membership-store.ts          Waitlist, onboarding, üyelik olayları, kullanım limiti ve Member Ops D1 akışı
+lib/beta-access-engine.ts        Kapasite, hazırlık, davet süresi ve kabul için saf fail-closed sözleşme
+lib/beta-access-store.ts         Şifreli davet outbox’ı, rate limit, scheduler ve kontrollü beta D1 operasyonları
 lib/user-account-store.ts        Ürün profili ve kullanıcı tercihleri için idempotent hesap başlangıcı
 lib/admin-data.ts            Veri alımı, kalite ve yönetici yetkilendirmesi
 tests/                       Veri ve model güvenlik testleri

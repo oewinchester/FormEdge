@@ -24,6 +24,10 @@ import {
 import { ModelLabValidationError } from "@/lib/model-lab";
 import { ensureUserProductAccount } from "@/lib/user-account-store";
 import type { AdminActor } from "@/lib/admin-data";
+import {
+  enforceWaitlistRateLimit,
+  getBetaProgramOverview,
+} from "@/lib/beta-access-store";
 
 export type WaitlistInput = Parameters<typeof normalizeWaitlistInput>[0] & {
   website?: unknown;
@@ -52,11 +56,18 @@ export class MembershipAccessError extends Error {
   }
 }
 
-export async function submitBetaWaitlist(input: WaitlistInput) {
+export async function submitBetaWaitlist(
+  input: WaitlistInput,
+  context: { networkAddress?: string | null } = {},
+) {
   if (typeof input.website === "string" && input.website.trim()) {
     return publicWaitlistReceipt();
   }
   const normalized = normalizeWaitlistInput(input);
+  await enforceWaitlistRateLimit({
+    email: normalized.email,
+    networkAddress: context.networkAddress,
+  });
   const db = await getDb();
   const [existing] = await db.select().from(betaWaitlistEntries)
     .where(eq(betaWaitlistEntries.email, normalized.email)).limit(1);
@@ -390,6 +401,8 @@ export async function getAdminMembershipOverview(actor: AdminActor) {
     db.select({ email: appMembers.email }).from(appMembers).where(eq(appMembers.status, "active")),
   ]);
   const internalEmails = new Set(internalRows.map((row) => row.email));
+  const redactPii = actor.role === "editor";
+  const betaProgram = await getBetaProgramOverview(actor);
   return {
     generatedAt: new Date().toISOString(),
     actor,
@@ -401,17 +414,17 @@ export async function getAdminMembershipOverview(actor: AdminActor) {
     },
     waitlist: waitlist.map((row) => ({
       id: row.id,
-      email: row.email,
-      displayName: row.displayName,
+      email: redactPii ? maskMemberEmail(row.email) : row.email,
+      displayName: redactPii ? null : row.displayName,
       locale: row.locale,
-      countryCode: row.countryCode,
+      countryCode: redactPii ? "—" : row.countryCode,
       status: row.status,
       createdAt: row.createdAt,
       invitedAt: row.invitedAt,
     })),
     members: profiles.map((profile) => ({
-      email: profile.email,
-      displayName: profile.displayName,
+      email: redactPii ? maskMemberEmail(profile.email) : profile.email,
+      displayName: redactPii ? "Gizli kullanıcı" : profile.displayName,
       storedPlan: profile.plan,
       subscriptionStatus: profile.subscriptionStatus,
       betaAccessStatus: internalEmails.has(profile.email) ? "active" as const : profile.betaAccessStatus,
@@ -423,11 +436,12 @@ export async function getAdminMembershipOverview(actor: AdminActor) {
     policy: {
       membershipPolicyVersion: MEMBERSHIP_POLICY_VERSION,
       plans: PLAN_ENTITLEMENTS,
-      publicIdentityProviderReady: false,
-      invitationsEnabled: false,
+      publicIdentityProviderReady: betaProgram.readiness.checks.identityProvider,
+      invitationsEnabled: betaProgram.settings.invitationsEnabled,
       cardlessTrialEnabled: true,
       targetBetaSize: { minimum: 100, maximum: 300 },
     },
+    betaProgram,
   };
 }
 
@@ -502,6 +516,12 @@ function groupedCounts(rows: Array<Record<string, unknown> & { total: number }>)
     if (typeof key === "string") result[key] = Number(row.total);
   }
   return result;
+}
+
+function maskMemberEmail(value: string) {
+  const [local, domain] = value.split("@");
+  if (!local || !domain) return "•••";
+  return `${local.slice(0, 2)}${"•".repeat(Math.max(2, Math.min(8, local.length - 2)))}@${domain}`;
 }
 
 function parseJson<T>(value: string, fallback: T): T {

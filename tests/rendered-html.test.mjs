@@ -71,6 +71,15 @@ test("renders the public controlled-beta waitlist form", async () => {
   assert.match(html, /Kart bilgisi/i);
 });
 
+test("renders a fail-closed wall for an invalid beta invitation", async () => {
+  const response = await renderRoute("/invite/invalid");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Davet bağlantısı geçersiz/i);
+  assert.match(html, /CONTROLLED BETA/i);
+  assert.match(html, /HASHED TOKEN · EMAIL MATCH/i);
+});
+
 test("renders the signed-out Member Ops protection wall", async () => {
   const response = await renderRoute("/admin/member-ops");
   assert.equal(response.status, 200);
