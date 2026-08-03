@@ -266,7 +266,7 @@ function HeroFootball() {
       const bounds = new THREE.Box3().setFromObject(model);
       const center = bounds.getCenter(new THREE.Vector3());
       const size = bounds.getSize(new THREE.Vector3());
-      const scale = 3.75 / Math.max(size.x, size.y, size.z, 0.001);
+      const scale = 2.82 / Math.max(size.x, size.y, size.z, 0.001);
       model.position.set(-center.x, -center.y, -center.z);
       model.scale.setScalar(scale);
       model.traverse((object) => {
@@ -450,7 +450,7 @@ export function FormEdgeExperience() {
         <div className="header-actions">
           <button className="language" type="button" onClick={() => setLanguage(language === "tr" ? "en" : "tr")}>{language === "tr" ? "EN" : "TR"}</button>
           <button className="header-icon notification" type="button" aria-label={tx("Bildirimler", "Notifications")}><Bell size={19} /><i>2</i></button>
-          <button className="login" type="button"><UserRound size={18} /><span>{tx("Giriş", "Sign in")}</span></button>
+          <button className="login" type="button" onClick={() => window.location.assign("/admin")}><UserRound size={18} /><span>{tx("Giriş", "Sign in")}</span></button>
           <button className="trial" type="button" onClick={() => scrollTo("#paketler")}>{tx("Beta listesine katıl", "Join the beta")}<ArrowUpRight size={16} /></button>
         </div>
       </header>
