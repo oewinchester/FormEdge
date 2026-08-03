@@ -24,6 +24,16 @@ test("renders the signed-out Model Lab protection wall", async () => {
   assert.match(html, /signin-with-chatgpt/i);
 });
 
+test("renders the signed-out Research Feed protection wall", async () => {
+  const response = await renderRoute("/admin/research-feed");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Araştırma veri akışı korumalıdır/i);
+  assert.match(html, /PUBLIC CSV · RESEARCH ONLY/i);
+  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /admin%2Fresearch-feed|admin\/research-feed/i);
+});
+
 test("renders the signed-out Prediction Ops protection wall", async () => {
   const response = await renderRoute("/admin/predictions");
   assert.equal(response.status, 200);

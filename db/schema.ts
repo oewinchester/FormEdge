@@ -314,6 +314,47 @@ export const ingestionRuns = sqliteTable(
   ],
 );
 
+export const researchSourceRuns = sqliteTable(
+  "research_source_runs",
+  {
+    id: text("id").primaryKey(),
+    sourceId: text("source_id").notNull().references(() => dataSources.id),
+    ingestionRunId: text("ingestion_run_id").references(() => ingestionRuns.id),
+    adapterVersion: text("adapter_version").notNull(),
+    leagueCode: text("league_code").notNull(),
+    leagueId: text("league_id").notNull(),
+    seasonCode: text("season_code").notNull(),
+    seasonLabel: text("season_label").notNull(),
+    upstreamUrl: text("upstream_url").notNull(),
+    status: text("status", {
+      enum: ["fetching", "imported", "unchanged", "failed"],
+    }).notNull().default("fetching"),
+    httpStatus: integer("http_status"),
+    responseContentType: text("response_content_type"),
+    upstreamEtag: text("upstream_etag"),
+    upstreamLastModified: text("upstream_last_modified"),
+    rawSnapshotKey: text("raw_snapshot_key"),
+    rawChecksumSha256: text("raw_checksum_sha256"),
+    contentBytes: integer("content_bytes").notNull().default(0),
+    sourceRowCount: integer("source_row_count").notNull().default(0),
+    importedStatRowCount: integer("imported_stat_row_count").notNull().default(0),
+    ignoredOddsColumnCount: integer("ignored_odds_column_count").notNull().default(0),
+    revisionVerified: integer("revision_verified", { mode: "boolean" }).notNull().default(false),
+    researchOnly: integer("research_only", { mode: "boolean" }).notNull().default(true),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    requestedByEmail: text("requested_by_email").notNull(),
+    startedAt: text("started_at").notNull(),
+    completedAt: text("completed_at"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("research_source_runs_league_season_time_idx").on(table.leagueCode, table.seasonCode, table.startedAt),
+    index("research_source_runs_status_time_idx").on(table.status, table.startedAt),
+    index("research_source_runs_checksum_idx").on(table.rawChecksumSha256),
+  ],
+);
+
 export const ingestionIssues = sqliteTable(
   "ingestion_issues",
   {

@@ -7,10 +7,16 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.6.1 · Checkpoint 16 · Aşama 6 / Controlled Beta Access Operations**
+**v0.7.0-alpha.1 · Checkpoint 17A · Aşama 7 / Research Data Feed & Backtest Bootstrap**
 
 - Responsive, 3D destekli ürün landing sayfası
 - D1 tabanlı futbol veri çekirdeği ve R2 ham veri arşivi
+- Football-Data.co.uk public CSV uçlarını yalnız sabit lig/sezon allowlist’i üzerinden alan, yönlendirmeyi kapatan ve dosya boyutunu 3 MB ile sınırlayan araştırma adaptörü
+- Süper Lig, Premier League, Bundesliga, La Liga ve Serie A için 2021-22–2025-26 arası 25 sezonluk kontrollü başlangıç kuyruğu
+- Her kaynak çekimini HTTP sonucu, ETag/Last-Modified, SHA-256 içerik kimliği, ham R2 anahtarı, adaptör sürümü ve yönetici kimliğiyle D1 provenance defterinde saklayan veri hattı
+- Kesin tarihsel capture zamanı bulunmadığı için oran sütunlarını yalnız ham CSV’de koruyan; `oddsSnapshots`, değer hesabı ve öneri kapısına yazmayan güvenlik politikası
+- Kaynak revizyon zamanı ve ticari yeniden kullanım hakkı doğrulanana kadar bütün Football-Data importlarını zorunlu `research-only` tutan fail-closed kapı
+- Yöneticiye tek sezon veya eksik sezonları sıralı çekme, editöre salt-okunur durum, çekim geçmişi ve Model Lab aktarımı sunan responsive Research Feed konsolu
 - Yönetici/analiz editörü için korumalı veri konsolu
 - JSON ve kontrollü CSV önizleme/import akışı
 - Veri kalite puanı, eşleme incelemesi ve öneri uygunluk kapısı
@@ -105,12 +111,13 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.5.1 | CP13 | Kadro/bağlam yeniden skoru, kupon korelasyon kontrolü ve çeyrek-Kelly kasa defteri | Tamamlandı |
 | v0.5.2 | CP14 | İdempotent outbox, web içi bildirim merkezi, Web Push/Telegram adaptörleri ve Notification Ops | Tamamlandı |
 | v0.6.0 | CP15 | Waitlist, onboarding/risk testi, Free–Pro–Expert entitlement ve kartsız 72 saatlik deneme temeli | Tamamlandı |
-| **v0.6.1** | **CP16** | **Fail-closed davet/kapasite operasyonu, şifreli token, rate limit, teslim outbox’ı ve zamanlayıcı sözleşmesi** | **Mevcut** |
-| v0.7 | CP17 | Shadow validation, drift takibi, performans ve fiyat araştırması | Planlandı |
+| v0.6.1 | CP16 | Fail-closed davet/kapasite operasyonu, şifreli token, rate limit, teslim outbox’ı ve zamanlayıcı sözleşmesi | Tamamlandı |
+| **v0.7.0-alpha.1** | **CP17A** | **Allowlist public CSV adaptörü, R2 ham arşiv, D1 provenance, 25 sezonluk araştırma kuyruğu ve backtest bootstrap konsolu** | **Mevcut** |
+| v0.7.0-alpha.2 | CP17B | Gerçek veri üzerinde sıralı dataset/backtest koşuları, shadow validation, drift ve lig × model karşılaştırması | Planlandı |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 
-Ücretli veya herkese açık beta öncesindeki dış bağımlılık kapıları: 3–5 lisanslı pilot lig kaynağı, public site erişimi, üretim kimlik sağlayıcısı, e-posta relay’i, zamanlayıcı, veri revizyon zamanları, şirket/ödeme altyapısı ve ülke bazlı hukuk incelemesidir. CP16 bu bağımlılıkların kod ve operasyon sözleşmesini hazırlar; bunları varmış gibi göstermez. Kapılar kapanmadan model araştırması ilerleyebilir, kullanıcı daveti ve bahis önerisi yayını ilerleyemez.
+Ücretli veya herkese açık beta öncesindeki dış bağımlılık kapıları: 3–5 lisanslı pilot lig kaynağı, public site erişimi, üretim kimlik sağlayıcısı, e-posta relay’i, zamanlayıcı, veri revizyon zamanları, şirket/ödeme altyapısı ve ülke bazlı hukuk incelemesidir. CP17A gerçek tarihsel maç verisiyle model araştırmasını başlatır; kaynağı üretim lisanslı veya tarihsel oranları point-in-time kanıtlı gibi göstermez. Kapılar kapanmadan model araştırması ilerleyebilir, kullanıcı daveti ve bahis önerisi yayını ilerleyemez.
 
 ## Model güvenlik kuralları
 
@@ -159,6 +166,11 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 43. Beta kapasitesi 100–300 aralığındadır; aktif kullanıcılar ile etkin davet rezervasyonları aynı atomik ekleme sorgusunda birlikte sayılır.
 44. Davet kabulü yalnız token etkin, süre dolmamış ve oturum e-postası davet e-postasıyla eşleşmişse yapılabilir; tekrar kabul aynı üyelik olayını çoğaltamaz.
 45. Scheduler ve ağ hız limiti sırları en az 32 karakter olmalı, kaynak koda yazılmamalı ve public API yanıtlarına dönmemelidir.
+46. Haricî araştırma çekimleri yalnız derleme zamanında sabitlenmiş lig ve sezon allowlist’inden üretilebilir; istemci URL, host veya path gönderemez ve yönlendirme izlenmez.
+47. Football-Data CSV’sindeki tarihsel oran kolonları kesin capture zamanı taşımadığı için `oddsSnapshots` tablosuna, değer motoruna veya yayın kanıtına yazılamaz; yalnız değişmez ham dosyada kalır.
+48. Kaynak revizyon zamanı ve ticari yeniden kullanım izni açıkça doğrulanmadığı sürece bu adaptörden gelen her ingestion zorunlu research-only kalır ve recommendation-eligible olamaz.
+49. Her haricî çekim dosya boyutu, içerik şeması, lig kodu, skor–sonuç tutarlılığı ve tekrar fikstür açısından doğrulanmalı; ham dosya SHA-256 ile R2’de, provenance kaydı D1’de saklanmalıdır.
+50. Research Feed sayfa açılışında veya zamanlayıcıyla kendiliğinden haricî veri çekemez; mutasyon yalnız admin eylemiyle başlar, editör salt-okunur kalır ve kullanıcı başına saatlik sınır uygulanır.
 
 ## Teknoloji
 
@@ -171,7 +183,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 ## Veri depolama mimarisi
 
 - **D1 ana ilişkisel veritabanıdır:** lig, takım, fikstür, istatistik, oran ve bağlam snapshotları, de-vig değer kanıtı, model kanıtı, tahmin yaşam döngüsü, waitlist, şifreli beta davetleri, kapasite ayarı, hız limiti kovaları, erişim operasyon koşuları, kullanıcı profili, risk testi, üyelik olayları, günlük özellik kullanımı, tercih, izleme listesi, kasa/kupon defteri, performans settlement kayıtları, bildirim outbox’ı ve kanal teslimleri burada tutulur.
-- **R2 ham ve büyük nesne katmanıdır:** kaynak snapshotları, kontrollü import dosyaları ve gelecekte üretilecek PDF/CSV dışa aktarımları burada tutulur.
+- **R2 ham ve büyük nesne katmanıdır:** kaynak snapshotları, allowlist üzerinden çekilen değişmez araştırma CSV’leri, kontrollü import dosyaları ve gelecekte üretilecek PDF/CSV dışa aktarımları burada tutulur.
 - MVP için ayrı bir PostgreSQL veya analitik veritabanı gerekmez. Trafik ve tarihsel hacim D1 sorgu sınırlarını anlamlı biçimde aşarsa yalnız raporlama amaçlı bir warehouse eklenir; ürünün doğruluk kaynağı D1 kalır.
 - Tarayıcı depolaması kalıcı ürün verisi için kullanılmaz; yalnız geçici arayüz durumu için kullanılabilir.
 
@@ -226,6 +238,8 @@ lib/membership-engine.ts         Risk testi, Free/Pro/Expert entitlement ve 72 s
 lib/membership-store.ts          Waitlist, onboarding, üyelik olayları, kullanım limiti ve Member Ops D1 akışı
 lib/beta-access-engine.ts        Kapasite, hazırlık, davet süresi ve kabul için saf fail-closed sözleşme
 lib/beta-access-store.ts         Şifreli davet outbox’ı, rate limit, scheduler ve kontrollü beta D1 operasyonları
+lib/football-data-source.ts      Allowlist URL üretimi ve saf Football-Data CSV doğrulama/normalizasyon adaptörü
+lib/football-data-source-store.ts Haricî çekim, R2 ham arşiv, D1 provenance ve research-only import orkestrasyonu
 lib/user-account-store.ts        Ürün profili ve kullanıcı tercihleri için idempotent hesap başlangıcı
 lib/admin-data.ts            Veri alımı, kalite ve yönetici yetkilendirmesi
 tests/                       Veri ve model güvenlik testleri

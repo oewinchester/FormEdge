@@ -14,6 +14,7 @@ import {
   ChevronRight,
   CloudSun,
   Database,
+  DatabaseZap,
   FlaskConical,
   Gauge,
   GitBranch,
@@ -568,6 +569,7 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
         <a className="admin-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a>
         <nav>
           <a href="/admin"><Database size={17} />Veri konsolu</a>
+          <a href="/admin/research-feed"><DatabaseZap size={17} />Research Feed</a>
           <a className="active" href="#overview"><FlaskConical size={17} />Model Lab</a>
           <a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a>
           <a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a>

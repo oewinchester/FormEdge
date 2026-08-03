@@ -13,6 +13,7 @@ import {
   ChevronRight,
   CloudSun,
   Database,
+  DatabaseZap,
   FileJson2,
   FileSpreadsheet,
   Fingerprint,
@@ -275,6 +276,7 @@ export function AdminConsole({ user, signOutPath }: Props) {
           <a href="#import"><UploadCloud size={17} />Veri içe aktar</a>
           <a href="#mappings"><GitMerge size={17} />Eşleme kuyruğu</a>
           <a href="#runs"><Fingerprint size={17} />Snapshot geçmişi</a>
+          <a href="/admin/research-feed"><DatabaseZap size={17} />Research Feed</a>
           <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>
           <a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a>
           <a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a>

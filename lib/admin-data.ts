@@ -31,6 +31,7 @@ export type AdminActor = {
 export type ImportOptions = {
   importFormat?: "json" | "csv";
   externalIssues?: DataQualityIssue[];
+  forceResearchOnlyReason?: string;
 };
 
 export class AdminAccessError extends Error {
@@ -259,8 +260,8 @@ export async function importFootballSnapshot(
       },
     });
 
-    if (payload.teams.length) {
-      await db.insert(teams).values(payload.teams.map((team) => ({ ...team, updatedAt: now })))
+    for (const rows of chunks(payload.teams, 40)) {
+      await db.insert(teams).values(rows.map((team) => ({ ...team, updatedAt: now })))
         .onConflictDoUpdate({
           target: teams.id,
           set: {
@@ -272,8 +273,8 @@ export async function importFootballSnapshot(
         });
     }
 
-    if (payload.fixtures.length) {
-      await db.insert(fixtures).values(payload.fixtures.map((fixture) => ({
+    for (const rows of chunks(payload.fixtures, 35)) {
+      await db.insert(fixtures).values(rows.map((fixture) => ({
         ...fixture,
         leagueId: payload.league.id,
         season: payload.season,
@@ -294,8 +295,8 @@ export async function importFootballSnapshot(
       });
     }
 
-    if (payload.stats.length) {
-      await db.insert(teamMatchStats).values(payload.stats.map((stat) => ({
+    for (const rows of chunks(payload.stats, 35)) {
+      await db.insert(teamMatchStats).values(rows.map((stat) => ({
         ...stat,
         ingestionRunId: runId,
         updatedAt: now,
@@ -316,16 +317,16 @@ export async function importFootballSnapshot(
       });
     }
 
-    if (payload.odds.length) {
-      await db.insert(oddsSnapshots).values(payload.odds.map((odd) => ({
+    for (const rows of chunks(payload.odds, 35)) {
+      await db.insert(oddsSnapshots).values(rows.map((odd) => ({
         ...odd,
         id: `${odd.id}:${runId}`,
         ingestionRunId: runId,
       }))).onConflictDoNothing();
     }
 
-    if (payload.lineups.length) {
-      await db.insert(lineupSnapshots).values(payload.lineups.map((lineup) => ({
+    for (const rows of chunks(payload.lineups, 25)) {
+      await db.insert(lineupSnapshots).values(rows.map((lineup) => ({
         id: `${lineup.id}:${runId}`,
         fixtureId: lineup.fixtureId,
         teamId: lineup.teamId,
@@ -338,10 +339,22 @@ export async function importFootballSnapshot(
     }
 
     const importedRecords = recordCount(payload);
-    const quality = evaluatePayloadQuality(payload, {
+    const externalIssues = [...(options.externalIssues ?? [])];
+    if (options.forceResearchOnlyReason) {
+      externalIssues.push({
+        severity: "warning",
+        code: "FORCED_RESEARCH_ONLY",
+        entityType: "source",
+        message: options.forceResearchOnlyReason,
+      });
+    }
+    const evaluatedQuality = evaluatePayloadQuality(payload, {
       capturedAt: envelope.capturedAt,
-      externalIssues: options.externalIssues,
+      externalIssues,
     });
+    const quality = options.forceResearchOnlyReason
+      ? { ...evaluatedQuality, recommendationEligible: false }
+      : evaluatedQuality;
     if (quality.issues.length) {
       await db.insert(ingestionIssues).values(quality.issues.map((item) => ({
         id: crypto.randomUUID(),
@@ -374,7 +387,13 @@ export async function importFootballSnapshot(
       action: "snapshot.imported",
       entityType: "ingestion_run",
       entityId: runId,
-      detailsJson: JSON.stringify({ sourceId, snapshotKey, checksumSha256, importedRecords }),
+      detailsJson: JSON.stringify({
+        sourceId,
+        snapshotKey,
+        checksumSha256,
+        importedRecords,
+        forceResearchOnlyReason: options.forceResearchOnlyReason ?? null,
+      }),
     });
 
     return { runId, sourceId, snapshotKey, checksumSha256, recordCount: importedRecords, quality };
@@ -481,6 +500,12 @@ function slugify(value: string) {
   const slug = value.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 48);
   return slug || "source";
+}
+
+function chunks<T>(values: T[], size: number) {
+  const result: T[][] = [];
+  for (let index = 0; index < values.length; index += size) result.push(values.slice(index, index + size));
+  return result;
 }
 
 export async function buildSourceId(name: string) {
