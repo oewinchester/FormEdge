@@ -33,7 +33,6 @@ import {
 } from "lucide-react";
 import { gsap } from "gsap";
 import { useEffect, useMemo, useRef, useState } from "react";
-import * as THREE from "three";
 
 type Language = "tr" | "en";
 type MatchStatus = "final" | "watch";
@@ -144,112 +143,127 @@ function HeroSphere() {
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 100);
-    camera.position.z = 7.2;
-    let renderer: THREE.WebGLRenderer;
-    try {
-      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    } catch {
-      mount.classList.add("sphere-fallback");
-      return;
-    }
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
 
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    mount.appendChild(renderer.domElement);
+    const initialize = async () => {
+      const probe = document.createElement("canvas");
+      const context = probe.getContext("webgl2") ?? probe.getContext("webgl");
+      if (!context) {
+        mount.classList.add("sphere-fallback");
+        return;
+      }
+      context.getExtension("WEBGL_lose_context")?.loseContext();
 
-    const group = new THREE.Group();
-    group.rotation.z = -0.14;
-    scene.add(group);
+      const THREE = await import("three");
+      if (disposed) return;
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 100);
+      camera.position.z = 7.2;
+      let renderer: InstanceType<typeof THREE.WebGLRenderer>;
+      try {
+        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      } catch {
+        mount.classList.add("sphere-fallback");
+        return;
+      }
 
-    group.add(
-      new THREE.Mesh(
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      mount.appendChild(renderer.domElement);
+
+      const group = new THREE.Group();
+      group.rotation.z = -0.14;
+      scene.add(group);
+      group.add(new THREE.Mesh(
         new THREE.IcosahedronGeometry(1.67, 5),
         new THREE.MeshBasicMaterial({ color: 0x183765, opacity: 0.27, transparent: true, wireframe: true }),
-      ),
-    );
-    const cage = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(2.03, 2)),
-      new THREE.LineBasicMaterial({ color: 0x68b6ff, opacity: 0.22, transparent: true }),
-    );
-    group.add(cage);
-
-    const count = 1500;
-    const positions = new Float32Array(count * 3);
-    const colors = new Float32Array(count * 3);
-    const palette = ["#eaf7ff", "#56a6ff", "#5ce1c7", "#b990ff"].map((color) => new THREE.Color(color));
-    for (let i = 0; i < count; i += 1) {
-      const y = 1 - (i / (count - 1)) * 2;
-      const radius = Math.sqrt(1 - y * y);
-      const theta = Math.PI * (3 - Math.sqrt(5)) * i;
-      const size = 1.92 + Math.sin(i * 12.9898) * 0.035;
-      positions[i * 3] = Math.cos(theta) * radius * size;
-      positions[i * 3 + 1] = y * size;
-      positions[i * 3 + 2] = Math.sin(theta) * radius * size;
-      const color = palette[i % palette.length];
-      colors[i * 3] = color.r;
-      colors[i * 3 + 1] = color.g;
-      colors[i * 3 + 2] = color.b;
-    }
-    const pointsGeometry = new THREE.BufferGeometry();
-    pointsGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    pointsGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    const points = new THREE.Points(
-      pointsGeometry,
-      new THREE.PointsMaterial({ size: 0.026, vertexColors: true, opacity: 0.92, transparent: true, depthWrite: false }),
-    );
-    group.add(points);
-
-    [0, 1, 2].forEach((index) => {
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(2.45 + index * 0.26, 0.006, 8, 160),
-        new THREE.MeshBasicMaterial({ color: index === 1 ? 0x5ce1c7 : 0x58aaff, opacity: 0.22, transparent: true }),
+      ));
+      const cage = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(2.03, 2)),
+        new THREE.LineBasicMaterial({ color: 0x68b6ff, opacity: 0.22, transparent: true }),
       );
-      ring.rotation.x = 1.05 + index * 0.37;
-      ring.rotation.y = 0.42 - index * 0.38;
-      group.add(ring);
-    });
+      group.add(cage);
 
-    const pointer = { x: 0, y: 0 };
-    const onMove = (event: PointerEvent) => {
-      const rect = mount.getBoundingClientRect();
-      pointer.x = ((event.clientX - rect.left) / rect.width - 0.5) * 0.55;
-      pointer.y = ((event.clientY - rect.top) / rect.height - 0.5) * 0.42;
-    };
-    mount.addEventListener("pointermove", onMove, { passive: true });
-
-    const resize = () => {
-      const width = mount.clientWidth;
-      const height = mount.clientHeight;
-      camera.aspect = width / Math.max(height, 1);
-      camera.updateProjectionMatrix();
-      renderer.setSize(width, height, false);
-    };
-    const observer = new ResizeObserver(resize);
-    observer.observe(mount);
-    resize();
-
-    let frame = 0;
-    const render = () => {
-      group.rotation.x += (-pointer.y - group.rotation.x * 0.11) * 0.012;
-      group.rotation.y += (pointer.x - group.rotation.y * 0.14) * 0.012;
-      if (!reduced) {
-        group.rotation.y += 0.0015;
-        cage.rotation.z -= 0.0008;
+      const count = 1500;
+      const positions = new Float32Array(count * 3);
+      const colors = new Float32Array(count * 3);
+      const palette = ["#eaf7ff", "#56a6ff", "#5ce1c7", "#b990ff"].map((color) => new THREE.Color(color));
+      for (let i = 0; i < count; i += 1) {
+        const y = 1 - (i / (count - 1)) * 2;
+        const radius = Math.sqrt(1 - y * y);
+        const theta = Math.PI * (3 - Math.sqrt(5)) * i;
+        const size = 1.92 + Math.sin(i * 12.9898) * 0.035;
+        positions[i * 3] = Math.cos(theta) * radius * size;
+        positions[i * 3 + 1] = y * size;
+        positions[i * 3 + 2] = Math.sin(theta) * radius * size;
+        const color = palette[i % palette.length];
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
       }
-      renderer.render(scene, camera);
-      if (!reduced) frame = requestAnimationFrame(render);
+      const pointsGeometry = new THREE.BufferGeometry();
+      pointsGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      pointsGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+      group.add(new THREE.Points(
+        pointsGeometry,
+        new THREE.PointsMaterial({ size: 0.026, vertexColors: true, opacity: 0.92, transparent: true, depthWrite: false }),
+      ));
+      [0, 1, 2].forEach((index) => {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(2.45 + index * 0.26, 0.006, 8, 160),
+          new THREE.MeshBasicMaterial({ color: index === 1 ? 0x5ce1c7 : 0x58aaff, opacity: 0.22, transparent: true }),
+        );
+        ring.rotation.x = 1.05 + index * 0.37;
+        ring.rotation.y = 0.42 - index * 0.38;
+        group.add(ring);
+      });
+
+      const pointer = { x: 0, y: 0 };
+      const onMove = (event: PointerEvent) => {
+        const rect = mount.getBoundingClientRect();
+        pointer.x = ((event.clientX - rect.left) / rect.width - 0.5) * 0.55;
+        pointer.y = ((event.clientY - rect.top) / rect.height - 0.5) * 0.42;
+      };
+      mount.addEventListener("pointermove", onMove, { passive: true });
+      const resize = () => {
+        const width = mount.clientWidth;
+        const height = mount.clientHeight;
+        camera.aspect = width / Math.max(height, 1);
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height, false);
+      };
+      const observer = new ResizeObserver(resize);
+      observer.observe(mount);
+      resize();
+
+      let frame = 0;
+      const render = () => {
+        group.rotation.x += (-pointer.y - group.rotation.x * 0.11) * 0.012;
+        group.rotation.y += (pointer.x - group.rotation.y * 0.14) * 0.012;
+        if (!reduced) {
+          group.rotation.y += 0.0015;
+          cage.rotation.z -= 0.0008;
+        }
+        renderer.render(scene, camera);
+        if (!reduced) frame = requestAnimationFrame(render);
+      };
+      render();
+      cleanup = () => {
+        cancelAnimationFrame(frame);
+        observer.disconnect();
+        mount.removeEventListener("pointermove", onMove);
+        pointsGeometry.dispose();
+        renderer.dispose();
+        renderer.domElement.remove();
+      };
     };
-    render();
+
+    void initialize();
     return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-      mount.removeEventListener("pointermove", onMove);
-      pointsGeometry.dispose();
-      renderer.dispose();
-      renderer.domElement.remove();
+      disposed = true;
+      cleanup?.();
     };
   }, []);
 
