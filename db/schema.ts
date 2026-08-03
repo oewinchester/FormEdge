@@ -683,6 +683,60 @@ export const userPredictionWatchlist = sqliteTable(
   ],
 );
 
+export const predictionValueAssessments = sqliteTable(
+  "prediction_value_assessments",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("thread_id").notNull().references(() => predictionThreads.id),
+    predictionVersionId: text("prediction_version_id").notNull().references(() => predictionVersions.id),
+    fixtureId: text("fixture_id").notNull().references(() => fixtures.id),
+    engineSchemaVersion: text("engine_schema_version").notNull(),
+    market: text("market", { enum: ["1X2"] }).notNull().default("1X2"),
+    predictedOutcome: text("predicted_outcome", { enum: ["1", "X", "2"] }).notNull(),
+    status: text("status", {
+      enum: [
+        "unavailable",
+        "insufficient_market",
+        "stale_market",
+        "market_anomaly",
+        "no_value",
+        "low_odds_value",
+        "value",
+      ],
+    }).notNull(),
+    recommendationEligible: integer("recommendation_eligible", { mode: "boolean" }).notNull().default(false),
+    modelProbability: real("model_probability").notNull(),
+    fairMarketProbability: real("fair_market_probability"),
+    fairProbabilityHome: real("fair_probability_home"),
+    fairProbabilityDraw: real("fair_probability_draw"),
+    fairProbabilityAway: real("fair_probability_away"),
+    edge: real("edge"),
+    expectedValue: real("expected_value"),
+    bestDecimalOdds: real("best_decimal_odds"),
+    bestBookmaker: text("best_bookmaker"),
+    bookmakerCount: integer("bookmaker_count").notNull().default(0),
+    latestCapturedAt: text("latest_captured_at"),
+    snapshotAgeMinutes: real("snapshot_age_minutes"),
+    averageOverround: real("average_overround"),
+    fairProbabilityDispersion: real("fair_probability_dispersion"),
+    maximumRelativeOddsMove: real("maximum_relative_odds_move"),
+    maximumFairProbabilityMove: real("maximum_fair_probability_move"),
+    flagCodesJson: text("flag_codes_json").notNull().default("[]"),
+    booksJson: text("books_json").notNull().default("[]"),
+    evidenceJson: text("evidence_json").notNull(),
+    assessmentFingerprint: text("assessment_fingerprint").notNull(),
+    assessedAt: text("assessed_at").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("prediction_value_assessments_version_unique").on(table.predictionVersionId),
+    uniqueIndex("prediction_value_assessments_fingerprint_unique").on(table.assessmentFingerprint),
+    index("prediction_value_assessments_thread_idx").on(table.threadId, table.assessedAt),
+    index("prediction_value_assessments_fixture_idx").on(table.fixtureId, table.assessedAt),
+    index("prediction_value_assessments_status_idx").on(table.status, table.recommendationEligible),
+  ],
+);
+
 export const predictionSettlements = sqliteTable(
   "prediction_settlements",
   {

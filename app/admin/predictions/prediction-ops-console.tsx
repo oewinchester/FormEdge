@@ -4,6 +4,7 @@
 import {
   AlertTriangle,
   ArrowLeft,
+  BadgeDollarSign,
   BellRing,
   CheckCircle2,
   ChevronRight,
@@ -264,6 +265,7 @@ export function PredictionOpsConsole({ user, signOutPath }: Props) {
           <a href="/admin"><Database size={17} />Veri konsolu</a>
           <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>
           <a className="active" href="#overview"><ListChecks size={17} />Prediction Ops</a>
+          <a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a>
           <a href="#lifecycle"><GitBranch size={17} />Durum protokolü</a>
           <a href="#candidates"><Sparkles size={17} />Aday havuzu</a>
           <a href="#threads"><Fingerprint size={17} />Sürüm geçmişi</a>

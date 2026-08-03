@@ -45,6 +45,7 @@ import {
   UPCOMING_FORECAST_BUILDER_VERSION,
   buildUpcomingPointInTimeForecast,
 } from "@/lib/point-in-time-dataset";
+import { ensureValueAssessmentForVersion } from "@/lib/value-assessment-store";
 
 const INITIAL_WINDOW_HOURS = 72;
 const MINIMUM_TIME_TO_KICKOFF_MINUTES = 30;
@@ -294,6 +295,19 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
     ? (await db.select().from(predictionVersions)
       .where(eq(predictionVersions.id, thread.currentVersionId)).limit(1))[0] ?? null
     : null;
+  const valueOddsFingerprint = await predictionIdentity(oddsRows
+    .filter((quote) => (
+      quote.fixtureId === target.id
+      && quote.market === "1X2"
+      && Date.parse(quote.capturedAt) <= Date.parse(nowIso)
+      && Date.parse(quote.capturedAt) < Date.parse(target.kickoffAt)
+    ))
+    .sort((first, second) => (
+      first.bookmaker.localeCompare(second.bookmaker)
+      || first.capturedAt.localeCompare(second.capturedAt)
+      || first.selection.localeCompare(second.selection)
+      || first.id.localeCompare(second.id)
+    )));
   const versionFingerprint = await predictionIdentity({
     lifecycleSchemaVersion: PREDICTION_LIFECYCLE_SCHEMA_VERSION,
     modelCode: "form-dominance-baseline",
@@ -305,17 +319,25 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
     h2hFixtureIds: forecast.featurePayload.provenance.h2hFixtureIds,
     benchmarkHistoryFingerprint: forecast.featurePayload.provenance.benchmarkHistoryFingerprint,
     oddsCapturedAt: forecast.odds?.capturedAt ?? null,
+    valueOddsFingerprint,
     lineupFingerprint: lineup.fingerprint,
     releaseGateAllowed,
     researchOnly,
     fixtureStatus: target.status,
   });
   if (previousVersion?.versionFingerprint === versionFingerprint) {
+    const valueAssessment = await ensureValueAssessmentForVersion(actor, previousVersion.id);
+    await syncThreadValueEligibility(
+      thread as typeof predictionThreads.$inferSelect,
+      previousVersion.recommendationEligible,
+      valueAssessment.assessment.recommendationEligible,
+    );
     return {
-      thread: await hydrateThread(thread as typeof predictionThreads.$inferSelect),
+      thread: await hydrateThreadById(thread!.id),
       version: toVersionSummary(previousVersion),
       reused: true,
       autoWithdrawn: false,
+      valueAssessment: valueAssessment.assessment,
     };
   }
 
@@ -338,6 +360,7 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
       fingerprint: lineup.fingerprint,
     },
     finalization,
+    valueOddsFingerprint,
   });
   const versionValues: typeof predictionVersions.$inferInsert = {
     id: versionId,
@@ -420,11 +443,13 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
         detailsJson: canonicalPredictionJson({ fixtureId: target.id, versionId, versionFingerprint }),
       }),
     ]);
+    const valueAssessment = await ensureValueAssessmentForVersion(actor, versionId);
     return {
       thread: await hydrateThreadById(threadId),
       version: toVersionSummary({ ...versionValues, createdAt: nowIso } as typeof predictionVersions.$inferSelect),
       reused: false,
       autoWithdrawn: false,
+      valueAssessment: valueAssessment.assessment,
     };
   }
 
@@ -506,11 +531,18 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
       auditInsert,
     ]);
   }
+  const valueAssessment = await ensureValueAssessmentForVersion(actor, versionId);
+  await syncThreadValueEligibility(
+    { ...thread, status: finalStatus } as typeof predictionThreads.$inferSelect,
+    finalization.eligible,
+    valueAssessment.assessment.recommendationEligible,
+  );
   return {
     thread: await hydrateThreadById(threadId),
     version: toVersionSummary({ ...versionValues, createdAt: nowIso } as typeof predictionVersions.$inferSelect),
     reused: false,
     autoWithdrawn,
+    valueAssessment: valueAssessment.assessment,
   };
 }
 
@@ -546,6 +578,9 @@ export async function transitionPrediction(
       throw new ModelLabValidationError(`Finalization is blocked: ${gate.blockers.join(", ")}.`);
     }
   }
+  const valueAssessment = input.action === "finalize"
+    ? await ensureValueAssessmentForVersion(actor, version.id)
+    : null;
   if (input.action === "withdraw" && (!input.reason || input.reason.trim().length < 8)) {
     throw new ModelLabValidationError("Withdrawal requires a reason of at least 8 characters.");
   }
@@ -558,7 +593,7 @@ export async function transitionPrediction(
   const reasonCode = input.action === "finalize" ? "ALL_FINALIZATION_GATES_PASSED"
     : input.action === "withdraw" ? "ADMIN_WITHDRAWAL"
       : input.action === "reopen" ? "FRESH_EVIDENCE_REVIEW" : "KICKOFF_REACHED";
-  const reasonText = input.action === "finalize" ? "Kadro ve tüm yayın kapıları geçildi; mevcut sürüm final olarak kilitlendi."
+  const reasonText = input.action === "finalize" ? "Kadro ve analiz yayın kapıları geçildi; mevcut sürüm final analiz olarak kilitlendi. Bahis uygunluğu bağımsız değer katmanında kaydedildi."
     : input.action === "withdraw" ? input.reason!.trim()
       : input.action === "reopen" ? "Yeni kanıt sonrası kayıt yeniden izleme listesine alındı."
         : "Maç başladı; finalleşmemiş izleme kaydı zaman aşımına uğradı.";
@@ -584,13 +619,19 @@ export async function transitionPrediction(
       idempotencyKey,
       immediateNotification: input.action === "withdraw" && thread.status === "final",
       occurredAt: nowIso,
-      metadataJson: canonicalPredictionJson({ action: input.action }),
+      metadataJson: canonicalPredictionJson({
+        action: input.action,
+        valueAssessmentStatus: valueAssessment?.assessment.status ?? null,
+        valueRecommendationEligible: valueAssessment?.assessment.recommendationEligible ?? false,
+      }),
     }),
     db.update(predictionThreads).set({
       status: nextStatus,
       finalVersionId: input.action === "finalize" ? version.id : thread.finalVersionId,
       eventCount: thread.eventCount + 1,
-      recommendationEligible: nextStatus === "final" && version.recommendationEligible,
+      recommendationEligible: nextStatus === "final"
+        && version.recommendationEligible
+        && valueAssessment?.assessment.recommendationEligible === true,
       lastTransitionByEmail: actor.email,
       lastTransitionAt: nowIso,
       updatedAt: nowIso,
@@ -604,7 +645,25 @@ export async function transitionPrediction(
       detailsJson: canonicalPredictionJson({ versionId: version.id, from: thread.status, to: nextStatus, reasonCode }),
     }),
   ]);
-  return { thread: await hydrateThreadById(thread.id), eventType, nextStatus };
+  return {
+    thread: await hydrateThreadById(thread.id),
+    eventType,
+    nextStatus,
+    valueAssessment: valueAssessment?.assessment ?? null,
+  };
+}
+
+async function syncThreadValueEligibility(
+  thread: typeof predictionThreads.$inferSelect,
+  analysisEligible: boolean,
+  valueEligible: boolean,
+) {
+  if (thread.status !== "final") return;
+  const recommendationEligible = analysisEligible && valueEligible;
+  if (thread.recommendationEligible === recommendationEligible) return;
+  const db = await getDb();
+  await db.update(predictionThreads).set({ recommendationEligible, updatedAt: new Date().toISOString() })
+    .where(eq(predictionThreads.id, thread.id));
 }
 
 async function hydrateThreadById(threadId: string) {

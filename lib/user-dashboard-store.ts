@@ -13,6 +13,7 @@ import {
   predictionEvents,
   predictionSettlements,
   predictionThreads,
+  predictionValueAssessments,
   predictionVersions,
   teamMatchStats,
   teams,
@@ -22,6 +23,7 @@ import {
 } from "@/db/schema";
 import { ModelLabValidationError } from "@/lib/model-lab";
 import { summarizePerformance, type SettlementStatus } from "@/lib/user-performance";
+import { toPublicValueAssessment } from "@/lib/value-assessment-store";
 
 export type DashboardPreferenceInput = {
   defaultAnalysisView?: "quick" | "detailed";
@@ -57,6 +59,8 @@ export async function getUserDashboardOverview(user: ChatGPTUser) {
       final: visibleMatches.filter((match) => match.status === "final").length,
       withdrawn: visibleMatches.filter((match) => match.status === "withdrawn").length,
       saved: visibleMatches.filter((match) => match.saved).length,
+      valueOpportunities: visibleMatches.filter((match) => match.value?.recommendationEligible).length,
+      marketAnomalies: visibleMatches.filter((match) => match.value?.status === "market_anomaly").length,
       publishedHistory: history.length,
       settledHistory: settledRows.length,
     },
@@ -66,6 +70,7 @@ export async function getUserDashboardOverview(user: ChatGPTUser) {
     availability: {
       publishableAnalysisCount: visibleMatches.length,
       researchRecordsHidden: true,
+      valueEngineStatus: "active_cp12" as const,
       bankrollStatus: "planned_cp13" as const,
       couponStatus: "planned_cp13" as const,
       notificationStatus: "planned_cp14" as const,
@@ -124,7 +129,7 @@ export async function getUserMatchAnalysis(user: ChatGPTUser, fixtureId: string)
     ? thread.currentVersionId
     : thread.finalVersionId ?? thread.currentVersionId;
   if (!selectedVersionId) return null;
-  const [selectedVersion, versionRows, eventRows, savedRows] = await Promise.all([
+  const [selectedVersion, versionRows, eventRows, savedRows, valueRows] = await Promise.all([
     db.select().from(predictionVersions).where(eq(predictionVersions.id, selectedVersionId)).limit(1),
     db.select().from(predictionVersions).where(and(
       eq(predictionVersions.threadId, thread.id),
@@ -136,6 +141,8 @@ export async function getUserMatchAnalysis(user: ChatGPTUser, fixtureId: string)
       eq(userPredictionWatchlist.userEmail, user.email),
       eq(userPredictionWatchlist.threadId, thread.id),
     )).limit(1),
+    db.select().from(predictionValueAssessments)
+      .where(eq(predictionValueAssessments.predictionVersionId, selectedVersionId)).limit(1),
   ]);
   const version = selectedVersion[0];
   if (!version || version.researchOnly) return null;
@@ -192,6 +199,7 @@ export async function getUserMatchAnalysis(user: ChatGPTUser, fixtureId: string)
       awayScore: fixture.awayScore,
     },
     analysis: toAnalysisVersion(version),
+    value: valueRows[0] ? toPublicValueAssessment(valueRows[0]) : null,
     form: { home: homeForm, away: awayForm },
     h2h,
     versions: versionRows.map(toPublicVersion),
@@ -323,7 +331,7 @@ async function loadVisiblePredictionCards(userEmail: string) {
     return id ? [id] : [];
   }))];
   const threadIds = threadRows.map((thread) => thread.id);
-  const [teamRows, versionRows, savedRows, eventRows] = await Promise.all([
+  const [teamRows, versionRows, savedRows, eventRows, valueRows] = await Promise.all([
     teamIds.length
       ? db.select({ id: teams.id, name: teams.name, shortName: teams.shortName })
         .from(teams).where(inArray(teams.id, teamIds))
@@ -339,10 +347,18 @@ async function loadVisiblePredictionCards(userEmail: string) {
       inArray(predictionEvents.threadId, threadIds),
       eq(predictionEvents.eventType, "withdrawn"),
     )).orderBy(desc(predictionEvents.sequence)),
+    versionIds.length
+      ? db.select().from(predictionValueAssessments)
+        .where(inArray(predictionValueAssessments.predictionVersionId, versionIds))
+      : Promise.resolve([]),
   ]);
   const fixtureById = new Map(fixtureRows.map((fixture) => [fixture.id, fixture]));
   const teamById = new Map(teamRows.map((team) => [team.id, team]));
   const versionById = new Map(versionRows.map((version) => [version.id, version]));
+  const valueByVersionId = new Map(valueRows.map((value) => [
+    value.predictionVersionId,
+    toPublicValueAssessment(value),
+  ]));
   const savedThreadIds = new Set(savedRows.map((row) => row.threadId));
   const withdrawalByThread = new Map<string, typeof predictionEvents.$inferSelect>();
   for (const event of eventRows) if (!withdrawalByThread.has(event.threadId)) withdrawalByThread.set(event.threadId, event);
@@ -369,6 +385,7 @@ async function loadVisiblePredictionCards(userEmail: string) {
       saved: savedThreadIds.has(thread.id),
       withdrawalReason: withdrawalByThread.get(thread.id)?.reasonText ?? null,
       version: toAnalysisVersion(version),
+      value: valueByVersionId.get(version.id) ?? null,
     }];
   }).sort((first, second) => Date.parse(first.kickoffAt) - Date.parse(second.kickoffAt));
 }
@@ -387,13 +404,15 @@ async function loadPublishedPerformanceRecords() {
   const publicVersionIds = publicVersions.map((version) => version.id);
   const threadIds = [...new Set(publicVersions.map((version) => version.threadId))];
   const fixtureIds = [...new Set(publicVersions.map((version) => version.fixtureId))];
-  const [threadRows, fixtureRows, settlementRows, timelineRows] = await Promise.all([
+  const [threadRows, fixtureRows, settlementRows, timelineRows, valueRows] = await Promise.all([
     db.select().from(predictionThreads).where(inArray(predictionThreads.id, threadIds)),
     db.select().from(fixtures).where(inArray(fixtures.id, fixtureIds)),
     db.select().from(predictionSettlements)
       .where(inArray(predictionSettlements.finalVersionId, publicVersionIds)),
     db.select().from(predictionEvents).where(inArray(predictionEvents.threadId, threadIds))
       .orderBy(asc(predictionEvents.threadId), asc(predictionEvents.sequence)),
+    db.select().from(predictionValueAssessments)
+      .where(inArray(predictionValueAssessments.predictionVersionId, publicVersionIds)),
   ]);
   const teamIds = [...new Set(fixtureRows.flatMap((fixture) => [fixture.homeTeamId, fixture.awayTeamId]))];
   const teamRows = teamIds.length
@@ -404,6 +423,10 @@ async function loadPublishedPerformanceRecords() {
   const fixtureById = new Map(fixtureRows.map((fixture) => [fixture.id, fixture]));
   const teamById = new Map(teamRows.map((team) => [team.id, team.name]));
   const settlementByVersion = new Map(settlementRows.map((settlement) => [settlement.finalVersionId, settlement]));
+  const valueByVersion = new Map(valueRows.map((value) => [
+    value.predictionVersionId,
+    toPublicValueAssessment(value),
+  ]));
   const eventsByThread = new Map<string, typeof timelineRows>();
   for (const event of timelineRows) {
     eventsByThread.set(event.threadId, [...(eventsByThread.get(event.threadId) ?? []), event]);
@@ -458,6 +481,7 @@ async function loadPublishedPerformanceRecords() {
       withdrawalReason: withdrawal?.reasonText ?? null,
       withdrawalAt: withdrawal?.occurredAt ?? null,
       fingerprint: version.versionFingerprint,
+      value: valueByVersion.get(version.id) ?? null,
     }];
   });
 }

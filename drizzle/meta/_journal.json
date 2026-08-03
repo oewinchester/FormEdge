@@ -57,6 +57,13 @@
       "when": 1785760742958,
       "tag": "0007_calm_captain_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1785766514477,
+      "tag": "0008_naive_deathstrike",
+      "breakpoints": true
     }
   ]
 }

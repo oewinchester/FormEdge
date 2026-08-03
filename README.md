@@ -7,7 +7,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.4.1 · Checkpoint 11 · Aşama 4 / Member Product Layer**
+**v0.5.0 · Checkpoint 12 · Aşama 4 / Value & Market Evidence Layer**
 
 - Responsive, 3D destekli ürün landing sayfası
 - D1 tabanlı futbol veri çekirdeği ve R2 ham veri arşivi
@@ -43,6 +43,14 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 - Kazanan, kaybeden, void, geri çekilen ve bekleyen tüm final tahminlerini kalıcı gösteren performans geçmişi
 - Dönem, lig, pazar, sonuç ve takım/sürüm aramasıyla filtreleme; filtrelenmiş CSV dışa aktarma
 - Final maçları gerçek skorla bağlayan değişmez settlement kayıtları ve yönetici sonuçlandırma işlemi
+- 1X2 şirket marjını proportional de-vig ile temizleyen, şirketler arası medyan uzlaşıyı normalleştiren bağımsız değer motoru
+- Model olasılığını oranlardan kesin olarak ayıran `%4` minimum edge, `%3` minimum EV ve `1.20` minimum oran kapısı
+- `1.20–1.29` aralığını ayrı düşük oran değer havuzunda gösteren yayın politikası
+- En az iki eksiksiz şirket, 6 saat tazelik ve 24 saat azami yaş sınırı kullanan piyasa kapsamı kontrolü
+- Şirketler arası `%8` adil olasılık ayrışması, `%25` göreli oran veya `%8` adil olasılık hareketinde öneriyi durduran anomali kapısı
+- Her tahmin sürümü için model, de-vig piyasa uzlaşısı, en iyi oran/şirket, edge, EV, tazelik ve kanıt SHA’sını D1’de değişmez saklayan değer defteri
+- Yönetici ve analiz editörü için korumalı, responsive Value Ops konsolu
+- Dashboard, detaylı maç analizi, performans tablosu ve CSV dışa aktarımında dondurulmuş oran/değer kanıtı
 
 ## Sürüm ve checkpoint yol haritası
 
@@ -55,8 +63,10 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.3.3 | CP08 | Elo ve Poisson/Dixon–Coles karşılaştırma modelleri | Tamamlandı |
 | v0.3.4 | CP09 | Ablation, kalibrasyon, holdout ve lig × pazar kanıt matrisi | Tamamlandı |
 | v0.4.0 | CP10 | Değişmez tahmin sürümleri, izleme/final/geri çekme durum makinesi ve Prediction Ops | Tamamlandı |
-| **v0.4.1** | **CP11** | **Kullanıcı dashboardı, maç analizi ve filtrelenebilir, şeffaf performans geçmişi** | **Mevcut** |
-| v0.5 | CP12–CP14 | De-vig/değer filtresi, kadro-bağlam yeniden skoru, kupon, kasa ve bildirim motoru | Planlandı |
+| v0.4.1 | CP11 | Kullanıcı dashboardı, maç analizi ve filtrelenebilir, şeffaf performans geçmişi | Tamamlandı |
+| **v0.5.0** | **CP12** | **De-vig piyasa uzlaşısı, değişmez oran/değer kanıtı ve anomali kontrolleri** | **Mevcut** |
+| v0.5.1 | CP13 | Kadro/bağlam yeniden skoru, kupon korelasyon kontrolü ve çeyrek-Kelly kasa defteri | Planlandı |
+| v0.5.2 | CP14 | Web içi, tarayıcı push ve Telegram bildirim motoru | Planlandı |
 | v0.6 | CP15–CP16 | Waitlist, Free/Pro/Expert, kartsız beta denemesi ve 100–300 kişilik davetli beta | Planlandı |
 | v0.7 | CP17 | Shadow validation, drift takibi, performans ve fiyat araştırması | Planlandı |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
@@ -86,6 +96,10 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 18. Final tahminde seçim/kadro değişimi veya en az `%8` olasılık kayması geri çekme olayı üretir; eski sürüm denetim geçmişinde kalır.
 19. Araştırma-only tahminler kullanıcı sorgularında filtrelenir; yalnız yayın kapısını geçmiş sürümler dashboarda taşınabilir.
 20. Final sonuçları tahmin sürümü ve yayın olayı başına yalnız bir kez yazılır; kazanan veya kaybeden kayıt sonradan silinemez.
+21. Model olasılıkları oran verisiyle yeniden yazılamaz; oran yalnız de-vig piyasa karşılaştırması, değer filtresi ve anomali kapısıdır.
+22. Değer fırsatı için en az iki taze ve eksiksiz 1X2 şirket snapshotı, en az `%4` edge, `%3` EV ve `1.20` oran birlikte gerekir.
+23. Şirket ayrışması veya maddi oran hareketi tahmini silmez; bahis uygunluğunu kapatır ve yeni sürüm kanıtında görünür kalır.
+24. Her yayın geçmişi kendi tahmin sürümüne bağlı oran/değer snapshotını taşır; sonraki oran değişimi geçmiş kaydı yeniden yazamaz.
 
 ## Teknoloji
 
@@ -97,7 +111,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Veri depolama mimarisi
 
-- **D1 ana ilişkisel veritabanıdır:** lig, takım, fikstür, istatistik, oran snapshotı, model kanıtı, tahmin yaşam döngüsü, kullanıcı profili, tercih, izleme listesi ve performans settlement kayıtları burada tutulur.
+- **D1 ana ilişkisel veritabanıdır:** lig, takım, fikstür, istatistik, oran snapshotı, de-vig değer kanıtı, model kanıtı, tahmin yaşam döngüsü, kullanıcı profili, tercih, izleme listesi ve performans settlement kayıtları burada tutulur.
 - **R2 ham ve büyük nesne katmanıdır:** kaynak snapshotları, kontrollü import dosyaları ve gelecekte üretilecek PDF/CSV dışa aktarımları burada tutulur.
 - MVP için ayrı bir PostgreSQL veya analitik veritabanı gerekmez. Trafik ve tarihsel hacim D1 sorgu sınırlarını anlamlı biçimde aşarsa yalnız raporlama amaçlı bir warehouse eklenir; ürünün doğruluk kaynağı D1 kalır.
 - Tarayıcı depolaması kalıcı ürün verisi için kullanılmaz; yalnız geçici arayüz durumu için kullanılabilir.
@@ -121,6 +135,8 @@ lib/prediction-lifecycle-store.ts D1 tahmin sürümü, olay günlüğü ve opera
 lib/prediction-settlement-store.ts Final yayınları gerçek maç sonucuyla değişmez biçimde bağlayan settlement akışı
 lib/user-dashboard-store.ts      Kullanıcı profili, izleme, maç analizi ve performans projeksiyonu
 lib/user-performance.ts          Saf sonuçlandırma ve performans özetleme kuralları
+lib/value-engine.ts              Saf de-vig, piyasa uzlaşısı, değer ve anomali motoru
+lib/value-assessment-store.ts    Tahmin sürümüne bağlı değişmez D1 değer kanıtı ve Value Ops projeksiyonu
 lib/admin-data.ts            Veri alımı, kalite ve yönetici yetkilendirmesi
 tests/                       Veri ve model güvenlik testleri
 ```

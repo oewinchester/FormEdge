@@ -46,7 +46,21 @@ test("impossible shot totals close the recommendation gate", () => {
   assert.ok(report.issues.some((issue) => issue.code === "SHOTS_ON_TARGET_GT_SHOTS"));
 });
 
+test("odds quality rejects post-kickoff quotes and reports incomplete 1X2 groups", () => {
+  const payload = completePayload();
+  payload.odds = [
+    { ...payload.odds[0], id: "late-home", capturedAt: new Date(Date.parse(payload.fixtures[0].kickoffAt) + 60_000).toISOString() },
+  ];
+  const report = evaluatePayloadQuality(payload, { capturedAt: new Date().toISOString() });
+  assert.equal(report.recommendationEligible, false);
+  assert.ok(report.issues.some((issue) => issue.code === "ODDS_AT_OR_AFTER_KICKOFF"));
+  assert.ok(report.issues.some((issue) => issue.code === "ODDS_1X2_GROUP_INCOMPLETE"));
+});
+
 function completePayload() {
+  const now = Date.now();
+  const kickoffAt = new Date(now - 60 * 60_000).toISOString();
+  const oddsCapturedAt = new Date(now - 2 * 60 * 60_000).toISOString();
   return {
     league: { id: "league-tr", countryCode: "TR", name: "Süper Lig", tier: 1, coverageLevel: "advanced" },
     season: "2026-27",
@@ -56,7 +70,7 @@ function completePayload() {
     ],
     fixtures: [{
       id: "fixture-1",
-      kickoffAt: "2026-08-02T18:00:00.000Z",
+      kickoffAt,
       homeTeamId: "atlas",
       awayTeamId: "kuzey",
       status: "finished",
@@ -68,9 +82,9 @@ function completePayload() {
       { fixtureId: "fixture-1", teamId: "kuzey", possession: 39, shots: 7, shotsOnTarget: 2, expectedGoals: 0.62, dangerousAttacks: 24, penaltyAreaEntries: 13, ppda: 14.2, bigChancesAllowed: 4 },
     ],
     odds: [
-      { id: "odd-1", fixtureId: "fixture-1", bookmaker: "Example", market: "1X2", selection: "1", line: null, decimalOdds: 1.72, capturedAt: new Date().toISOString() },
-      { id: "odd-x", fixtureId: "fixture-1", bookmaker: "Example", market: "1X2", selection: "X", line: null, decimalOdds: 3.6, capturedAt: new Date().toISOString() },
-      { id: "odd-2", fixtureId: "fixture-1", bookmaker: "Example", market: "1X2", selection: "2", line: null, decimalOdds: 5.1, capturedAt: new Date().toISOString() },
+      { id: "odd-1", fixtureId: "fixture-1", bookmaker: "Example", market: "1X2", selection: "1", line: null, decimalOdds: 1.72, capturedAt: oddsCapturedAt },
+      { id: "odd-x", fixtureId: "fixture-1", bookmaker: "Example", market: "1X2", selection: "X", line: null, decimalOdds: 3.6, capturedAt: oddsCapturedAt },
+      { id: "odd-2", fixtureId: "fixture-1", bookmaker: "Example", market: "1X2", selection: "2", line: null, decimalOdds: 5.1, capturedAt: oddsCapturedAt },
     ],
     lineups: [],
   };

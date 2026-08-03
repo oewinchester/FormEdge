@@ -78,7 +78,7 @@ export function PerformanceHistory({
   };
 
   const exportCsv = () => {
-    const header = ["published_at", "league", "market", "home", "away", "prediction", "status", "actual", "home_score", "away_score", "version_sha"];
+    const header = ["published_at", "league", "market", "home", "away", "prediction", "model_probability", "value_status", "best_odds", "bookmaker", "edge", "expected_value", "odds_captured_at", "value_sha", "status", "actual", "home_score", "away_score", "version_sha"];
     const rows = filtered.map((record) => [
       record.publishedAt,
       record.leagueLabel,
@@ -86,6 +86,14 @@ export function PerformanceHistory({
       record.homeTeamName,
       record.awayTeamName,
       record.predictedOutcome,
+      probabilityFor(record.probabilities, record.predictedOutcome),
+      record.value?.status ?? "unavailable",
+      record.value?.bestDecimalOdds ?? "",
+      record.value?.bestBookmaker ?? "",
+      record.value?.edge ?? "",
+      record.value?.expectedValue ?? "",
+      record.value?.latestCapturedAt ?? "",
+      record.value?.assessmentFingerprint ?? "",
       record.resultStatus,
       record.actualOutcome ?? "",
       record.homeScore ?? "",
@@ -113,10 +121,10 @@ export function PerformanceHistory({
       </aside>
 
       <section className="user-main">
-        <header className="user-topbar"><div><a href="/dashboard"><ArrowLeft size={14} />Dashboard</a><span>TRANSPARENCY LEDGER · CP11</span></div><div className="user-top-actions"><button type="button" onClick={() => void refresh()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} /></button><span>{initials(history.profile.displayName)}</span></div></header>
-        <section className="performance-heading"><div><small>KAZANANI GÖSTER, KAYBEDENİ SAKLAMA</small><h1>Performans geçmişi.</h1><p>Her final tahmin; yayın saati, model sürümü, kadro durumu, geri çekme gerekçesi ve maç sonucuyla birlikte kalıcıdır.</p></div><button type="button" onClick={exportCsv} disabled={!filtered.length}><ArrowDownToLine size={16} />Filtrelenmiş CSV</button></section>
+        <header className="user-topbar"><div><a href="/dashboard"><ArrowLeft size={14} />Dashboard</a><span>TRANSPARENCY LEDGER · CP12</span></div><div className="user-top-actions"><button type="button" onClick={() => void refresh()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} /></button><span>{initials(history.profile.displayName)}</span></div></header>
+        <section className="performance-heading"><div><small>KAZANANI GÖSTER, KAYBEDENİ SAKLAMA</small><h1>Performans geçmişi.</h1><p>Her final tahmin; yayın saati, model sürümü, kadro, dondurulmuş oran/değer kanıtı, geri çekme gerekçesi ve maç sonucuyla birlikte kalıcıdır.</p></div><button type="button" onClick={exportCsv} disabled={!filtered.length}><ArrowDownToLine size={16} />Filtrelenmiş CSV</button></section>
         {error && <div className="user-message error"><XCircle size={16} />{error}</div>}
-        <section className="performance-policy"><ShieldCheck size={16} /><p>ROI, CLV ve kişisel kasa getirisi henüz gösterilmiyor; gerçek oran snapshotı ve stake defteri tamamlanmadan bu metrikleri üretmek yanıltıcı olur.</p><span>CP12–13</span></section>
+        <section className="performance-policy"><ShieldCheck size={16} /><p>Yayın anındaki oran ve de-vig değer kanıtı artık kalıcıdır. ROI/kasa getirisi stake defterini, CLV ise kapanış oranı snapshotını beklediği için henüz gösterilmez.</p><span>VALUE ACTIVE · STAKE CP13</span></section>
 
         <section className="performance-kpis">
           <article><small>YAYINLANAN FİNAL</small><b>{filtered.length}</b><p>{filteredSummary.counts.pending} sonuç bekliyor</p></article>
@@ -141,7 +149,7 @@ export function PerformanceHistory({
           <section className="performance-league-card"><header><div><small>LİG × PAZAR</small><h2>Kanıt dağılımı</h2></div><CircleGauge size={18} /></header>{history.summary.byLeague.length ? <div>{history.summary.byLeague.map((row) => <article key={row.key}><div><b>{row.key}</b><small>{row.published} kayıt · {row.won}G {row.lost}M</small></div><span>{row.hitRate === null ? "—" : `%${Math.round(row.hitRate * 100)}`}</span></article>)}</div> : <div className="user-empty-state compact"><CircleGauge size={20} /><b>Lig karşılaştırması için veri yok.</b></div>}</section>
         </section>
 
-        <section className="performance-table-card"><header><div><small>IMMUTABLE PUBLICATION LOG</small><h2>Tüm final kayıtlar</h2></div><span>{filtered.length} satır</span></header><div className="performance-table-wrap"><table><thead><tr><th>Maç</th><th>Yayın</th><th>Seçim</th><th>Olasılık</th><th>Sonuç</th><th>Durum</th><th>Sürüm</th><th /></tr></thead><tbody>{!filtered.length && <tr><td colSpan={8}><div className="user-empty-state"><FileClock size={20} /><b>Filtreye uyan final kayıt yok.</b><p>Filtreleri temizleyin veya ilk üretim-onaylı finali bekleyin.</p></div></td></tr>}{filtered.map((record) => <tr key={record.id}><td><b>{record.homeTeamName} – {record.awayTeamName}</b><small>{record.leagueLabel} · {record.market}</small></td><td>{formatDate(record.publishedAt)}<small>Kickoff {formatDate(record.kickoffAt)}</small></td><td><span className="pick-badge">{record.predictedOutcome}</span></td><td>%{Math.round(probabilityFor(record.probabilities, record.predictedOutcome) * 100)}<small>güven %{Math.round(record.confidence * 100)}</small></td><td>{record.actualOutcome ? <><b>{record.actualOutcome}</b><small>{record.homeScore ?? "—"} – {record.awayScore ?? "—"}</small></> : "—"}</td><td><span className={`performance-status ${record.resultStatus}`}>{resultLabel(record.resultStatus)}</span>{record.withdrawalReason && <small title={record.withdrawalReason}>{record.withdrawalReason}</small>}</td><td><code>{record.fingerprint.slice(0, 10)}</code><small>v{record.versionNumber}</small></td><td><a href={`/dashboard/matches/${encodeURIComponent(record.fixtureId)}`} aria-label="Maç analizini aç"><ChevronRight size={15} /></a></td></tr>)}</tbody></table></div></section>
+        <section className="performance-table-card"><header><div><small>IMMUTABLE PUBLICATION LOG</small><h2>Tüm final kayıtlar</h2></div><span>{filtered.length} satır</span></header><div className="performance-table-wrap"><table><thead><tr><th>Maç</th><th>Yayın</th><th>Seçim</th><th>Olasılık</th><th>Değer / oran</th><th>Sonuç</th><th>Durum</th><th>Sürüm</th><th /></tr></thead><tbody>{!filtered.length && <tr><td colSpan={9}><div className="user-empty-state"><FileClock size={20} /><b>Filtreye uyan final kayıt yok.</b><p>Filtreleri temizleyin veya ilk üretim-onaylı finali bekleyin.</p></div></td></tr>}{filtered.map((record) => <tr key={record.id}><td><b>{record.homeTeamName} – {record.awayTeamName}</b><small>{record.leagueLabel} · {record.market}</small></td><td>{formatDate(record.publishedAt)}<small>Kickoff {formatDate(record.kickoffAt)}</small></td><td><span className="pick-badge">{record.predictedOutcome}</span></td><td>%{Math.round(probabilityFor(record.probabilities, record.predictedOutcome) * 100)}<small>güven %{Math.round(record.confidence * 100)}</small></td><td>{record.value ? <><span className={`history-value-status ${record.value.status}`}>{valueLabel(record.value.status)}</span><small>{record.value.bestDecimalOdds?.toFixed(2) ?? "—"} · {record.value.bestBookmaker ?? "şirket yok"}</small></> : <span className="history-value-status unavailable">Kanıt yok</span>}</td><td>{record.actualOutcome ? <><b>{record.actualOutcome}</b><small>{record.homeScore ?? "—"} – {record.awayScore ?? "—"}</small></> : "—"}</td><td><span className={`performance-status ${record.resultStatus}`}>{resultLabel(record.resultStatus)}</span>{record.withdrawalReason && <small title={record.withdrawalReason}>{record.withdrawalReason}</small>}</td><td><code>{record.fingerprint.slice(0, 10)}</code><small>v{record.versionNumber}</small></td><td><a href={`/dashboard/matches/${encodeURIComponent(record.fixtureId)}`} aria-label="Maç analizini aç"><ChevronRight size={15} /></a></td></tr>)}</tbody></table></div></section>
         <footer className="user-footer"><span>FormEdge immutable performance ledger</span><a href="/dashboard">Dashboard<ChevronRight size={13} /></a></footer>
       </section>
       <nav className="user-mobile-nav"><a href="/dashboard"><LayoutDashboard size={19} /><span>Ana sayfa</span></a><a className="active" href="/dashboard/performance"><LineChart size={19} /><span>Geçmiş</span></a><span><WalletCards size={19} /><small>CP13</small></span></nav>
@@ -155,6 +163,18 @@ function probabilityFor(probabilities: { home: number; draw: number; away: numbe
 
 function resultLabel(value: "won" | "lost" | "withdrawn" | "void" | "pending") {
   return value === "won" ? "Kazandı" : value === "lost" ? "Kaybetti" : value === "withdrawn" ? "Geri çekildi" : value === "void" ? "Geçersiz" : "Bekliyor";
+}
+
+function valueLabel(value: NonNullable<UserPerformanceHistory["records"][number]["value"]>["status"]) {
+  return ({
+    unavailable: "Oran yok",
+    insufficient_market: "Kapsam yetersiz",
+    stale_market: "Piyasa eski",
+    market_anomaly: "Anomali",
+    no_value: "Değer yok",
+    low_odds_value: "Düşük oran değeri",
+    value: "Değer fırsatı",
+  } as const)[value];
 }
 
 function csvCell(value: string | number) {

@@ -3,7 +3,7 @@ import type { NormalizedFootballPayload } from "@/lib/import-contract";
 export type DataQualityIssue = {
   severity: "warning" | "error";
   code: string;
-  entityType: "dataset" | "fixture" | "team" | "alias" | "source";
+  entityType: "dataset" | "fixture" | "team" | "alias" | "source" | "odds";
   entityKey?: string;
   field?: string;
   message: string;
@@ -111,6 +111,69 @@ export function evaluatePayloadQuality(
       if (total < 95 || total > 105) {
         issues.push(issue("warning", "POSSESSION_TOTAL_OFF", "fixture", `Topa sahip olma toplamı %${round(total)}; beklenen aralık %95–105.`, { total }, fixture.id, "possession"));
       }
+    }
+  }
+
+  const fixtureById = new Map(fixtures.map((fixture) => [fixture.id, fixture]));
+  const oddsGroups = new Map<string, typeof payload.odds>();
+  const importCapturedMs = Date.parse(context.capturedAt);
+  for (const odd of payload.odds) {
+    const fixture = fixtureById.get(odd.fixtureId);
+    const capturedMs = Date.parse(odd.capturedAt);
+    if (Number.isFinite(importCapturedMs) && capturedMs > importCapturedMs + 60_000) {
+      issues.push(issue(
+        "error",
+        "ODDS_AFTER_IMPORT_CAPTURE",
+        "odds",
+        "Oran zamanı import snapshot zamanından sonra olamaz.",
+        { oddsCapturedAt: odd.capturedAt, importCapturedAt: context.capturedAt },
+        odd.id,
+        "capturedAt",
+      ));
+    }
+    if (fixture && capturedMs >= Date.parse(fixture.kickoffAt)) {
+      issues.push(issue(
+        "error",
+        "ODDS_AT_OR_AFTER_KICKOFF",
+        "odds",
+        "Maç başladıktan sonra alınan oran tahmin veya değer kanıtı olamaz.",
+        { oddsCapturedAt: odd.capturedAt, kickoffAt: fixture.kickoffAt },
+        odd.id,
+        "capturedAt",
+      ));
+    }
+    if (odd.market === "1X2") {
+      const key = `${odd.fixtureId}|${odd.bookmaker}|${odd.capturedAt}`;
+      oddsGroups.set(key, [...(oddsGroups.get(key) ?? []), odd]);
+    }
+  }
+  for (const [key, group] of oddsGroups) {
+    const selections = new Map(group.map((odd) => [odd.selection.toUpperCase(), odd]));
+    const home = selections.get("1");
+    const draw = selections.get("X");
+    const away = selections.get("2");
+    if (!home || !draw || !away) {
+      issues.push(issue(
+        "warning",
+        "ODDS_1X2_GROUP_INCOMPLETE",
+        "odds",
+        "Aynı bookmaker ve capture zamanı için 1-X-2 üçlüsü eksiksiz olmalıdır.",
+        { selections: [...selections.keys()].sort() },
+        key,
+      ));
+      continue;
+    }
+    const impliedTotal = 1 / home.decimalOdds + 1 / draw.decimalOdds + 1 / away.decimalOdds;
+    const overround = impliedTotal - 1;
+    if (overround < 0 || overround > 0.25) {
+      issues.push(issue(
+        "warning",
+        "ODDS_OVERROUND_OUTLIER",
+        "odds",
+        "Bookmaker marjı beklenen %0–25 aralığının dışında; grup değer hesabından çıkarılır.",
+        { overround: round(overround) },
+        key,
+      ));
     }
   }
 

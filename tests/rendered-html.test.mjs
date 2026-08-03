@@ -34,6 +34,16 @@ test("renders the signed-out Prediction Ops protection wall", async () => {
   assert.match(html, /admin%2Fpredictions|admin\/predictions/i);
 });
 
+test("renders the signed-out Value Ops protection wall", async () => {
+  const response = await renderRoute("/admin/value-ops");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Değer operasyonları korumalıdır/i);
+  assert.match(html, /ODDS ≠ PREDICTION/i);
+  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /admin%2Fvalue-ops|admin\/value-ops/i);
+});
+
 test("renders the signed-out member dashboard protection wall", async () => {
   const response = await renderRoute("/dashboard");
   assert.equal(response.status, 200);
