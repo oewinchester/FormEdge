@@ -32,6 +32,9 @@ import type { ReleaseStage } from "@/lib/model-lab";
 type ModelRun = {
   id: string;
   name: string;
+  featureDatasetRunId: string | null;
+  modelCode: ModelCode;
+  modelName: string;
   datasetKind: "historical" | "synthetic";
   leagueLabel: string;
   market: string;
@@ -80,6 +83,7 @@ type FeatureDataset = {
   averageDataCompleteness: number;
   oddsCoverage: number;
   featureSchemaVersion: string;
+  benchmarkSchemaVersion: string;
   builderVersion: string;
   datasetChecksumSha256: string;
   leakageViolationCount: number;
@@ -117,6 +121,7 @@ type Overview = {
     id: string;
     versionLabel: string;
     featureSchemaVersion: string;
+    benchmarkSchemaVersion: string;
     status: "candidate" | "champion" | "retired";
     trainingCutoffAt: string | null;
     definitionName: string;
@@ -138,6 +143,12 @@ type Overview = {
     };
   };
 };
+
+type ModelCode =
+  | "form-dominance-baseline"
+  | "elo-baseline"
+  | "poisson-baseline"
+  | "dixon-coles-baseline";
 
 type RunResult = {
   runId: string;
@@ -167,6 +178,28 @@ type RunResult = {
   };
 };
 
+type BenchmarkSuiteResult = {
+  dataset: {
+    id: string;
+    name: string;
+    leagueLabel: string;
+    sampleCount: number;
+    checksumSha256: string;
+    researchOnly: true;
+  };
+  backtestConfig: {
+    minTrainSize?: number;
+    testSize?: number;
+    stepSize?: number;
+    embargoHours?: number;
+  };
+  winnerModelCode: ModelCode;
+  runs: Array<RunResult & {
+    modelCode: ModelCode;
+    modelName: string;
+  }>;
+};
+
 type Props = {
   user: { displayName: string; email: string };
   signOutPath: string;
@@ -178,6 +211,9 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [buildingDataset, setBuildingDataset] = useState(false);
+  const [runningBenchmarks, setRunningBenchmarks] = useState(false);
+  const [selectedBenchmarkDatasetId, setSelectedBenchmarkDatasetId] = useState("");
+  const [latestBenchmarkSuite, setLatestBenchmarkSuite] = useState<BenchmarkSuiteResult | null>(null);
   const [sampleCount, setSampleCount] = useState(180);
   const [selectedLeagueId, setSelectedLeagueId] = useState("");
   const [predictionHorizonHours, setPredictionHorizonHours] = useState(48);
@@ -194,6 +230,14 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
       if (!response.ok) throw new Error(data.error ?? "Model laboratuvarı alınamadı.");
       setOverview(data);
       setSelectedLeagueId((current) => current || data.datasetReadiness.find((league) => league.canAttemptBuild)?.leagueId || data.datasetReadiness[0]?.leagueId || "");
+      setSelectedBenchmarkDatasetId((current) => {
+        const compatible = data.datasets.filter((dataset) => (
+          dataset.status === "completed"
+          && dataset.benchmarkSchemaVersion === data.policy.benchmarkSchemaVersion
+          && dataset.eligibleSampleCount >= 30
+        ));
+        return compatible.some((dataset) => dataset.id === current) ? current : compatible[0]?.id ?? "";
+      });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Model laboratuvarı alınamadı.");
     } finally {
@@ -276,8 +320,69 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
     }
   };
 
+  const runBenchmarkComparison = async () => {
+    if (!selectedBenchmarkDatasetId) {
+      setError("Önce CP08 şemasıyla üretilmiş ve en az 30 örnek içeren bir dataset seçin.");
+      return;
+    }
+    setRunningBenchmarks(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/admin/model-lab/benchmarks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ datasetRunId: selectedBenchmarkDatasetId }),
+      });
+      const payload = await response.json() as {
+        result?: BenchmarkSuiteResult;
+        error?: string;
+        violations?: Array<{ message: string }>;
+      };
+      if (!response.ok || !payload.result) {
+        throw new Error(payload.violations?.[0]?.message ?? payload.error ?? "Benchmark karşılaştırması tamamlanamadı.");
+      }
+      setLatestBenchmarkSuite(payload.result);
+      const winner = payload.result.runs.find((run) => run.modelCode === payload.result?.winnerModelCode);
+      setNotice(`Dört model aynı dondurulmuş veri üzerinde karşılaştırıldı · geçici OOS lideri ${winner?.modelName ?? payload.result.winnerModelCode} · yayın kapısı kapalı`);
+      await loadOverview();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Benchmark karşılaştırması tamamlanamadı.");
+    } finally {
+      setRunningBenchmarks(false);
+    }
+  };
+
   const latestRun = overview?.runs[0] ?? null;
   const selectedLeague = overview?.datasetReadiness.find((league) => league.leagueId === selectedLeagueId) ?? null;
+  const compatibleBenchmarkDatasets = (overview?.datasets ?? []).filter((dataset) => (
+    dataset.status === "completed"
+    && dataset.benchmarkSchemaVersion === overview?.policy.benchmarkSchemaVersion
+    && dataset.eligibleSampleCount >= 30
+  ));
+  const selectedBenchmarkDataset = compatibleBenchmarkDatasets.find((dataset) => dataset.id === selectedBenchmarkDatasetId) ?? null;
+  const persistedBenchmarkRuns = selectedBenchmarkDatasetId ? latestRunsByModel(
+    (overview?.runs ?? []).filter((run) => run.featureDatasetRunId === selectedBenchmarkDatasetId && run.status === "completed"),
+  ) : [];
+  const benchmarkRows = latestBenchmarkSuite?.dataset.id === selectedBenchmarkDatasetId
+    ? latestBenchmarkSuite.runs.map((run) => ({
+      modelCode: run.modelCode,
+      modelName: run.modelName,
+      accuracy: run.metrics.accuracy,
+      logLoss: run.metrics.logLoss,
+      brierScore: run.metrics.brierScore,
+      ece: run.metrics.ece,
+      sampleCount: run.metrics.sampleCount,
+      foldCount: run.metrics.foldCount,
+      releaseStage: run.releaseDecision.stage,
+    }))
+    : persistedBenchmarkRuns;
+  const benchmarkLeader = benchmarkRows.length === 4
+    ? [...benchmarkRows].sort((first, second) => (
+      (first.logLoss ?? Number.POSITIVE_INFINITY) - (second.logLoss ?? Number.POSITIVE_INFINITY)
+      || (first.brierScore ?? Number.POSITIVE_INFINITY) - (second.brierScore ?? Number.POSITIVE_INFINITY)
+    ))[0]
+    : null;
   const headline = latestResult?.metrics ?? (latestRun ? {
     sampleCount: latestRun.sampleCount,
     foldCount: latestRun.foldCount,
@@ -309,6 +414,7 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
           <a href="/admin"><Database size={17} />Veri konsolu</a>
           <a className="active" href="#overview"><FlaskConical size={17} />Model Lab</a>
           <a href="#datasets"><Database size={17} />D1 dataset</a>
+          <a href="#benchmarks"><Sigma size={17} />Benchmarklar</a>
           <a href="#pipeline"><GitBranch size={17} />Walk-forward</a>
           <a href="#metrics"><BarChart3 size={17} />Kalibrasyon</a>
           <a href="#gates"><LockKeyhole size={17} />Yayın kapıları</a>
@@ -320,7 +426,7 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
 
       <section className="admin-main">
         <header className="admin-topbar">
-          <div><a href="/admin"><ArrowLeft size={15} />Veri konsolu</a><span>MODEL LAB · PHASE 03 · CP07</span></div>
+          <div><a href="/admin"><ArrowLeft size={15} />Veri konsolu</a><span>MODEL LAB · PHASE 03 · CP08</span></div>
           <div className="admin-user"><span>{initials(user.displayName)}</span><p><b>{user.displayName}</b><small>{overview?.actor.role ?? "yetki kontrol ediliyor"}</small></p></div>
         </header>
 
@@ -381,8 +487,36 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
           <header><div><small>IMMUTABLE DATASET LOG</small><h2>Dataset geçmişi</h2></div><span>FEATURE + PROVENANCE + SHA-256</span></header>
           <div className="admin-table-wrap"><table><thead><tr><th>Dataset</th><th>Lig / ufuk</th><th>Kaynak → uygun</th><th>Veri</th><th>Oran</th><th>Denetim</th><th>Kimlik</th></tr></thead><tbody>
             {(overview?.datasets ?? []).length === 0 && <tr><td colSpan={7}><div className="admin-empty">Henüz dondurulmuş tarihsel dataset yok.</div></td></tr>}
-            {(overview?.datasets ?? []).map((dataset) => <tr key={dataset.id}><td><b>{dataset.name}</b><small>{formatDate(dataset.startedAt)} · {dataset.builderVersion}</small></td><td><b>{dataset.leagueLabel}</b><small>{dataset.predictionHorizonHours}s · min {dataset.minimumHistoryMatches} maç</small></td><td>{dataset.sourceFixtureCount} → <b>{dataset.eligibleSampleCount}</b><small>{dataset.rejectedSampleCount} reddedildi</small></td><td>%{decimal(dataset.averageDataCompleteness * 100, 1)}</td><td>%{decimal(dataset.oddsCoverage * 100, 1)}</td><td><span className={`dataset-status ${dataset.status}`}>{dataset.status}</span><small>{dataset.leakageViolationCount} sızıntı ihlali</small></td><td><code>{dataset.datasetChecksumSha256.slice(0, 12)}</code><small>{dataset.featureSchemaVersion}</small></td></tr>)}
+            {(overview?.datasets ?? []).map((dataset) => <tr key={dataset.id}><td><b>{dataset.name}</b><small>{formatDate(dataset.startedAt)} · {dataset.builderVersion}</small></td><td><b>{dataset.leagueLabel}</b><small>{dataset.predictionHorizonHours}s · min {dataset.minimumHistoryMatches} maç</small></td><td>{dataset.sourceFixtureCount} → <b>{dataset.eligibleSampleCount}</b><small>{dataset.rejectedSampleCount} reddedildi</small></td><td>%{decimal(dataset.averageDataCompleteness * 100, 1)}</td><td>%{decimal(dataset.oddsCoverage * 100, 1)}</td><td><span className={`dataset-status ${dataset.status}`}>{dataset.status}</span><small>{dataset.leakageViolationCount} sızıntı ihlali</small></td><td><code>{dataset.datasetChecksumSha256.slice(0, 12)}</code><small>{dataset.benchmarkSchemaVersion === overview?.policy.benchmarkSchemaVersion ? dataset.benchmarkSchemaVersion : "CP08 öncesi · yeniden üret"}</small></td></tr>)}
           </tbody></table></div>
+        </section>
+
+        <section className="model-benchmark-card" id="benchmarks">
+          <header>
+            <div><small>SAME DATA · SAME FOLDS · FOUR BRANCHES</small><h2>Elo, Poisson ve Dixon–Coles benchmarkları</h2></div>
+            <span>RESEARCH ONLY</span>
+          </header>
+          <p className="model-benchmark-lead">Form taktiğimizi üç şeffaf istatistiksel referansla aynı değişmez dataset ve aynı kronolojik test dönemlerinde karşılaştırır. Liderlik önce out-of-sample log loss, sonra Brier ile belirlenir; tek bir lig sonucu üretim kanıtı sayılmaz.</p>
+          <div className="model-branch-grid">
+            <article><span><BrainCircuit size={16} /></span><div><small>ANA TAKTİK</small><b>Form & Dominance</b><p>Son 5/10 form, saha bağlamı ve gelişmiş dominasyon sinyali. H2H ağırlığı şimdilik sıfır.</p></div></article>
+            <article><span><Activity size={16} /></span><div><small>GÜÇ REFERANSI</small><b>Dynamic Elo</b><p>Kronolojik takım gücü, 65 puan ev avantajı ve beraberlik paylaştırması.</p></div></article>
+            <article><span><BarChart3 size={16} /></span><div><small>GOL REFERANSI</small><b>Time-decayed Poisson</b><p>180 günlük yarı ömürlü hücum–savunma gücü ve 0–10 gol skor matrisi.</p></div></article>
+            <article><span><Sigma size={16} /></span><div><small>DÜŞÜK SKOR DÜZELTMESİ</small><b>Dixon–Coles</b><p>İki aşamalı Poisson fitine 0-0, 1-0, 0-1 ve 1-1 için öğrenilen rho düzeltmesi.</p></div></article>
+          </div>
+          <div className="model-benchmark-controls">
+            <label><span>Dondurulmuş dataset</span><select value={selectedBenchmarkDatasetId} onChange={(event) => { setSelectedBenchmarkDatasetId(event.target.value); setLatestBenchmarkSuite(null); }} disabled={runningBenchmarks || loading}>
+              {compatibleBenchmarkDatasets.length === 0 && <option value="">CP08 uyumlu dataset yok</option>}
+              {compatibleBenchmarkDatasets.map((dataset) => <option key={dataset.id} value={dataset.id}>{dataset.leagueLabel} · {dataset.eligibleSampleCount} örnek · {dataset.datasetChecksumSha256.slice(0, 8)}</option>)}
+            </select></label>
+            <div><span><Database size={15} />{selectedBenchmarkDataset ? `${selectedBenchmarkDataset.eligibleSampleCount} sabit örnek` : "En az 30 örnek gerekir"}</span><span><GitBranch size={15} />Aynı OOS fold</span><span><LockKeyhole size={15} />Yayın kapısı kapalı</span></div>
+            <button type="button" onClick={() => void runBenchmarkComparison()} disabled={runningBenchmarks || !selectedBenchmarkDataset}>{runningBenchmarks ? <LoaderCircle className="spin" size={17} /> : <Play size={16} />}{runningBenchmarks ? "Dört dal kronolojik test ediliyor" : "Dört modeli karşılaştır"}</button>
+          </div>
+          {benchmarkRows.length === 0 ? <div className="model-empty-state compact"><Sigma size={20} /><b>Karşılaştırma sonucu henüz yok.</b><p>CP08 builder ile dataset üretin; ardından dört dal aynı geçmiş ve aynı walk-forward konfigürasyonuyla çalışır.</p></div> : <div className="model-benchmark-results">
+            <div className="model-benchmark-verdict"><div><small>GEÇİCİ OOS LİDERİ</small><b>{benchmarkLeader?.modelName ?? "Dört koşu tamamlanıyor"}</b></div><p>Bu yalnız seçili araştırma datasetindeki olasılık kalitesini gösterir; lisanslı çok sezonlu holdout testi olmadan üretim tercihi değildir.</p><span>{selectedBenchmarkDataset?.datasetChecksumSha256.slice(0, 12)}</span></div>
+            <div className="admin-table-wrap"><table><thead><tr><th>Model</th><th>İsabet</th><th>Log loss</th><th>Brier</th><th>ECE</th><th>OOS / fold</th><th>Durum</th></tr></thead><tbody>
+              {benchmarkRows.map((run) => <tr key={run.modelCode} className={run.modelCode === benchmarkLeader?.modelCode ? "benchmark-winner" : ""}><td><b>{run.modelName}</b><small>{modelShortCode(run.modelCode)}</small></td><td>{run.accuracy === null ? "—" : `%${decimal(run.accuracy * 100, 1)}`}</td><td><b>{run.logLoss === null ? "—" : decimal(run.logLoss, 3)}</b>{run.modelCode === benchmarkLeader?.modelCode && <small>OOS lideri</small>}</td><td>{run.brierScore === null ? "—" : decimal(run.brierScore, 3)}</td><td>{run.ece === null ? "—" : `%${decimal(run.ece * 100, 1)}`}</td><td>{run.sampleCount} / {run.foldCount}</td><td><span className={`release-stage ${run.releaseStage}`}>{stageLabel(run.releaseStage)}</span></td></tr>)}
+            </tbody></table></div>
+          </div>}
         </section>
 
         <section className="model-lab-grid" id="pipeline">
@@ -426,7 +560,7 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
           <header><div><small>IMMUTABLE EXPERIMENT LOG</small><h2>Backtest geçmişi</h2></div><span>MODEL + CONFIG + METRICS</span></header>
           <div className="admin-table-wrap"><table><thead><tr><th>Koşu</th><th>Veri</th><th>Kaynak / etkili / fold</th><th>Log loss</th><th>ECE</th><th>Net</th><th>Aşama</th></tr></thead><tbody>
             {(overview?.runs ?? []).length === 0 && <tr><td colSpan={7}><div className="admin-empty">Henüz backtest koşusu yok.</div></td></tr>}
-            {(overview?.runs ?? []).map((run) => <tr key={run.id}><td><b>{run.name}</b><small>{formatDate(run.startedAt)} · v{run.versionLabel}</small></td><td><span className={`dataset-kind ${run.datasetKind}`}>{run.datasetKind}</span><small>{run.leagueLabel} · {run.market}</small></td><td>{run.sourceSampleCount} / {run.sampleCount} / {run.foldCount}</td><td>{run.logLoss === null ? "—" : decimal(run.logLoss, 3)}</td><td>{run.ece === null ? "—" : `${decimal(run.ece * 100, 1)}%`}</td><td>{run.netUnits === null ? "—" : `${run.netUnits >= 0 ? "+" : ""}${decimal(run.netUnits, 2)}u`}</td><td><span className={`release-stage ${run.releaseStage}`}>{stageLabel(run.releaseStage)}</span></td></tr>)}
+            {(overview?.runs ?? []).map((run) => <tr key={run.id}><td><b>{run.name}</b><small>{run.modelName} · {formatDate(run.startedAt)} · v{run.versionLabel}</small></td><td><span className={`dataset-kind ${run.datasetKind}`}>{run.datasetKind}</span><small>{run.leagueLabel} · {run.market}</small></td><td>{run.sourceSampleCount} / {run.sampleCount} / {run.foldCount}</td><td>{run.logLoss === null ? "—" : decimal(run.logLoss, 3)}</td><td>{run.ece === null ? "—" : `${decimal(run.ece * 100, 1)}%`}</td><td>{run.netUnits === null ? "—" : `${run.netUnits >= 0 ? "+" : ""}${decimal(run.netUnits, 2)}u`}</td><td><span className={`release-stage ${run.releaseStage}`}>{stageLabel(run.releaseStage)}</span></td></tr>)}
           </tbody></table></div>
         </section>
 
@@ -454,6 +588,24 @@ function decimal(value: number, digits: number) {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function latestRunsByModel(runs: ModelRun[]) {
+  const latest = new Map<ModelCode, ModelRun>();
+  for (const run of runs) {
+    if (!latest.has(run.modelCode)) latest.set(run.modelCode, run);
+  }
+  return [...latest.values()];
+}
+
+function modelShortCode(modelCode: ModelCode) {
+  const labels: Record<ModelCode, string> = {
+    "form-dominance-baseline": "FORM-V1",
+    "elo-baseline": "ELO-V1",
+    "poisson-baseline": "POISSON-V1",
+    "dixon-coles-baseline": "DC-RHO-V1",
+  };
+  return labels[modelCode];
 }
 
 function initials(value: string) {

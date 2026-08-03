@@ -186,6 +186,25 @@ test("even exceptional historical metrics stop at limited release", () => {
   assert.notEqual(decision.stage, "general_recommendation");
 });
 
+test("unverified historical data remains research-only even when metrics are exceptional", () => {
+  const baseline = runBacktest(createSyntheticBacktestSamples(500), { datasetKind: "synthetic" }).metrics;
+  const decision = evaluateReleaseDecision({
+    ...baseline,
+    sampleCount: 1_000,
+    foldCount: 8,
+    dataCompleteness: 1,
+    logLoss: baseline.benchmarkLogLoss - 0.08,
+    brierScore: baseline.benchmarkBrierScore - 0.04,
+    ece: 0.02,
+    consistentPeriods: 6,
+    maxDrawdownUnits: 2,
+  }, "historical", 0, true);
+
+  assert.equal(decision.stage, "research");
+  assert.equal(decision.automatedRecommendationAllowed, false);
+  assert.ok(decision.reasons.some((reason) => reason.includes("revizyon zamanı")));
+});
+
 test("result availability cannot precede kickoff", () => {
   const samples = createSyntheticBacktestSamples(100);
   samples[0] = {

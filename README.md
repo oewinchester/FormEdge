@@ -7,7 +7,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.3.2 · Checkpoint 07 · Aşama 3 / Offline Model Lab**
+**v0.3.3 · Checkpoint 08 · Aşama 3 / Offline Model Lab**
 
 - Responsive, 3D destekli ürün landing sayfası
 - D1 tabanlı futbol veri çekirdeği ve R2 ham veri arşivi
@@ -20,6 +20,10 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 - Değişmez model sürümü, veri/config SHA-256 kimliği ve kalıcı deney geçmişi
 - Gerçek D1 maç geçmişinden tahmin anına göre dondurulan, SHA-256 kimlikli feature datasetleri
 - Lig bazında geçmiş/stat/oran hazırlık görünümü ve değişmez dataset denetim geçmişi
+- Kronolojik takım gücü, ev avantajı ve beraberlik payı kullanan Dynamic Elo benchmarkı
+- 180 günlük yarı ömürlü hücum–savunma gücü ve skor matrisi kullanan Poisson benchmarkı
+- Poisson gücüne öğrenilen düşük skor rho düzeltmesi ekleyen iki aşamalı Dixon–Coles benchmarkı
+- Dört model dalını aynı dataset, aynı walk-forward fold ve aynı OOS metriklerle karşılaştıran araştırma konsolu
 - Research → Analysis-only → Shadow → Limited yayın akışı; genel yayın yalnız manuel kararla
 
 ## Sürüm ve checkpoint yol haritası
@@ -29,9 +33,9 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.1 | CP01–CP03 | Responsive landing, mobil yüzen panel, gerçek 3D futbol topu | Tamamlandı |
 | v0.2 | CP04–CP05 | D1/R2 veri çekirdeği, kontrollü JSON/CSV importu, veri sağlığı ve eşleme incelemesi | Tamamlandı |
 | v0.3.1 | CP06 | Form + dominasyon baseline, sızıntı denetimi, walk-forward ve yayın kapıları | Tamamlandı |
-| **v0.3.2** | **CP07** | **Gerçek D1 point-in-time dataset builder ve değişmez provenance** | **Mevcut** |
-| v0.3.3 | CP08 | Elo ve Poisson/Dixon–Coles karşılaştırma modelleri | Sıradaki |
-| v0.3.4 | CP09 | Ablation, kalibrasyon, holdout ve lig × pazar kanıt matrisi | Planlandı |
+| v0.3.2 | CP07 | Gerçek D1 point-in-time dataset builder ve değişmez provenance | Tamamlandı |
+| **v0.3.3** | **CP08** | **Elo ve Poisson/Dixon–Coles karşılaştırma modelleri** | **Mevcut** |
+| v0.3.4 | CP09 | Ablation, kalibrasyon, holdout ve lig × pazar kanıt matrisi | Sıradaki |
 | v0.4 | CP10–CP11 | Tahmin sürümleme, izleme/final durum makinesi, maç analizleri ve şeffaf performans geçmişi | Planlandı |
 | v0.5 | CP12–CP14 | De-vig/değer filtresi, kadro-bağlam yeniden skoru, kupon, kasa ve bildirim motoru | Planlandı |
 | v0.6 | CP15–CP16 | Waitlist, Free/Pro/Expert, kartsız beta denemesi ve 100–300 kişilik davetli beta | Planlandı |
@@ -51,7 +55,9 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 6. Kasa simülasyonu çeyrek Kelly kullanır ve tek seçimde mutlak `%2` tavanını aşamaz.
 7. Gelişmiş veri tamlığı `%85` altındaki maç analiz edilir fakat öneri havuzuna giremez.
 8. Sentetik QA koşuları hiçbir gerçek lig yayın kapısını yükseltemez.
-9. Otomasyon genel öneri aşamasına geçemez.
+9. Kaynak revizyon zamanı doğrulanmamış tarihsel datasetler yalnız araştırma amaçlıdır ve hiçbir yayın kapısını yükseltemez.
+10. Benchmark lideri önce out-of-sample log loss, sonra Brier ile belirlenir; tek bir dataset üretim tercihi için yeterli değildir.
+11. Otomasyon genel öneri aşamasına geçemez.
 
 ## Teknoloji
 
@@ -71,6 +77,8 @@ lib/model-lab.ts             Saf feature, backtest ve yayın kararı çekirdeği
 lib/model-lab-store.ts       Kalıcı model/deney/yayın kapısı kayıtları
 lib/point-in-time-dataset.ts Saf ve deterministik tarihsel dataset üreticisi
 lib/point-in-time-dataset-store.ts D1 dataset/provenance kayıt zinciri
+lib/benchmark-models.ts      Elo, Poisson ve iki aşamalı Dixon–Coles çekirdeği
+lib/benchmark-suite-store.ts Aynı dataset üzerinde dört dallı deney orkestrasyonu
 lib/admin-data.ts            Veri alımı, kalite ve yönetici yetkilendirmesi
 tests/                       Veri ve model güvenlik testleri
 ```

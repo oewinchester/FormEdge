@@ -7,8 +7,14 @@ import {
   type HistoricalMatch,
   type MatchOutcome,
 } from "./model-lab.ts";
+import {
+  BENCHMARK_SCHEMA_VERSION,
+  buildBenchmarkForecast,
+  type BenchmarkForecast,
+  type BenchmarkFixture,
+} from "./benchmark-models.ts";
 
-export const DATASET_BUILDER_VERSION = "point-in-time-d1-v1" as const;
+export const DATASET_BUILDER_VERSION = "point-in-time-d1-v2" as const;
 
 export type DatasetFixtureRow = {
   id: string;
@@ -75,11 +81,15 @@ export type PointInTimeFeaturePayload = {
     homeHistoryFixtureIds: string[];
     awayHistoryFixtureIds: string[];
     h2hFixtureIds: string[];
+    benchmarkHistoryFixtureCount: number;
+    benchmarkHistoryCutoffAt: string;
+    benchmarkHistoryFingerprint: string;
     oddsBookmaker: string | null;
     oddsCapturedAt: string | null;
     closingOddsCapturedAt: string | null;
   };
   features: ReturnType<typeof buildFormAdvantageFeatures>;
+  benchmarks: BenchmarkForecast;
 };
 
 export type PointInTimeDatasetRecord = {
@@ -104,6 +114,7 @@ export type PointInTimeDatasetAudit = {
 export type PointInTimeDatasetResult = {
   builderVersion: typeof DATASET_BUILDER_VERSION;
   featureSchemaVersion: typeof FEATURE_SCHEMA_VERSION;
+  benchmarkSchemaVersion: typeof BENCHMARK_SCHEMA_VERSION;
   config: PointInTimeDatasetConfig;
   records: PointInTimeDatasetRecord[];
   samples: BacktestSample[];
@@ -195,6 +206,7 @@ export async function buildPointInTimeDataset(input: {
       teamFixtures,
       statsByFixtureTeam,
     ));
+    const benchmarkRows = validFinished.filter((fixture) => fixture.resultKnownMs <= predictionMs);
 
     try {
       const predictionAt = new Date(predictionMs).toISOString();
@@ -206,10 +218,23 @@ export async function buildPointInTimeDataset(input: {
         awayHistory,
         h2hFromHomePerspective: h2hHistory,
       });
+      const benchmarkHistory = benchmarkRows.map(toBenchmarkFixture);
+      const benchmarkHistoryFingerprint = await sha256(canonicalJson(benchmarkHistory));
+      const benchmarks = buildBenchmarkForecast({
+        history: benchmarkHistory,
+        target: {
+          fixtureId: target.id,
+          predictionAt,
+          kickoffAt: target.kickoffAt,
+          homeTeamId: target.homeTeamId,
+          awayTeamId: target.awayTeamId,
+        },
+      });
       const odds = chooseOdds(oddsByFixture.get(target.id) ?? [], predictionMs, target.kickoffMs);
       const featureCutoffMs = Math.max(
         ...homeRows.map((fixture) => fixture.resultKnownMs),
         ...awayRows.map((fixture) => fixture.resultKnownMs),
+        Date.parse(benchmarks.historyCutoffAt),
       );
       const historyCoverage = Math.min(1, Math.min(homeRows.length, awayRows.length) / 10);
       const advancedCoverage = (features.home.advancedDataCoverage + features.away.advancedDataCoverage) / 2;
@@ -231,11 +256,15 @@ export async function buildPointInTimeDataset(input: {
           homeHistoryFixtureIds: homeRows.map((fixture) => fixture.id),
           awayHistoryFixtureIds: awayRows.map((fixture) => fixture.id),
           h2hFixtureIds: h2hRows.map((fixture) => fixture.id),
+          benchmarkHistoryFixtureCount: benchmarks.historyFixtureCount,
+          benchmarkHistoryCutoffAt: benchmarks.historyCutoffAt,
+          benchmarkHistoryFingerprint,
           oddsBookmaker: odds.open?.bookmaker ?? null,
           oddsCapturedAt: odds.open?.capturedAt ?? null,
           closingOddsCapturedAt: odds.closing?.capturedAt ?? null,
         },
         features,
+        benchmarks,
       };
       const featureFingerprint = await sha256(canonicalJson(featurePayload));
       const sample: BacktestSample = {
@@ -273,6 +302,7 @@ export async function buildPointInTimeDataset(input: {
   const datasetChecksumSha256 = await sha256(canonicalJson({
     builderVersion: DATASET_BUILDER_VERSION,
     featureSchemaVersion: FEATURE_SCHEMA_VERSION,
+    benchmarkSchemaVersion: BENCHMARK_SCHEMA_VERSION,
     config,
     samples,
   }));
@@ -286,6 +316,7 @@ export async function buildPointInTimeDataset(input: {
   return {
     builderVersion: DATASET_BUILDER_VERSION,
     featureSchemaVersion: FEATURE_SCHEMA_VERSION,
+    benchmarkSchemaVersion: BENCHMARK_SCHEMA_VERSION,
     config,
     records,
     samples,
@@ -441,6 +472,20 @@ function toHistoricalMatch(
     ppdaAgainst: finiteOrUndefined(opponent?.ppda),
     bigChancesCreated: finiteOrUndefined(opponent?.bigChancesAllowed),
     bigChancesAllowed: finiteOrUndefined(own?.bigChancesAllowed),
+  };
+}
+
+function toBenchmarkFixture(
+  fixture: NormalizedFixture & { homeScore: number; awayScore: number },
+): BenchmarkFixture {
+  return {
+    fixtureId: fixture.id,
+    kickoffAt: fixture.kickoffAt,
+    resultKnownAt: new Date(fixture.resultKnownMs).toISOString(),
+    homeTeamId: fixture.homeTeamId,
+    awayTeamId: fixture.awayTeamId,
+    homeScore: fixture.homeScore,
+    awayScore: fixture.awayScore,
   };
 }
 

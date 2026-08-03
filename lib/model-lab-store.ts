@@ -9,6 +9,7 @@ import {
   releaseGates,
 } from "@/db/schema";
 import type { AdminActor } from "@/lib/admin-data";
+import { BENCHMARK_SCHEMA_VERSION } from "@/lib/benchmark-models";
 import {
   FEATURE_SCHEMA_VERSION,
   ModelLabValidationError,
@@ -19,7 +20,48 @@ import {
 } from "@/lib/model-lab";
 import { getPointInTimeDatasetOverview } from "@/lib/point-in-time-dataset-store";
 
-const MODEL_DEFINITION_ID = "model_form_dominance_baseline";
+export type ModelCode =
+  | "form-dominance-baseline"
+  | "elo-baseline"
+  | "poisson-baseline"
+  | "dixon-coles-baseline";
+
+const MODEL_SPECS: Record<ModelCode, {
+  id: string;
+  displayName: string;
+  family: "heuristic" | "statistical";
+  description: string;
+  versionPrefix: string;
+}> = {
+  "form-dominance-baseline": {
+    id: "model_form_dominance_baseline",
+    displayName: "Form & Dominance Baseline",
+    family: "heuristic",
+    description: "Weighted last-5/10 form, venue context and advanced dominance evidence. H2H remains disabled until ablation validates a weight.",
+    versionPrefix: "1.1.0",
+  },
+  "elo-baseline": {
+    id: "model_elo_baseline",
+    displayName: "Dynamic Elo Baseline",
+    family: "statistical",
+    description: "Chronological Elo strength with home advantage and a draw allocation that preserves expected match points.",
+    versionPrefix: "0.1.0",
+  },
+  "poisson-baseline": {
+    id: "model_poisson_baseline",
+    displayName: "Time-decayed Poisson Baseline",
+    family: "statistical",
+    description: "Recency-weighted attack and defence strengths projected through an independent home-away goal matrix.",
+    versionPrefix: "0.1.0",
+  },
+  "dixon-coles-baseline": {
+    id: "model_dixon_coles_baseline",
+    displayName: "Dixon–Coles Baseline",
+    family: "statistical",
+    description: "Time-decayed Poisson strengths with a fitted low-score dependence correction for 0-0, 1-0, 0-1 and 1-1.",
+    versionPrefix: "0.1.0",
+  },
+};
 
 export type ModelLabExperimentInput = {
   name: string;
@@ -29,6 +71,13 @@ export type ModelLabExperimentInput = {
   market: "1X2";
   samples: BacktestSample[];
   config?: Partial<BacktestConfig>;
+  modelCode?: ModelCode;
+  modelConfig?: Record<string, unknown>;
+  featureSchemaVersion?: string;
+  featureDatasetRunId?: string | null;
+  datasetChecksumSha256?: string;
+  trainingCutoffAt?: string | null;
+  releaseGateEligible?: boolean;
 };
 
 export async function getModelLabOverview(actor: AdminActor) {
@@ -49,6 +98,7 @@ export async function getModelLabOverview(actor: AdminActor) {
   const runs = await db.select({
     id: backtestRuns.id,
     name: backtestRuns.name,
+    featureDatasetRunId: backtestRuns.featureDatasetRunId,
     datasetKind: backtestRuns.datasetKind,
     leagueLabel: backtestRuns.leagueLabel,
     market: backtestRuns.market,
@@ -67,8 +117,11 @@ export async function getModelLabOverview(actor: AdminActor) {
     startedAt: backtestRuns.startedAt,
     completedAt: backtestRuns.completedAt,
     versionLabel: modelVersions.versionLabel,
+    modelCode: modelDefinitions.code,
+    modelName: modelDefinitions.displayName,
   }).from(backtestRuns)
     .innerJoin(modelVersions, eq(backtestRuns.modelVersionId, modelVersions.id))
+    .innerJoin(modelDefinitions, eq(modelVersions.modelDefinitionId, modelDefinitions.id))
     .orderBy(desc(backtestRuns.startedAt))
     .limit(20);
   const gates = await db.select({
@@ -117,6 +170,7 @@ export async function getModelLabOverview(actor: AdminActor) {
       minimumOdds: 1.2,
       minimumRecommendationDataCompleteness: 0.85,
       featureSchemaVersion: FEATURE_SCHEMA_VERSION,
+      benchmarkSchemaVersion: BENCHMARK_SCHEMA_VERSION,
       dataset: datasetOverview.policy,
     },
   };
@@ -124,45 +178,55 @@ export async function getModelLabOverview(actor: AdminActor) {
 
 export async function runModelLabExperiment(actor: AdminActor, input: ModelLabExperimentInput) {
   validateExperimentInput(input);
-  const result = runBacktest(input.samples, { config: input.config, datasetKind: input.datasetKind });
+  const modelCode = input.modelCode ?? "form-dominance-baseline";
+  const modelSpec = MODEL_SPECS[modelCode];
+  const result = runBacktest(input.samples, {
+    config: input.config,
+    datasetKind: input.datasetKind,
+    researchOnly: input.datasetKind === "historical" && input.releaseGateEligible !== true,
+  });
   const db = await getDb();
   const runId = crypto.randomUUID();
   const startedAt = new Date().toISOString();
-  const configJson = JSON.stringify(result.config);
+  const configJson = canonicalJson({
+    backtest: result.config,
+    model: input.modelConfig ?? {},
+  });
   const configChecksumSha256 = await sha256(configJson);
-  const datasetChecksumSha256 = await sha256(canonicalJson(
+  const datasetChecksumSha256 = input.datasetChecksumSha256 ?? await sha256(canonicalJson(
     [...input.samples].sort((a, b) => a.kickoffAt.localeCompare(b.kickoffAt) || a.fixtureId.localeCompare(b.fixtureId)),
   ));
-  const modelVersionId = `model_form_dominance_${configChecksumSha256.slice(0, 24)}`;
-  const modelVersionLabel = `1.0.0-${configChecksumSha256.slice(0, 8)}`;
+  const modelSlug = modelCode.replaceAll("-", "_");
+  const modelVersionId = `model_${modelSlug}_${configChecksumSha256.slice(0, 20)}`;
+  const modelVersionLabel = `${modelSpec.versionPrefix}-${configChecksumSha256.slice(0, 8)}`;
 
   await db.insert(modelDefinitions).values({
-    id: MODEL_DEFINITION_ID,
-    code: "form-dominance-baseline",
-    displayName: "Form & Dominance Baseline",
-    family: "heuristic",
+    id: modelSpec.id,
+    code: modelCode,
+    displayName: modelSpec.displayName,
+    family: modelSpec.family,
     targetMarket: "1X2",
     status: "research",
-    description: "Weighted last-5/10 form, venue context and advanced dominance evidence. H2H remains disabled until ablation validates a weight.",
+    description: modelSpec.description,
     createdByEmail: actor.email,
     updatedAt: startedAt,
   }).onConflictDoUpdate({
     target: modelDefinitions.code,
-    set: { description: "Weighted last-5/10 form, venue context and advanced dominance evidence. H2H remains disabled until ablation validates a weight.", updatedAt: startedAt },
+    set: { description: modelSpec.description, updatedAt: startedAt },
   });
   const [definition] = await db.select({ id: modelDefinitions.id })
     .from(modelDefinitions)
-    .where(eq(modelDefinitions.code, "form-dominance-baseline"))
+    .where(eq(modelDefinitions.code, modelCode))
     .limit(1);
   if (!definition) throw new ModelLabValidationError("The baseline model definition could not be resolved.");
   await db.insert(modelVersions).values({
     id: modelVersionId,
     modelDefinitionId: definition.id,
     versionLabel: modelVersionLabel,
-    featureSchemaVersion: FEATURE_SCHEMA_VERSION,
+    featureSchemaVersion: input.featureSchemaVersion ?? FEATURE_SCHEMA_VERSION,
     configJson,
     configChecksumSha256,
-    trainingCutoffAt: null,
+    trainingCutoffAt: input.trainingCutoffAt ?? null,
     status: "candidate",
     createdByEmail: actor.email,
   }).onConflictDoNothing();
@@ -174,6 +238,7 @@ export async function runModelLabExperiment(actor: AdminActor, input: ModelLabEx
     name: input.name.trim(),
     datasetKind: input.datasetKind,
     datasetChecksumSha256,
+    featureDatasetRunId: input.featureDatasetRunId ?? null,
     leagueId: input.leagueId || null,
     leagueLabel: input.leagueLabel.trim(),
     market: input.market,
@@ -257,6 +322,8 @@ export async function runModelLabExperiment(actor: AdminActor, input: ModelLabEx
       entityId: runId,
       detailsJson: JSON.stringify({
         datasetKind: input.datasetKind,
+        modelCode,
+        featureDatasetRunId: input.featureDatasetRunId ?? null,
         datasetChecksumSha256,
         leagueLabel: input.leagueLabel,
         market: input.market,
@@ -268,7 +335,7 @@ export async function runModelLabExperiment(actor: AdminActor, input: ModelLabEx
       }),
     });
 
-    if (input.datasetKind === "historical") {
+    if (input.datasetKind === "historical" && input.releaseGateEligible === true) {
       const gateId = await stableGateId(input.leagueLabel, input.market);
       const updateGate = db.insert(releaseGates).values({
         id: gateId,
@@ -313,7 +380,7 @@ export async function runModelLabExperiment(actor: AdminActor, input: ModelLabEx
         action: "model.backtest.failed",
         entityType: "backtest_run",
         entityId: runId,
-        detailsJson: JSON.stringify({ datasetChecksumSha256, modelVersionId, errorMessage }),
+        detailsJson: JSON.stringify({ datasetChecksumSha256, modelVersionId, modelCode, errorMessage }),
       });
     } catch {
       // Preserve and rethrow the original storage error if failure logging is unavailable too.
@@ -321,7 +388,7 @@ export async function runModelLabExperiment(actor: AdminActor, input: ModelLabEx
     throw error;
   }
 
-  return { runId, modelVersionId, ...result };
+  return { runId, modelVersionId, modelCode, modelName: modelSpec.displayName, ...result };
 }
 
 function validateExperimentInput(input: ModelLabExperimentInput) {
@@ -335,8 +402,17 @@ function validateExperimentInput(input: ModelLabExperimentInput) {
   if (typeof input.leagueLabel !== "string" || input.leagueLabel.trim().length < 2 || input.leagueLabel.trim().length > 100) {
     throw new ModelLabValidationError("A league label is required.");
   }
-  if (input.market !== "1X2") throw new ModelLabValidationError("Checkpoint 6 accepts only the 1X2 baseline market.");
+  if (input.market !== "1X2") throw new ModelLabValidationError("The current Model Lab accepts only the 1X2 market.");
   if (!Array.isArray(input.samples)) throw new ModelLabValidationError("samples must be an array.");
+  if (input.modelCode !== undefined && !Object.hasOwn(MODEL_SPECS, input.modelCode)) {
+    throw new ModelLabValidationError("The requested modelCode is not registered.");
+  }
+  if (input.datasetChecksumSha256 !== undefined && !/^[a-f0-9]{64}$/.test(input.datasetChecksumSha256)) {
+    throw new ModelLabValidationError("datasetChecksumSha256 must be a lowercase SHA-256 value.");
+  }
+  if (input.releaseGateEligible === true && input.datasetKind !== "historical") {
+    throw new ModelLabValidationError("Only a verified historical dataset can be release-gate eligible.");
+  }
 }
 
 async function stableGateId(leagueLabel: string, market: string) {

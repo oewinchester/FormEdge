@@ -502,6 +502,7 @@ export function runBacktest(
   options: {
     config?: Partial<BacktestConfig>;
     datasetKind?: "historical" | "synthetic";
+    researchOnly?: boolean;
   } = {},
 ): BacktestResult {
   if (!Array.isArray(samples) || samples.length < 20) {
@@ -526,7 +527,12 @@ export function runBacktest(
     .filter((sample) => evaluationIds.has(sample.fixtureId))
     .map((sample) => evaluatePrediction(sample, config));
   const metrics = calculateMetrics(predictions, folds, config);
-  const releaseDecision = evaluateReleaseDecision(metrics, options.datasetKind ?? "historical", 0);
+  const releaseDecision = evaluateReleaseDecision(
+    metrics,
+    options.datasetKind ?? "historical",
+    0,
+    options.researchOnly ?? false,
+  );
   return { sourceSampleCount: ordered.length, config, metrics, folds, predictions, releaseDecision };
 }
 
@@ -534,6 +540,7 @@ export function evaluateReleaseDecision(
   metrics: BacktestMetrics,
   datasetKind: "historical" | "synthetic",
   leakageViolations: number,
+  researchOnly = false,
 ): ReleaseDecision {
   const criteria: ReleaseCriterion[] = [
     { key: "leakage", label: "Point-in-time ihlali", passed: leakageViolations === 0, actual: leakageViolations, target: 0 },
@@ -546,6 +553,14 @@ export function evaluateReleaseDecision(
     { key: "periods", label: "Tutarlı zaman dilimi", passed: metrics.consistentPeriods >= 2, actual: metrics.consistentPeriods, target: ">= 2" },
   ];
 
+  if (researchOnly) {
+    return {
+      stage: "research",
+      automatedRecommendationAllowed: false,
+      reasons: ["Kaynak revizyon zamanı doğrulanmamış araştırma dataseti yayın aşamasını yükseltemez."],
+      criteria,
+    };
+  }
   if (datasetKind === "synthetic") {
     return {
       stage: "research",

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { BENCHMARK_SCHEMA_VERSION } from "../lib/benchmark-models.ts";
 import { buildPointInTimeDataset } from "../lib/point-in-time-dataset.ts";
 
 const config = {
@@ -18,12 +19,18 @@ test("D1-shaped history produces audited point-in-time samples", async () => {
   assert.equal(result.audit.eligibleSampleCount, result.samples.length);
   assert.equal(result.audit.rejectedSampleCount + result.samples.length, result.audit.finishedFixtureCount);
   assert.match(result.datasetChecksumSha256, /^[a-f0-9]{64}$/);
+  assert.equal(result.benchmarkSchemaVersion, BENCHMARK_SCHEMA_VERSION);
 
   for (const record of result.records) {
     const predictionMs = Date.parse(record.sample.predictionAt);
     assert.ok(Date.parse(record.sample.featureCutoffAt) <= predictionMs);
     assert.ok(Date.parse(record.sample.odds.capturedAt) <= predictionMs);
     assert.ok(Date.parse(record.featurePayload.provenance.closingOddsCapturedAt) < Date.parse(record.sample.kickoffAt));
+    assert.ok(Date.parse(record.featurePayload.provenance.benchmarkHistoryCutoffAt) <= predictionMs);
+    assert.equal(record.featurePayload.benchmarks.benchmarkSchemaVersion, BENCHMARK_SCHEMA_VERSION);
+    const benchmarkTotal = Object.values(record.featurePayload.benchmarks.dixonColes.probabilities)
+      .reduce((sum, value) => sum + value, 0);
+    assert.ok(Math.abs(benchmarkTotal - 1) < 1e-7);
     const histories = [
       ...record.featurePayload.provenance.homeHistoryFixtureIds,
       ...record.featurePayload.provenance.awayHistoryFixtureIds,
