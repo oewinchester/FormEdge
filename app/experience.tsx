@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { gsap } from "gsap";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { Material, Mesh, Object3D, Texture } from "three";
 
 type Language = "tr" | "en";
 type MatchStatus = "final" | "watch";
@@ -137,7 +138,7 @@ function Brand() {
   );
 }
 
-function HeroSphere() {
+function HeroFootball() {
   const mountRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -150,83 +151,85 @@ function HeroSphere() {
       const probe = document.createElement("canvas");
       const context = probe.getContext("webgl2") ?? probe.getContext("webgl");
       if (!context) {
-        mount.classList.add("sphere-fallback");
+        mount.classList.add("football-fallback");
         return;
       }
       context.getExtension("WEBGL_lose_context")?.loseContext();
 
       const THREE = await import("three");
+      const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
       if (disposed) return;
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 100);
-      camera.position.z = 7.2;
+      const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+      camera.position.set(0, 0.1, 6.3);
       let renderer: InstanceType<typeof THREE.WebGLRenderer>;
       try {
-        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" });
       } catch {
-        mount.classList.add("sphere-fallback");
+        mount.classList.add("football-fallback");
         return;
       }
 
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.16;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       mount.appendChild(renderer.domElement);
 
-      const group = new THREE.Group();
-      group.rotation.z = -0.14;
-      scene.add(group);
-      group.add(new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1.67, 5),
-        new THREE.MeshBasicMaterial({ color: 0x183765, opacity: 0.27, transparent: true, wireframe: true }),
-      ));
-      const cage = new THREE.LineSegments(
-        new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(2.03, 2)),
-        new THREE.LineBasicMaterial({ color: 0x68b6ff, opacity: 0.22, transparent: true }),
+      const parallaxRig = new THREE.Group();
+      const spinRig = new THREE.Group();
+      parallaxRig.add(spinRig);
+      scene.add(parallaxRig);
+
+      scene.add(new THREE.HemisphereLight(0xd9edff, 0x07111f, 2.15));
+      const keyLight = new THREE.DirectionalLight(0xffffff, 4.4);
+      keyLight.position.set(-3.8, 5.2, 5.4);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.set(1024, 1024);
+      scene.add(keyLight);
+      const blueRim = new THREE.PointLight(0x4b8dff, 17, 12, 2);
+      blueRim.position.set(4.1, 1.5, 2.4);
+      scene.add(blueRim);
+      const mintRim = new THREE.PointLight(0x67e3c9, 9, 10, 2);
+      mintRim.position.set(-3.2, -1.4, 1.2);
+      scene.add(mintRim);
+
+      const shadow = new THREE.Mesh(
+        new THREE.CircleGeometry(1.9, 64),
+        new THREE.ShadowMaterial({ color: 0x00050c, opacity: 0.36 }),
       );
-      group.add(cage);
+      shadow.position.set(0, -2.03, 0);
+      shadow.rotation.x = -Math.PI / 2;
+      shadow.receiveShadow = true;
+      scene.add(shadow);
 
-      const count = 1500;
-      const positions = new Float32Array(count * 3);
-      const colors = new Float32Array(count * 3);
-      const palette = ["#eaf7ff", "#56a6ff", "#5ce1c7", "#b990ff"].map((color) => new THREE.Color(color));
-      for (let i = 0; i < count; i += 1) {
-        const y = 1 - (i / (count - 1)) * 2;
-        const radius = Math.sqrt(1 - y * y);
-        const theta = Math.PI * (3 - Math.sqrt(5)) * i;
-        const size = 1.92 + Math.sin(i * 12.9898) * 0.035;
-        positions[i * 3] = Math.cos(theta) * radius * size;
-        positions[i * 3 + 1] = y * size;
-        positions[i * 3 + 2] = Math.sin(theta) * radius * size;
-        const color = palette[i % palette.length];
-        colors[i * 3] = color.r;
-        colors[i * 3 + 1] = color.g;
-        colors[i * 3 + 2] = color.b;
-      }
-      const pointsGeometry = new THREE.BufferGeometry();
-      pointsGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-      pointsGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-      group.add(new THREE.Points(
-        pointsGeometry,
-        new THREE.PointsMaterial({ size: 0.026, vertexColors: true, opacity: 0.92, transparent: true, depthWrite: false }),
-      ));
-      [0, 1, 2].forEach((index) => {
-        const ring = new THREE.Mesh(
-          new THREE.TorusGeometry(2.45 + index * 0.26, 0.006, 8, 160),
-          new THREE.MeshBasicMaterial({ color: index === 1 ? 0x5ce1c7 : 0x58aaff, opacity: 0.22, transparent: true }),
-        );
-        ring.rotation.x = 1.05 + index * 0.37;
-        ring.rotation.y = 0.42 - index * 0.38;
-        group.add(ring);
-      });
+      const disposeMaterial = (material: Material) => {
+        Object.values(material).forEach((value) => {
+          if (value && typeof value === "object" && "isTexture" in value && (value as Texture).isTexture) {
+            (value as Texture).dispose();
+          }
+        });
+        material.dispose();
+      };
+      const disposeTree = (root: Object3D) => {
+        root.traverse((object) => {
+          if (!(object as Mesh).isMesh) return;
+          const mesh = object as Mesh;
+          mesh.geometry.dispose();
+          (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach(disposeMaterial);
+        });
+      };
 
+      let frame = 0;
       const pointer = { x: 0, y: 0 };
       const onMove = (event: PointerEvent) => {
         const rect = mount.getBoundingClientRect();
-        pointer.x = ((event.clientX - rect.left) / rect.width - 0.5) * 0.55;
-        pointer.y = ((event.clientY - rect.top) / rect.height - 0.5) * 0.42;
+        pointer.x = ((event.clientX - rect.left) / rect.width - 0.5) * 0.8;
+        pointer.y = ((event.clientY - rect.top) / rect.height - 0.5) * 0.58;
       };
-      mount.addEventListener("pointermove", onMove, { passive: true });
       const resize = () => {
         const width = mount.clientWidth;
         const height = mount.clientHeight;
@@ -235,42 +238,79 @@ function HeroSphere() {
         renderer.setSize(width, height, false);
       };
       const observer = new ResizeObserver(resize);
+      cleanup = () => {
+        cancelAnimationFrame(frame);
+        observer.disconnect();
+        mount.removeEventListener("pointermove", onMove);
+        disposeTree(scene);
+        renderer.dispose();
+        renderer.domElement.remove();
+      };
+
+      let model: Object3D;
+      try {
+        const gltf = await new GLTFLoader().loadAsync("/models/simple-soccer-football.glb");
+        model = gltf.scene;
+      } catch {
+        cleanup();
+        cleanup = undefined;
+        mount.classList.add("football-fallback");
+        return;
+      }
+      if (disposed) {
+        disposeTree(model);
+        cleanup?.();
+        return;
+      }
+
+      const bounds = new THREE.Box3().setFromObject(model);
+      const center = bounds.getCenter(new THREE.Vector3());
+      const size = bounds.getSize(new THREE.Vector3());
+      const scale = 3.75 / Math.max(size.x, size.y, size.z, 0.001);
+      model.position.set(-center.x, -center.y, -center.z);
+      model.scale.setScalar(scale);
+      model.traverse((object) => {
+        if (!(object as Mesh).isMesh) return;
+        const mesh = object as Mesh;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+      });
+      spinRig.add(model);
+      spinRig.rotation.set(-0.12, 0.48, -0.08);
+      mount.classList.add("football-ready");
+
+      mount.addEventListener("pointermove", onMove, { passive: true });
       observer.observe(mount);
       resize();
 
-      let frame = 0;
       const render = () => {
-        group.rotation.x += (-pointer.y - group.rotation.x * 0.11) * 0.012;
-        group.rotation.y += (pointer.x - group.rotation.y * 0.14) * 0.012;
+        const now = performance.now();
+        parallaxRig.rotation.x += (-0.08 - pointer.y * 0.24 - parallaxRig.rotation.x) * 0.035;
+        parallaxRig.rotation.y += (pointer.x * 0.34 - parallaxRig.rotation.y) * 0.035;
+        parallaxRig.position.y = reduced ? 0 : Math.sin(now * 0.00115) * 0.075;
         if (!reduced) {
-          group.rotation.y += 0.0015;
-          cage.rotation.z -= 0.0008;
+          spinRig.rotation.y += 0.0032;
         }
         renderer.render(scene, camera);
         if (!reduced) frame = requestAnimationFrame(render);
       };
       render();
-      cleanup = () => {
-        cancelAnimationFrame(frame);
-        observer.disconnect();
-        mount.removeEventListener("pointermove", onMove);
-        pointsGeometry.dispose();
-        renderer.dispose();
-        renderer.domElement.remove();
-      };
     };
 
-    void initialize();
+    void initialize().catch(() => mount.classList.add("football-fallback"));
     return () => {
       disposed = true;
-      cleanup?.();
+      const dispose = cleanup;
+      cleanup = undefined;
+      dispose?.();
     };
   }, []);
 
   return (
     <div className="hero-visual" aria-hidden="true">
-      <div className="sphere-glow" />
-      <div className="sphere-mount" ref={mountRef} />
+      <div className="football-glow" />
+      <div className="football-mount" ref={mountRef} />
+      <div className="football-ground" />
       <div className="float-card probability"><span>1</span><div><b>%64</b><small>+7.8 EDGE</small></div></div>
       <div className="float-card form"><Activity size={15} /><div><small>FORM</small><b>88</b></div></div>
       <div className="float-card grade"><ShieldCheck size={15} /><div><small>DATA</small><b>A</b></div></div>
@@ -414,7 +454,7 @@ export function FormEdgeExperience() {
           <button className="trial" type="button" onClick={() => scrollTo("#paketler")}>{tx("Beta listesine katıl", "Join the beta")}<ArrowUpRight size={16} /></button>
         </div>
       </header>
-      {menuOpen && <nav className="mobile-menu">{nav.map(([label, href]) => <button type="button" key={href} onClick={() => scrollTo(href)}>{label}<ChevronRight size={18} /></button>)}<button className="menu-cta" type="button" onClick={() => scrollTo("#paketler")}>{tx("Beta listesine katıl", "Join the beta")}<ArrowUpRight size={17} /></button></nav>}
+      {menuOpen && <nav className="mobile-menu">{nav.map(([label, href]) => <button type="button" key={href} onClick={() => scrollTo(href)}>{label}<ChevronRight size={18} /></button>)}<button type="button"><span className="menu-alert"><Bell size={16} />{tx("Bildirimler", "Notifications")}<i>2</i></span><ChevronRight size={18} /></button><button className="menu-cta" type="button" onClick={() => scrollTo("#paketler")}>{tx("Beta listesine katıl", "Join the beta")}<ArrowUpRight size={17} /></button></nav>}
 
       <main>
         <section className="hero" id="top">
@@ -427,7 +467,7 @@ export function FormEdgeExperience() {
               <div className="hero-actions" data-intro><button type="button" className="primary" onClick={() => scrollTo("#bugun")}>{tx("Örnek analizi incele", "Explore sample analysis")}<ArrowRight size={18} /></button><button type="button" className="secondary" onClick={() => scrollTo("#metod")}><CircleGauge size={17} />{tx("Yöntemi keşfet", "Discover the method")}</button></div>
               <div className="beta-proof" data-intro><span><i>UI</i><i>DA</i><i>ML</i></span><p><strong>100–300</strong> {tx("kişilik kontrollü beta", "user controlled beta")}</p></div>
             </div>
-            <HeroSphere />
+            <HeroFootball />
           </div>
           <div className="hero-stats"><div><b>42</b><span>{tx("model taraması", "model scans")}</span></div><div><b>20</b><span>{tx("öncelikli lig", "priority leagues")}</span></div><div><b>100%</b><span>{tx("değişmez geçmiş", "immutable history")}</span></div><button type="button" onClick={() => scrollTo("#bugun")}>{tx("Aşağı kaydır", "Scroll to explore")}<ArrowDown size={18} /></button></div>
         </section>
@@ -491,7 +531,7 @@ export function FormEdgeExperience() {
         <section className="final-cta"><div className="cta-orbit"><i /><i /><i /></div><div className="reveal"><span className="eyebrow">CONTROLLED BETA · 100–300 USERS</span><h2>{tx("Tahmini değil, karar kalitesini geliştir.", "Improve the quality of the decision — not the promise.")}</h2><p>{tx("İlk ücretsiz beta için bekleme listesine katıl. Kart bilgisi gerekmez.", "Join the waitlist for the first free beta. No card required.")}</p><button className="primary">{tx("Beta listesine katıl", "Join the beta")}<ArrowRight size={18} /></button></div></section>
       </main>
 
-      <footer className="site-footer"><div><Brand /><p>{tx("FormEdge bir analiz prototipidir. Garanti kazanç sunmaz ve kullanıcı adına bahis oynatmaz.", "FormEdge is an analysis prototype. It does not guarantee returns or place bets for users.")}</p><span>TR / EN</span></div><div><span>© 2026 FormEdge · Beta product prototype</span><nav><a href="#metod">{tx("Metodoloji", "Methodology")}</a><a href="#performans">{tx("Şeffaflık", "Transparency")}</a><a href="#top">18+ · {tx("Sorumlu kullanım", "Responsible use")}</a></nav></div></footer>
+      <footer className="site-footer"><div><Brand /><p>{tx("FormEdge bir analiz prototipidir. Garanti kazanç sunmaz ve kullanıcı adına bahis oynatmaz.", "FormEdge is an analysis prototype. It does not guarantee returns or place bets for users.")}</p><span>TR / EN</span></div><div><span>© 2026 FormEdge · Beta product prototype</span><nav><a href="#metod">{tx("Metodoloji", "Methodology")}</a><a href="#performans">{tx("Şeffaflık", "Transparency")}</a><a href="#top">18+ · {tx("Sorumlu kullanım", "Responsible use")}</a><a href="https://poly.pizza/m/57u6P7Sr7K0" target="_blank" rel="noreferrer">3D: Smirnoff Alexander</a><a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noreferrer">CC BY 3.0</a></nav></div></footer>
       {selected && <AnalysisDrawer match={selected} language={language} onClose={() => setSelected(null)} />}
     </div>
   );
