@@ -4,6 +4,7 @@
 import { useState } from "react";
 import {
   AlertTriangle,
+  BadgeCheck,
   Bell,
   BellRing,
   Bot,
@@ -208,6 +209,7 @@ export function NotificationCenter({
           <a href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a>
           <a href="/dashboard/bankroll"><WalletCards size={18} />Kasa ve kupon</a>
           <a className="active" href="/dashboard/notifications"><Bell size={18} />Bildirimler{center.counts.unread > 0 && <i>{center.counts.unread}</i>}</a>
+          <a href="/dashboard/membership"><BadgeCheck size={18} />Üyelik ve profil</a>
         </nav>
         <section className="user-plan-card transparency"><ShieldCheck size={17} /><div><small>GÖNDERİM POLİTİKASI</small><b>Outbox + idempotent teslim</b><p>Araştırma kayıtları gönderilmez; her kanal denemesi ayrı durum kaydı taşır.</p></div></section>
         <a className="user-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a>
@@ -216,7 +218,7 @@ export function NotificationCenter({
       <section className="user-main">
         <header className="user-topbar">
           <button type="button" className="user-menu-button" onClick={() => setMenuOpen((value) => !value)} aria-label="Menüyü aç"><Menu size={19} /></button>
-          <div><a href="/dashboard">← Dashboard</a><span>NOTIFICATION CENTER · CP14</span></div>
+          <div><a href="/dashboard">← Dashboard</a><span>NOTIFICATION CENTER · CP15 ENTITLEMENTS</span></div>
           <div className="user-top-actions"><button type="button" onClick={() => void refresh()} disabled={working !== null} aria-label="Yenile"><RefreshCw size={16} className={working === "refresh" ? "spin" : ""} /></button><span>{initials(center.profile.displayName)}</span></div>
         </header>
 
@@ -239,8 +241,8 @@ export function NotificationCenter({
 
         <section className="notification-channel-grid">
           <ChannelCard icon={Bell} eyebrow="WEB İÇİ" title="Bildirim merkezi" state="Aktif" tone="ready" text="Hesaba bağlı kayıt, okunma durumu ve doğrudan maç analizi bağlantısı." action={<Toggle checked={center.preferences.inAppEnabled} disabled={working !== null} onChange={(checked) => void patchPreferences({ inAppEnabled: checked })} label="Web içi kanal" />} />
-          <ChannelCard icon={Smartphone} eyebrow="BROWSER PUSH" title="Bu cihaz" state={channelState(center.channels.browserPush)} tone={center.channels.browserPush.connected ? "ready" : center.channels.browserPush.configured ? "waiting" : "blocked"} text={center.channels.browserPush.configured ? "Tarayıcı izni ve bu cihaza ait şifreli abonelik gerekir." : "VAPID public/private key ve subject üretim ortamına eklenmeli."} action={<button type="button" disabled={working !== null || !center.channels.browserPush.configured} onClick={() => void (center.channels.browserPush.connected ? disableBrowserPush() : enableBrowserPush())}>{working === "push" ? <LoaderCircle className="spin" size={14} /> : center.channels.browserPush.connected ? <Unplug size={14} /> : <BellRing size={14} />}{center.channels.browserPush.connected ? "Bağlantıyı kes" : "Bu cihazı bağla"}</button>} />
-          <ChannelCard icon={Bot} eyebrow="TELEGRAM" title={center.channels.telegram.botUsername ? `@${center.channels.telegram.botUsername}` : "Bot yapılandırılmadı"} state={telegramState(center)} tone={center.channels.telegram.connected ? "ready" : center.channels.telegram.configured ? "waiting" : "blocked"} text={center.channels.telegram.configured ? "Tek kullanımlık 10 dakikalık kod ile chat hesabınıza bağlanır." : "Bot token, bot kullanıcı adı ve webhook sırrı üretim ortamına eklenmeli."} action={<button type="button" disabled={working !== null || !center.channels.telegram.configured} onClick={() => void telegramAction(center.channels.telegram.connected ? "disconnect" : "pair")}>{working === "telegram" ? <LoaderCircle className="spin" size={14} /> : center.channels.telegram.connected ? <Unplug size={14} /> : <Send size={14} />}{center.channels.telegram.connected ? "Bağlantıyı kes" : center.channels.telegram.status === "pending" ? "Yeni kod üret" : "Telegram’a bağlan"}</button>} />
+          <ChannelCard icon={Smartphone} eyebrow="BROWSER PUSH" title="Bu cihaz" state={channelState(center.channels.browserPush)} tone={!center.channels.browserPush.entitled ? "blocked" : center.channels.browserPush.connected ? "ready" : center.channels.browserPush.configured ? "waiting" : "blocked"} text={!center.channels.browserPush.entitled ? "Tarayıcı push Pro veya Expert paketine açıktır." : center.channels.browserPush.configured ? "Tarayıcı izni ve bu cihaza ait şifreli abonelik gerekir." : "VAPID public/private key ve subject üretim ortamına eklenmeli."} action={!center.channels.browserPush.entitled ? <a href="/dashboard/membership"><LockKeyhole size={14} />Paketleri gör</a> : <button type="button" disabled={working !== null || !center.channels.browserPush.configured} onClick={() => void (center.channels.browserPush.connected ? disableBrowserPush() : enableBrowserPush())}>{working === "push" ? <LoaderCircle className="spin" size={14} /> : center.channels.browserPush.connected ? <Unplug size={14} /> : <BellRing size={14} />}{center.channels.browserPush.connected ? "Bağlantıyı kes" : "Bu cihazı bağla"}</button>} />
+          <ChannelCard icon={Bot} eyebrow="TELEGRAM" title={center.channels.telegram.botUsername ? `@${center.channels.telegram.botUsername}` : "Bot yapılandırılmadı"} state={telegramState(center)} tone={!center.channels.telegram.entitled ? "blocked" : center.channels.telegram.connected ? "ready" : center.channels.telegram.configured ? "waiting" : "blocked"} text={!center.channels.telegram.entitled ? "Telegram teslimi Expert paketine açıktır." : center.channels.telegram.configured ? "Tek kullanımlık 10 dakikalık kod ile chat hesabınıza bağlanır." : "Bot token, bot kullanıcı adı ve webhook sırrı üretim ortamına eklenmeli."} action={!center.channels.telegram.entitled ? <a href="/dashboard/membership"><LockKeyhole size={14} />Expert’i incele</a> : <button type="button" disabled={working !== null || !center.channels.telegram.configured} onClick={() => void telegramAction(center.channels.telegram.connected ? "disconnect" : "pair")}>{working === "telegram" ? <LoaderCircle className="spin" size={14} /> : center.channels.telegram.connected ? <Unplug size={14} /> : <Send size={14} />}{center.channels.telegram.connected ? "Bağlantıyı kes" : center.channels.telegram.status === "pending" ? "Yeni kod üret" : "Telegram’a bağlan"}</button>} />
         </section>
 
         <section className="notification-content-grid">
@@ -258,10 +260,10 @@ export function NotificationCenter({
           </aside>
         </section>
 
-        <footer className="user-footer"><span>FormEdge notification engine · CP14</span><a href="/dashboard">Dashboard<ChevronRight size={13} /></a></footer>
+        <footer className="user-footer"><span>FormEdge notification engine · CP15 entitlement gate</span><a href="/dashboard">Dashboard<ChevronRight size={13} /></a></footer>
       </section>
 
-      <nav className="user-mobile-nav"><a href="/dashboard"><LayoutDashboard size={19} /><span>Ana sayfa</span></a><a href="/dashboard/performance"><LineChart size={19} /><span>Geçmiş</span></a><a href="/dashboard/bankroll"><WalletCards size={19} /><span>Kasa</span></a><a className="active" href="/dashboard/notifications"><Bell size={19} /><span>Bildirim</span></a></nav>
+      <nav className="user-mobile-nav"><a href="/dashboard"><LayoutDashboard size={19} /><span>Ana sayfa</span></a><a href="/dashboard/performance"><LineChart size={19} /><span>Geçmiş</span></a><a href="/dashboard/bankroll"><WalletCards size={19} /><span>Kasa</span></a><a className="active" href="/dashboard/notifications"><Bell size={19} /><span>Bildirim</span></a><a href="/dashboard/membership"><BadgeCheck size={19} /><span>Üyelik</span></a></nav>
     </main>
   );
 }
@@ -283,18 +285,18 @@ function NotificationIcon({ type }: { type: UserNotificationCenter["notification
 }
 
 function channelState(channel: UserNotificationCenter["channels"]["browserPush"]) {
-  return channel.connected ? "Bağlı" : channel.configured ? "Cihaz bekliyor" : "Yapılandırma gerekli";
+  return !channel.entitled ? "Pro gerekli" : channel.connected ? "Bağlı" : channel.configured ? "Cihaz bekliyor" : "Yapılandırma gerekli";
 }
 
 function telegramState(center: UserNotificationCenter) {
   const channel = center.channels.telegram;
-  return channel.connected ? "Bağlı" : channel.status === "pending" ? "Kod bekliyor" : channel.configured ? "Bağlantı bekliyor" : "Yapılandırma gerekli";
+  return !channel.entitled ? "Expert gerekli" : channel.connected ? "Bağlı" : channel.status === "pending" ? "Kod bekliyor" : channel.configured ? "Bağlantı bekliyor" : "Yapılandırma gerekli";
 }
 
 function activeChannelCount(center: UserNotificationCenter) {
   return Number(center.preferences.inAppEnabled)
-    + Number(center.channels.browserPush.connected && center.preferences.browserPushEnabled)
-    + Number(center.channels.telegram.connected && center.preferences.telegramEnabled);
+    + Number(center.channels.browserPush.connected && center.channels.browserPush.enabled)
+    + Number(center.channels.telegram.connected && center.channels.telegram.enabled);
 }
 
 function formatDate(value: string) {

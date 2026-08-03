@@ -27,8 +27,9 @@ import {
   type CouponTier,
 } from "@/lib/coupon-engine";
 import { ModelLabValidationError } from "@/lib/model-lab";
+import { getUserMembershipCenter } from "@/lib/membership-store";
 import { canonicalPredictionJson } from "@/lib/prediction-lifecycle";
-import { ensureUserProductAccount } from "@/lib/user-dashboard-store";
+import { ensureUserProductAccount } from "@/lib/user-account-store";
 
 export type BankrollMovementInput = {
   entryType: "opening" | "deposit" | "withdrawal";
@@ -52,7 +53,15 @@ export async function getUserBankrollWorkspace(user: ChatGPTUser) {
   ]);
   const assessmentById = new Map(opportunities.map((item) => [item.assessmentId, item]));
   const generated = generateCouponAlternatives(opportunities.map((item) => item.candidate));
-  const singles = generated.singles.map(({ candidate, score }) => {
+  const allowedCouponTiers = account.membership.entitlements.couponTiers;
+  const alternativeLimit = account.membership.entitlements.couponAlternativeLimit;
+  const balancedAlternatives = allowedCouponTiers.includes("balanced")
+    ? generated.balanced.slice(0, alternativeLimit)
+    : [];
+  const highOddsAlternatives = allowedCouponTiers.includes("high_odds")
+    ? generated.highOdds.slice(0, alternativeLimit)
+    : [];
+  const singles = (account.membership.productAccess ? generated.singles : []).map(({ candidate, score }) => {
     const opportunity = assessmentById.get(candidate.id)!;
     return {
       ...opportunity,
@@ -94,15 +103,23 @@ export async function getUserBankrollWorkspace(user: ChatGPTUser) {
     },
     counts: {
       eligibleSingles: singles.length,
-      balancedAlternatives: generated.balanced.length,
-      highOddsAlternatives: generated.highOdds.length,
+      balancedAlternatives: balancedAlternatives.length,
+      highOddsAlternatives: highOddsAlternatives.length,
       openBets: bets.filter((bet) => bet.status === "pending").length,
       savedCoupons: couponRows.length,
     },
     singles,
     coupons: {
-      balanced: withStake(generated.balanced),
-      highOdds: withStake(generated.highOdds),
+      balanced: withStake(balancedAlternatives),
+      highOdds: withStake(highOddsAlternatives),
+    },
+    access: {
+      effectivePlan: account.membership.effectivePlan,
+      productAccess: account.membership.productAccess,
+      couponTiers: allowedCouponTiers,
+      couponAlternativeLimit: alternativeLimit,
+      balancedLocked: !allowedCouponTiers.includes("balanced"),
+      highOddsLocked: !allowedCouponTiers.includes("high_odds"),
     },
     savedCoupons: couponRows.map((coupon) => ({
       ...coupon,
@@ -176,6 +193,13 @@ export async function saveGeneratedCouponDraft(user: ChatGPTUser, input: {
   if (!( ["balanced", "high_odds"] as string[]).includes(input.tier)) {
     throw new ModelLabValidationError("Coupon tier is invalid.");
   }
+  if (!context.membership.entitlements.couponTiers.includes(input.tier)) {
+    throw new ModelLabValidationError(
+      input.tier === "high_odds"
+        ? "Yüksek oran kuponları Expert paketine açıktır."
+        : "Dengeli kupon kurucu Pro veya Expert paketine açıktır.",
+    );
+  }
   if (!Array.isArray(input.assessmentIds) || input.assessmentIds.length < 2
     || new Set(input.assessmentIds).size !== input.assessmentIds.length) {
     throw new ModelLabValidationError("Coupon selections must contain unique assessment ids.");
@@ -229,12 +253,18 @@ export async function saveGeneratedCouponDraft(user: ChatGPTUser, input: {
 
 async function ensureBankrollAccount(user: ChatGPTUser) {
   const { profile } = await ensureUserProductAccount(user);
+  const membershipCenter = await getUserMembershipCenter(user);
   const db = await getDb();
   await db.insert(userBankrollAccounts).values({ userEmail: user.email }).onConflictDoNothing();
   const [account] = await db.select().from(userBankrollAccounts)
     .where(eq(userBankrollAccounts.userEmail, user.email)).limit(1);
   if (!account) throw new Error("The bankroll account could not be initialized.");
-  return { account, profile, riskProfile: profile.riskProfile ?? "balanced" as const };
+  return {
+    account,
+    profile,
+    membership: membershipCenter.membership,
+    riskProfile: profile.riskProfile ?? "balanced" as const,
+  };
 }
 
 async function loadEligibleOpportunities() {

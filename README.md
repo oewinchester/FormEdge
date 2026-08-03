@@ -7,7 +7,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.5.2 · Checkpoint 14 · Aşama 5 / Notification Outbox & Delivery Control**
+**v0.6.0 · Checkpoint 15 · Aşama 6 / Controlled Beta Membership & Onboarding**
 
 - Responsive, 3D destekli ürün landing sayfası
 - D1 tabanlı futbol veri çekirdeği ve R2 ham veri arşivi
@@ -69,6 +69,17 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 - Bot token, webhook sırrı ve 10 dakikalık tek kullanımlık kodla bağlanan Telegram teslim adaptörü
 - Kanal yapılandırması eksikse başarı yazmayan; `configuration_required`, `skipped`, `partial` ve `failed` durumlarını ayrı izleyen teslim politikası
 - Yönetici ve analiz editörü için uzlaştırma, kuyruk işleme, yeniden deneme ve kanal sağlık görünümü sunan Notification Ops konsolu
+- Aynı e-postayı çoğaltmayan, 18+ / sorumlu kullanım / asgari veri onayı isteyen public beta bekleme listesi
+- Davet, aktif, bekleyen ve askıdaki beta erişimini paket durumundan ayrı tutan üyelik sözleşmesi
+- Beş soruluk deterministik risk profili; kayıp kovalama veya sınırsız tutar yanıtında otomatik Temkinli güvenlik limiti
+- Risk profilinin model olasılıklarını hiçbir koşulda değiştirmediğini koruyan üyelik ve kasa sınırı
+- Free, Pro ve Expert için sunucu tarafında ortak kullanılan analiz, geçmiş, kupon, export ve bildirim entitlement matrisi
+- Free için yerel saat dilimine göre günlük üç farklı maç analizi; aynı maçı tekrar açmayı yeniden saymayan D1 kullanım defteri
+- Pro için detaylı analiz, dengeli kupon, tam standart geçmiş, CSV ve browser push; Expert için gelişmiş istatistik, yüksek oran kuponu, gelişmiş export ve Telegram
+- Beta boyunca kart istemeyen, tek kullanımlık ve tam 72 saat süren Pro deneme yaşam döngüsü
+- Onboarding, risk testi, trial başlangıcı/bitişi ve erişim değişikliklerini append-only üyelik olaylarında saklayan denetim izi
+- Kullanıcı için üyelik/profil merkezi; yönetici için PII-korumalı, salt-okunur waitlist ve Member Ops konsolu
+- Davet gönderimini public kimlik sağlayıcısı, hız limiti, e-posta teslimi ve kapasite kilidi tamamlanana kadar kapatan CP16 kapısı
 
 ## Sürüm ve checkpoint yol haritası
 
@@ -84,8 +95,9 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.4.1 | CP11 | Kullanıcı dashboardı, maç analizi ve filtrelenebilir, şeffaf performans geçmişi | Tamamlandı |
 | v0.5.0 | CP12 | De-vig piyasa uzlaşısı, değişmez oran/değer kanıtı ve anomali kontrolleri | Tamamlandı |
 | v0.5.1 | CP13 | Kadro/bağlam yeniden skoru, kupon korelasyon kontrolü ve çeyrek-Kelly kasa defteri | Tamamlandı |
-| **v0.5.2** | **CP14** | **İdempotent outbox, web içi bildirim merkezi, Web Push/Telegram adaptörleri ve Notification Ops** | **Mevcut** |
-| v0.6 | CP15–CP16 | Waitlist, Free/Pro/Expert, kartsız beta denemesi ve 100–300 kişilik davetli beta | Planlandı |
+| v0.5.2 | CP14 | İdempotent outbox, web içi bildirim merkezi, Web Push/Telegram adaptörleri ve Notification Ops | Tamamlandı |
+| **v0.6.0** | **CP15** | **Waitlist, onboarding/risk testi, Free–Pro–Expert entitlement ve kartsız 72 saatlik deneme temeli** | **Mevcut** |
+| v0.6.1 | CP16 | Public kimlik sağlayıcısı, davet/kapasite operasyonu, zamanlayıcı ve 100–300 kişilik kontrollü beta açılışı | Planlandı |
 | v0.7 | CP17 | Shadow validation, drift takibi, performans ve fiyat araştırması | Planlandı |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
@@ -129,6 +141,11 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 33. Bildirim olayı, kullanıcı kaydı ve her kanal teslimi idempotent anahtarla yazılır; yeniden deneme aynı bildirimi çoğaltamaz.
 34. Web Push veya Telegram çalışma sırları eksikse teslim başarılı gösterilemez; yapılandırma gereksinimi ayrı durum olarak saklanır.
 35. Telegram bot tokenı, webhook sırrı ve Web Push private key’i kaynak koduna veya kullanıcı API yanıtına yazılamaz.
+36. Risk profili model olasılığını değiştiremez; yalnız görünüm, kupon ve çeyrek-Kelly üst limitlerini sınırlar.
+37. Free günlük analiz limiti sunucu tarafında, kullanıcının saat diliminde ve farklı fikstür bazında uygulanır; aynı fikstürü yeniden açmak kotayı tekrar tüketmez.
+38. Bekleme listesine kayıt ürün erişimi vermez; normal kullanıcı için aktif davet ve tamamlanmış onboarding birlikte gerekir.
+39. Beta Pro denemesi tek kullanımlık, kartsız ve tam 72 saattir; süre sonunda ücret veya otomatik abonelik oluşmaz.
+40. Paket kısıtları yalnız arayüzde gizlenmez; geçmiş, kupon ve dış bildirim işlemleri sunucu tarafında aynı entitlement sözleşmesiyle doğrulanır.
 
 ## Teknoloji
 
@@ -140,7 +157,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Veri depolama mimarisi
 
-- **D1 ana ilişkisel veritabanıdır:** lig, takım, fikstür, istatistik, oran ve bağlam snapshotları, de-vig değer kanıtı, model kanıtı, tahmin yaşam döngüsü, kullanıcı profili, tercih, izleme listesi, kasa/kupon defteri, performans settlement kayıtları, bildirim outbox’ı ve kanal teslimleri burada tutulur.
+- **D1 ana ilişkisel veritabanıdır:** lig, takım, fikstür, istatistik, oran ve bağlam snapshotları, de-vig değer kanıtı, model kanıtı, tahmin yaşam döngüsü, waitlist, kullanıcı profili, risk testi, üyelik olayları, günlük özellik kullanımı, tercih, izleme listesi, kasa/kupon defteri, performans settlement kayıtları, bildirim outbox’ı ve kanal teslimleri burada tutulur.
 - **R2 ham ve büyük nesne katmanıdır:** kaynak snapshotları, kontrollü import dosyaları ve gelecekte üretilecek PDF/CSV dışa aktarımları burada tutulur.
 - MVP için ayrı bir PostgreSQL veya analitik veritabanı gerekmez. Trafik ve tarihsel hacim D1 sorgu sınırlarını anlamlı biçimde aşarsa yalnız raporlama amaçlı bir warehouse eklenir; ürünün doğruluk kaynağı D1 kalır.
 - Tarayıcı depolaması kalıcı ürün verisi için kullanılmaz; yalnız geçici arayüz durumu için kullanılabilir.
@@ -180,6 +197,9 @@ lib/coupon-engine.ts             Aynı maç/takım/lig korelasyon korumaları ve
 lib/bankroll-store.ts            Kullanıcı kasa defteri, stake projeksiyonu ve kupon taslakları
 lib/notification-engine.ts       Saf olay yönlendirme, kanal planlama ve outbox durum sözleşmesi
 lib/notification-store.ts        D1 outbox, web içi kayıt, Web Push/Telegram adaptörleri ve Notification Ops
+lib/membership-engine.ts         Risk testi, Free/Pro/Expert entitlement ve 72 saatlik trial sözleşmesi
+lib/membership-store.ts          Waitlist, onboarding, üyelik olayları, kullanım limiti ve Member Ops D1 akışı
+lib/user-account-store.ts        Ürün profili ve kullanıcı tercihleri için idempotent hesap başlangıcı
 lib/admin-data.ts            Veri alımı, kalite ve yönetici yetkilendirmesi
 tests/                       Veri ve model güvenlik testleri
 ```

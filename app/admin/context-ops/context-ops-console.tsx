@@ -132,6 +132,7 @@ export function ContextOpsConsole({ user, signOutPath }: Props) {
           <a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a>
           <a className="active" href="#overview"><CloudSun size={17} />Context Ops</a>
           <a href="/admin/notification-ops"><BellRing size={17} />Notification Ops</a>
+          <a href="/admin/member-ops"><UsersRound size={17} />Member Ops</a>
           <a href="#capture"><UsersRound size={17} />Kanıt girişi</a>
         </nav>
         <div className="admin-sidebar-note context-sidebar-note"><Gauge size={18} /><b>Sınırlandırılmış etki</b><p>Bağlam tek başına olasılığı en fazla 8 puan oynatır; veri eksikse öneri kapısı kapanır.</p></div>

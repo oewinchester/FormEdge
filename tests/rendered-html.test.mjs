@@ -62,6 +62,24 @@ test("renders the signed-out Notification Ops protection wall", async () => {
   assert.match(html, /signin-with-chatgpt/i);
 });
 
+test("renders the public controlled-beta waitlist form", async () => {
+  const response = await renderRoute("/join");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Bekleme listesine katıl/i);
+  assert.match(html, /CONTROLLED BETA/i);
+  assert.match(html, /Kart bilgisi/i);
+});
+
+test("renders the signed-out Member Ops protection wall", async () => {
+  const response = await renderRoute("/admin/member-ops");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Üyelik operasyonları korumalıdır/i);
+  assert.match(html, /PII · ADMIN ONLY/i);
+  assert.match(html, /signin-with-chatgpt/i);
+});
+
 test("renders the signed-out member dashboard protection wall", async () => {
   const response = await renderRoute("/dashboard");
   assert.equal(response.status, 200);
@@ -95,6 +113,15 @@ test("renders the signed-out notification center protection wall", async () => {
   const html = await response.text();
   assert.match(html, /Bildirim merkezi giriş gerektirir/i);
   assert.match(html, /ACCOUNT-BOUND DELIVERY/i);
+  assert.match(html, /signin-with-chatgpt/i);
+});
+
+test("renders the signed-out membership center protection wall", async () => {
+  const response = await renderRoute("/dashboard/membership");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Üyelik merkezi giriş gerektirir/i);
+  assert.match(html, /ENTITLEMENTS · NO PAYMENT/i);
   assert.match(html, /signin-with-chatgpt/i);
 });
 

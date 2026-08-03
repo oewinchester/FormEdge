@@ -23,6 +23,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Smartphone,
+  UsersRound,
 } from "lucide-react";
 import type { AdminNotificationOverview } from "@/lib/notification-store";
 
@@ -98,6 +99,7 @@ export function NotificationOpsConsole({ user, signOutPath }: { user: { displayN
           <a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a>
           <a href="/admin/context-ops"><CloudSun size={17} />Context Ops</a>
           <a className="active" href="#overview"><BellRing size={17} />Notification Ops</a>
+          <a href="/admin/member-ops"><UsersRound size={17} />Member Ops</a>
         </nav>
         <div className="admin-sidebar-note notification-sidebar-note"><ShieldAlert size={18} /><b>Dış kanal gerçeği</b><p>Web içi kanal anahtarsız çalışır. Push ve Telegram sırları eksikse teslim başarısı yazılmaz.</p></div>
         <a className="admin-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a>

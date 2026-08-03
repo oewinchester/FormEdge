@@ -5,6 +5,7 @@ import {
   Activity,
   AlertTriangle,
   ArrowRight,
+  BadgeCheck,
   BadgeDollarSign,
   BarChart3,
   Bell,
@@ -132,8 +133,9 @@ export function UserDashboard({
           <a href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a>
           <a href="/dashboard/bankroll"><WalletCards size={18} />Kasa ve kupon</a>
           <a href="/dashboard/notifications"><Bell size={18} />Bildirimler{overview.counts.notificationsUnread > 0 && <i>{overview.counts.notificationsUnread}</i>}</a>
+          <a href="/dashboard/membership"><BadgeCheck size={18} />Üyelik ve profil</a>
         </nav>
-        <section className="user-plan-card"><Sparkles size={17} /><div><small>ÜYELİK</small><b>{overview.profile.plan.toUpperCase()} · Ücretsiz beta</b><p>Pro/Expert ve 3 günlük deneme CP15–16’da açılacak.</p></div></section>
+        <section className="user-plan-card"><Sparkles size={17} /><div><small>ÜYELİK</small><b>{overview.membership.effectivePlan.toUpperCase()} · {overview.membership.accessStatus === "active" ? "Beta erişimi" : "Erişim bekliyor"}</b><p>{overview.membership.onboardingCompleted ? "Paket yetkileri üyelik merkezinde denetlenebilir." : "Kısa risk testi ve güvenlik onayı bekleniyor."}</p></div></section>
         <a className="user-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a>
       </aside>
 
@@ -146,11 +148,12 @@ export function UserDashboard({
 
         <section className="user-welcome">
           <div><small>GÜNAYDIN, {firstName.toLocaleUpperCase("tr-TR")}</small><h1>Bugünün karar ekranı.</h1><p>İzleme kayıtları final önerilerden ayrılır; değişen hiçbir tahmin geçmişten silinmez.</p></div>
-          <div className="user-view-toggle"><button className={overview.preferences.defaultAnalysisView === "quick" ? "active" : ""} onClick={() => void setAnalysisView("quick")} type="button"><Eye size={14} />Hızlı</button><button className={overview.preferences.defaultAnalysisView === "detailed" ? "active" : ""} onClick={() => void setAnalysisView("detailed")} type="button"><ListFilter size={14} />Detaylı</button></div>
+          <div className="user-view-toggle"><button className={overview.preferences.defaultAnalysisView === "quick" ? "active" : ""} onClick={() => void setAnalysisView("quick")} type="button"><Eye size={14} />Hızlı</button><button className={overview.preferences.defaultAnalysisView === "detailed" ? "active" : ""} onClick={() => void setAnalysisView("detailed")} type="button" disabled={!overview.membership.entitlements.detailedAnalysis} title={!overview.membership.entitlements.detailedAnalysis ? "Detaylı analiz Pro veya Expert paketine açıktır." : undefined}><ListFilter size={14} />Detaylı</button></div>
         </section>
 
         {error && <div className="user-message error"><ShieldAlert size={16} />{error}</div>}
         {notice && <div className="user-message success"><CheckCircle2 size={16} />{notice}<button type="button" onClick={() => setNotice(null)}>×</button></div>}
+        {!overview.membership.productAccess && <section className="user-membership-gate"><BadgeCheck size={18} /><div><b>Davetli beta erişimi bekleniyor.</b><p>Onboarding profilinizi tamamlayabilirsiniz; gerçek kullanıcı analizleri yalnız davet ve erişim kapısı açıldıktan sonra görünür.</p></div><a href="/dashboard/membership">Üyelik merkezini aç<ChevronRight size={13} /></a></section>}
 
         <section className="user-research-lock"><LockKeyhole size={17} /><div><b>Analiz ile bahis fırsatı ayrıldı</b><p>Araştırma kayıtları gizlenir; oranlar tahmini değiştirmez. Yalnız ≥2 taze şirket, %4 edge ve %3 EV kapısını geçenler değer fırsatı olur.</p></div><span>VALUE ENGINE · CP12</span></section>
 
@@ -169,7 +172,7 @@ export function UserDashboard({
               {(["all", "watchlist", "final", "value", "saved"] as MatchFilter[]).map((item) => <button type="button" className={filter === item ? "active" : ""} onClick={() => setFilter(item)} key={item}>{filterLabel(item)}</button>)}
             </div>
             <div className="user-match-list">
-              {filteredMatches.length === 0 && <div className="user-empty-state"><ShieldCheck size={23} /><b>Bu filtrede yayınlanabilir maç yok.</b><p>Bu sahte bir boşluk değil: araştırma verisi veya final kapısını geçmeyen seçim kullanıcıya gösterilmiyor.</p></div>}
+              {filteredMatches.length === 0 && <div className="user-empty-state"><ShieldCheck size={23} /><b>{overview.membership.productAccess ? "Bu filtrede yayınlanabilir maç yok." : "Beta erişimi açılmadan maç verisi gösterilmez."}</b><p>{overview.membership.productAccess ? "Bu sahte bir boşluk değil: araştırma verisi veya final kapısını geçmeyen seçim kullanıcıya gösterilmiyor." : "Bekleme listesi ve onboarding durumu üyelik merkezinde izlenir."}</p></div>}
               {filteredMatches.map((match) => <article className={`user-match-card ${match.status}`} key={match.threadId}>
                 <header><div><span className={`user-status ${match.status}`}>{statusLabel(match.status)}</span><small>{match.leagueLabel} · {formatDate(match.kickoffAt)}</small></div><button type="button" className={match.saved ? "saved" : ""} onClick={() => void toggleSaved(match.threadId, !match.saved)} disabled={workingThread === match.threadId} aria-label={match.saved ? "İzleme listesinden çıkar" : "İzleme listesine ekle"}>{workingThread === match.threadId ? <LoaderCircle size={16} className="spin" /> : match.saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}</button></header>
                 <div className="user-teams"><strong>{match.homeTeamName}</strong><span>vs</span><strong>{match.awayTeamName}</strong></div>
@@ -184,15 +187,15 @@ export function UserDashboard({
 
           <aside className="user-right-rail">
             <section className="user-performance-card"><header><div><small>DEĞİŞTİRİLEMEZ GEÇMİŞ</small><h3>Sistem performansı</h3></div><BarChart3 size={18} /></header><div className="user-performance-score"><span><b>{performance.counts.won}</b><small>KAZANAN</small></span><span><b>{performance.counts.lost}</b><small>KAYBEDEN</small></span><span><b>{performance.counts.withdrawn}</b><small>GERİ ÇEKİLEN</small></span></div><p>Oran, değer ve bağlam kanıtı sürümle dondurulur. Kişisel kasa hareketleri ayrı değişmez defterde tutulur.</p><a href="/dashboard/performance">Tüm geçmişi incele<ChevronRight size={14} /></a></section>
-            <section className="user-roadmap-card"><small>ÜRÜN AŞAMASI</small><h3>Phase 05 · CP14</h3><div><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="active" /></div><ul><li><CheckCircle2 size={13} />Kullanıcı dashboardı</li><li><CheckCircle2 size={13} />De-vig ve değer filtresi</li><li><CheckCircle2 size={13} />Kasa ve güvenli kupon</li><li><CheckCircle2 size={13} />Web içi bildirim + kanal adaptörleri</li><li><FileClock size={13} />Onboarding ve üyelik · CP15</li></ul></section>
-            <section className="user-risk-card"><AlertTriangle size={17} /><div><small>RİSK PROFİLİ</small><b>{overview.profile.riskProfile ? riskLabel(overview.profile.riskProfile) : "Kayıt testi bekleniyor"}</b><p>Profil testi üyelik onboarding’iyle CP15’te açılacak. Olasılıklar risk profiline göre değiştirilmez.</p></div></section>
+            <section className="user-roadmap-card"><small>ÜRÜN AŞAMASI</small><h3>Phase 06 · CP15</h3><div><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="active" /></div><ul><li><CheckCircle2 size={13} />Kullanıcı dashboardı</li><li><CheckCircle2 size={13} />De-vig ve değer filtresi</li><li><CheckCircle2 size={13} />Kasa ve güvenli kupon</li><li><CheckCircle2 size={13} />Web içi bildirim + kanal adaptörleri</li><li><CheckCircle2 size={13} />Onboarding ve üyelik · CP15</li><li><FileClock size={13} />Davetli beta operasyonu · CP16</li></ul></section>
+            <section className="user-risk-card"><AlertTriangle size={17} /><div><small>RİSK PROFİLİ</small><b>{overview.profile.riskProfile ? riskLabel(overview.profile.riskProfile) : "Kayıt testi bekleniyor"}</b><p>Risk profili yalnız görünüm ve kasa limitlerini etkiler; model olasılıkları değişmez.</p><a href="/dashboard/membership">Üyelik merkezini aç<ChevronRight size={12} /></a></div></section>
           </aside>
         </section>
 
-        <footer className="user-footer"><span>FormEdge member dashboard · CP14</span><a href="/">Ana site<ChevronRight size={13} /></a></footer>
+        <footer className="user-footer"><span>FormEdge member dashboard · CP15</span><a href="/">Ana site<ChevronRight size={13} /></a></footer>
       </section>
 
-      <nav className="user-mobile-nav"><a className="active" href="/dashboard"><LayoutDashboard size={19} /><span>Ana sayfa</span></a><a href="#matches"><CalendarDays size={19} /><span>Maçlar</span></a><a href="/dashboard/performance"><LineChart size={19} /><span>Geçmiş</span></a><a href="/dashboard/bankroll"><WalletCards size={19} /><span>Kasa</span></a><a href="/dashboard/notifications"><Bell size={19} /><span>Bildirim</span></a></nav>
+      <nav className="user-mobile-nav"><a className="active" href="/dashboard"><LayoutDashboard size={19} /><span>Ana sayfa</span></a><a href="#matches"><CalendarDays size={19} /><span>Maçlar</span></a><a href="/dashboard/performance"><LineChart size={19} /><span>Geçmiş</span></a><a href="/dashboard/bankroll"><WalletCards size={19} /><span>Kasa</span></a><a href="/dashboard/notifications"><Bell size={19} /><span>Bildirim</span></a><a href="/dashboard/membership"><BadgeCheck size={19} /><span>Üyelik</span></a></nav>
     </main>
   );
 }

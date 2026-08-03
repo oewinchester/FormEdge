@@ -22,6 +22,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   TrendingUp,
+  UsersRound,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ValueOpsOverview } from "@/lib/value-assessment-store";
@@ -116,6 +117,7 @@ export function ValueOpsConsole({ user, signOutPath }: Props) {
           <a className="active" href="#overview"><BadgeDollarSign size={17} />Value Ops</a>
           <a href="/admin/context-ops"><CloudSun size={17} />Context Ops</a>
           <a href="/admin/notification-ops"><BellRing size={17} />Notification Ops</a>
+          <a href="/admin/member-ops"><UsersRound size={17} />Member Ops</a>
           <a href="#policy"><ShieldCheck size={17} />Değer politikası</a>
           <a href="#ledger"><Fingerprint size={17} />Kanıt defteri</a>
         </nav>

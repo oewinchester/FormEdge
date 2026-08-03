@@ -13,6 +13,7 @@ import {
 import type { ChatGPTUser } from "@/app/chatgpt-auth";
 import { getDb } from "@/db";
 import {
+  appMembers,
   browserPushSubscriptions,
   fixtures,
   notificationDeliveries,
@@ -30,6 +31,11 @@ import {
 import type { AdminActor } from "@/lib/admin-data";
 import { ModelLabValidationError } from "@/lib/model-lab";
 import {
+  hasMembershipFeature,
+  resolveMembership,
+} from "@/lib/membership-engine";
+import { getUserMembershipCenter } from "@/lib/membership-store";
+import {
   NOTIFICATION_ENGINE_SCHEMA_VERSION,
   buildPredictionNotificationIntent,
   deriveOutboxStatus,
@@ -38,7 +44,7 @@ import {
   type NotificationChannel,
   type NotificationPreferences,
 } from "@/lib/notification-engine";
-import { ensureUserProductAccount } from "@/lib/user-dashboard-store";
+import { ensureUserProductAccount } from "@/lib/user-account-store";
 
 const MAX_DELIVERY_ATTEMPTS = 3;
 const MAX_QUEUE_ATTEMPTS = 5;
@@ -63,6 +69,7 @@ export type PushSubscriptionInput = {
 
 export async function getUserNotificationCenter(user: ChatGPTUser) {
   const account = await ensureUserProductAccount(user);
+  const membershipCenter = await getUserMembershipCenter(user);
   const db = await getDb();
   const config = await getChannelConfiguration();
   const [preferenceRows, notificationRows, pushRows, telegramRows, unreadRows] = await Promise.all([
@@ -89,6 +96,7 @@ export async function getUserNotificationCenter(user: ChatGPTUser) {
   return {
     generatedAt: new Date().toISOString(),
     profile: account.profile,
+    membership: membershipCenter.membership,
     counts: {
       total: notificationRows.length,
       unread,
@@ -103,14 +111,18 @@ export async function getUserNotificationCenter(user: ChatGPTUser) {
       },
       browserPush: {
         configured: config.browserPush.configured,
-        enabled: preferences.browserPushEnabled,
+        entitled: hasMembershipFeature(membershipCenter.membership, "browser_push"),
+        enabled: preferences.browserPushEnabled
+          && hasMembershipFeature(membershipCenter.membership, "browser_push"),
         connected: pushRows.length > 0,
         activeSubscriptionCount: pushRows.length,
         publicKey: config.browserPush.publicKey,
       },
       telegram: {
         configured: config.telegram.configured,
-        enabled: preferences.telegramEnabled,
+        entitled: hasMembershipFeature(membershipCenter.membership, "telegram"),
+        enabled: preferences.telegramEnabled
+          && hasMembershipFeature(membershipCenter.membership, "telegram"),
         connected: telegram?.status === "connected" && Boolean(telegram.chatId),
         status: telegram?.status ?? "disconnected",
         botUsername: config.telegram.botUsername,
@@ -162,6 +174,15 @@ export async function updateUserNotificationPreferences(
     }
   }
   await ensureUserProductAccount(user);
+  const membershipCenter = await getUserMembershipCenter(user);
+  if (patch.browserPushEnabled === true
+    && !hasMembershipFeature(membershipCenter.membership, "browser_push")) {
+    throw new ModelLabValidationError("Tarayıcı push Pro veya Expert paketine açıktır.");
+  }
+  if (patch.telegramEnabled === true
+    && !hasMembershipFeature(membershipCenter.membership, "telegram")) {
+    throw new ModelLabValidationError("Telegram bildirimleri Expert paketine açıktır.");
+  }
   const db = await getDb();
   const [currentRow] = await db.select().from(userNotificationPreferences)
     .where(eq(userNotificationPreferences.userEmail, user.email)).limit(1);
@@ -203,6 +224,10 @@ export async function saveBrowserPushSubscription(
   user: ChatGPTUser,
   input: PushSubscriptionInput,
 ) {
+  const membershipCenter = await getUserMembershipCenter(user);
+  if (!hasMembershipFeature(membershipCenter.membership, "browser_push")) {
+    throw new ModelLabValidationError("Tarayıcı push Pro veya Expert paketine açıktır.");
+  }
   const config = await getChannelConfiguration();
   if (!config.browserPush.configured) {
     throw new ModelLabValidationError("Tarayıcı push sunucu anahtarları henüz yapılandırılmadı.");
@@ -273,6 +298,10 @@ export async function revokeBrowserPushSubscription(
 }
 
 export async function startTelegramPairing(user: ChatGPTUser) {
+  const membershipCenter = await getUserMembershipCenter(user);
+  if (!hasMembershipFeature(membershipCenter.membership, "telegram")) {
+    throw new ModelLabValidationError("Telegram bildirimleri Expert paketine açıktır.");
+  }
   const config = await getChannelConfiguration();
   if (!config.telegram.configured || !config.telegram.botUsername) {
     throw new ModelLabValidationError("Telegram botu ve webhook sırrı henüz yapılandırılmadı.");
@@ -587,7 +616,20 @@ async function dispatchNotificationOutbox(outboxId: string) {
     ? await db.select({ email: userProfiles.email }).from(userProfiles)
     : await db.select({ email: userPredictionWatchlist.userEmail }).from(userPredictionWatchlist)
       .where(eq(userPredictionWatchlist.threadId, outbox.threadId));
-  const recipients = [...new Set(recipientRows.map((row) => row.email))];
+  const candidateRecipients = [...new Set(recipientRows.map((row) => row.email))];
+  const [profileRows, internalRows] = candidateRecipients.length ? await Promise.all([
+    db.select().from(userProfiles).where(inArray(userProfiles.email, candidateRecipients)),
+    db.select({ email: appMembers.email }).from(appMembers).where(and(
+      inArray(appMembers.email, candidateRecipients),
+      eq(appMembers.status, "active"),
+    )),
+  ]) : [[], []];
+  const internalEmails = new Set(internalRows.map((row) => row.email));
+  const membershipByEmail = new Map(profileRows.map((profile) => [
+    profile.email,
+    resolveNotificationMembership(profile, internalEmails.has(profile.email)),
+  ]));
+  const recipients = candidateRecipients.filter((email) => membershipByEmail.get(email)?.productAccess);
   if (!recipients.length) {
     await db.update(notificationOutbox).set({
       status: "suppressed",
@@ -612,7 +654,15 @@ async function dispatchNotificationOutbox(outboxId: string) {
       db.select().from(telegramConnections)
         .where(eq(telegramConnections.userEmail, userEmail)).limit(1),
     ]);
-    const preferences = toNotificationPreferences(preferenceRow);
+    const membership = membershipByEmail.get(userEmail)!;
+    const storedPreferences = toNotificationPreferences(preferenceRow);
+    const preferences = {
+      ...storedPreferences,
+      browserPushEnabled: storedPreferences.browserPushEnabled
+        && hasMembershipFeature(membership, "browser_push"),
+      telegramEnabled: storedPreferences.telegramEnabled
+        && hasMembershipFeature(membership, "telegram"),
+    };
     const capabilities: ChannelCapabilities = {
       browserPushConfigured: config.browserPush.configured,
       browserPushSubscriptionActive: pushRows.length > 0,
@@ -798,6 +848,25 @@ function toNotificationPreferences(
     browserPushEnabled: row?.browserPushEnabled ?? false,
     telegramEnabled: row?.telegramEnabled ?? false,
   };
+}
+
+function resolveNotificationMembership(
+  profile: typeof userProfiles.$inferSelect,
+  isInternalTester: boolean,
+) {
+  return resolveMembership({
+    storedPlan: profile.plan,
+    subscriptionStatus: profile.subscriptionStatus,
+    betaAccessStatus: profile.betaAccessStatus,
+    onboardingCompleted: profile.onboardingStatus === "completed"
+      && profile.riskAssessmentStatus === "completed"
+      && Boolean(profile.ageEligibilityAcknowledgedAt)
+      && Boolean(profile.responsibleUseAcknowledgedAt)
+      && Boolean(profile.termsAcceptedAt),
+    trialStartedAt: profile.trialStartedAt,
+    trialEndsAt: profile.trialEndsAt,
+    isInternalTester,
+  });
 }
 
 function validatePushSubscription(input: PushSubscriptionInput) {

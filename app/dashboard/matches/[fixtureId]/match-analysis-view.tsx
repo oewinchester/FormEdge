@@ -5,6 +5,7 @@ import {
   Activity,
   ArrowLeft,
   BarChart3,
+  BadgeCheck,
   BadgeDollarSign,
   Bell,
   Bookmark,
@@ -74,16 +75,18 @@ export function MatchAnalysisView({
 
   return (
     <main className="user-shell match-analysis-shell">
-      <aside className="user-sidebar"><a className="user-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a><nav><a href="/dashboard"><LayoutDashboard size={18} />Genel bakış</a><a className="active" href="/dashboard#matches"><CalendarDays size={18} />Maç analizleri</a><a href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a><a href="/dashboard/bankroll"><WalletCards size={18} />Kasa ve kupon</a><a href="/dashboard/notifications"><Bell size={18} />Bildirimler</a></nav><section className="user-plan-card transparency"><LockKeyhole size={17} /><div><small>YÖNTEM POLİTİKASI</small><b>Sonuçlar açık</b><p>Olasılık, veri zamanı ve sürüm görünür; özel ağırlık formülü gizlidir.</p></div></section><a className="user-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a></aside>
+      <aside className="user-sidebar"><a className="user-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a><nav><a href="/dashboard"><LayoutDashboard size={18} />Genel bakış</a><a className="active" href="/dashboard#matches"><CalendarDays size={18} />Maç analizleri</a><a href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a><a href="/dashboard/bankroll"><WalletCards size={18} />Kasa ve kupon</a><a href="/dashboard/notifications"><Bell size={18} />Bildirimler</a><a href="/dashboard/membership"><BadgeCheck size={18} />Üyelik ve profil</a></nav><section className="user-plan-card transparency"><LockKeyhole size={17} /><div><small>YÖNTEM POLİTİKASI</small><b>Sonuçlar açık</b><p>Olasılık, veri zamanı ve sürüm görünür; özel ağırlık formülü gizlidir.</p></div></section><a className="user-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a></aside>
       <section className="user-main">
         <header className="user-topbar"><div><a href="/dashboard"><ArrowLeft size={14} />Dashboard</a><span>MATCH INTELLIGENCE · {analysis.thread.market}</span></div><div className="match-top-actions"><button type="button" className={analysis.thread.saved ? "saved" : ""} onClick={() => void toggleSaved()} disabled={saving}>{saving ? <LoaderCircle size={15} className="spin" /> : analysis.thread.saved ? <BookmarkCheck size={15} /> : <Bookmark size={15} />}{analysis.thread.saved ? "Kaydedildi" : "İzlemeye ekle"}</button></div></header>
         {error && <div className="user-message error"><XCircle size={16} />{error}</div>}
         <section className="match-analysis-hero">
-          <header><div><span className={`user-status ${analysis.thread.status}`}>{statusLabel(analysis.thread.status)}</span><small>{analysis.thread.leagueLabel} · {formatDate(analysis.fixture.kickoffAt)}</small></div><div className="user-view-toggle"><button className={view === "quick" ? "active" : ""} onClick={() => setView("quick")} type="button"><Eye size={14} />Hızlı</button><button className={view === "detailed" ? "active" : ""} onClick={() => setView("detailed")} type="button"><ListFilter size={14} />Detaylı</button></div></header>
+          <header><div><span className={`user-status ${analysis.thread.status}`}>{statusLabel(analysis.thread.status)}</span><small>{analysis.thread.leagueLabel} · {formatDate(analysis.fixture.kickoffAt)}</small></div><div className="user-view-toggle"><button className={view === "quick" ? "active" : ""} onClick={() => setView("quick")} type="button"><Eye size={14} />Hızlı</button><button className={view === "detailed" ? "active" : ""} onClick={() => setView("detailed")} type="button" disabled={!analysis.access.detailedAnalysis} title={!analysis.access.detailedAnalysis ? "Detaylı analiz Pro veya Expert paketine açıktır." : undefined}><ListFilter size={14} />Detaylı</button></div></header>
           <div className="match-team-title"><section><span>{teamCode(analysis.fixture.homeTeamName)}</span><b>{analysis.fixture.homeTeamName}</b><small>Ev sahibi</small></section><div><em>VS</em>{analysis.fixture.homeScore !== null && <b>{analysis.fixture.homeScore} – {analysis.fixture.awayScore}</b>}</div><section><span>{teamCode(analysis.fixture.awayTeamName)}</span><b>{analysis.fixture.awayTeamName}</b><small>Deplasman</small></section></div>
           <div className="match-probability-grid">{probabilityRows.map((row) => <article className={analysis.analysis.predictedOutcome === row.outcome ? "leader" : ""} key={row.outcome}><small>{row.outcome === "1" ? analysis.fixture.homeTeamName : row.outcome === "2" ? analysis.fixture.awayTeamName : "Beraberlik"}</small><b>%{Math.round(row.value * 100)}</b><span><i style={{ width: `${row.value * 100}%` }} /></span>{analysis.analysis.predictedOutcome === row.outcome && <em>MODEL YÖNÜ</em>}</article>)}</div>
-          <footer><span><Gauge size={14} />Güven %{Math.round(analysis.analysis.confidence * 100)}</span><span><Database size={14} />Veri %{Math.round(analysis.analysis.dataCompleteness * 100)}</span><span><UserRound size={14} />{lineupLabel(analysis.analysis.lineupState)}</span><span><Fingerprint size={14} />v{analysis.analysis.versionNumber} · {analysis.analysis.versionFingerprint.slice(0, 9)}</span></footer>
+          <footer><span><Gauge size={14} />Güven %{Math.round(analysis.analysis.confidence * 100)}</span><span><Database size={14} />Veri %{Math.round(analysis.analysis.dataCompleteness * 100)}</span><span><UserRound size={14} />{lineupLabel(analysis.analysis.lineupState)}</span><span><Fingerprint size={14} />v{analysis.analysis.versionNumber} · {analysis.analysis.versionFingerprint.slice(0, 9)}</span><span><BadgeCheck size={14} />{analysis.access.effectivePlan.toUpperCase()}{analysis.access.remaining !== null ? ` · ${analysis.access.remaining} analiz kaldı` : ""}</span></footer>
         </section>
+
+        {!analysis.access.detailedAnalysis && <section className="match-entitlement-note"><LockKeyhole size={16} /><div><b>Detaylı görünüm paket sınırıyla kapalı.</b><p>Hızlı olasılık ve temel form görünür; H2H, karşılaştırmalı dominasyon ve sürüm derinliği Pro/Expert’te açılır.</p></div><a href="/dashboard/membership">Paketleri karşılaştır<ChevronRight size={13} /></a></section>}
 
         {analysis.thread.withdrawalReason && <section className="match-withdrawal-banner"><ShieldAlert size={18} /><div><b>Bu analiz geri çekildi.</b><p>{analysis.thread.withdrawalReason}</p></div></section>}
 
@@ -105,7 +108,7 @@ export function MatchAnalysisView({
         <section className="match-method-note"><LockKeyhole size={17} /><div><b>Algoritmanın özel ağırlıkları açıklanmaz.</b><p>Olasılık, tahmin zamanı, veri kesimi, kadro durumu, oran snapshotı, de-vig kanıtı, sürüm kimliği ve bütün sonuç geçmişi denetlenebilir kalır.</p></div></section>
         <footer className="user-footer"><span>FormEdge match intelligence · CP13 context + value evidence</span><a href="/dashboard/performance">Performans geçmişi<ChevronRight size={13} /></a></footer>
       </section>
-      <nav className="user-mobile-nav"><a href="/dashboard"><LayoutDashboard size={19} /><span>Ana sayfa</span></a><a className="active" href="/dashboard#matches"><Target size={19} /><span>Analiz</span></a><a href="/dashboard/performance"><LineChart size={19} /><span>Geçmiş</span></a></nav>
+      <nav className="user-mobile-nav"><a href="/dashboard"><LayoutDashboard size={19} /><span>Ana sayfa</span></a><a className="active" href="/dashboard#matches"><Target size={19} /><span>Analiz</span></a><a href="/dashboard/performance"><LineChart size={19} /><span>Geçmiş</span></a><a href="/dashboard/membership"><BadgeCheck size={19} /><span>Üyelik</span></a></nav>
     </main>
   );
 }

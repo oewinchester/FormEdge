@@ -19,13 +19,16 @@ import {
   predictionVersions,
   teamMatchStats,
   teams,
-  userNotificationPreferences,
   userNotifications,
   userDashboardPreferences,
   userPredictionWatchlist,
-  userProfiles,
 } from "@/db/schema";
 import { ModelLabValidationError } from "@/lib/model-lab";
+import {
+  authorizeMatchAnalysisView,
+  getUserMembershipCenter,
+} from "@/lib/membership-store";
+import { ensureUserProductAccount } from "@/lib/user-account-store";
 import { summarizePerformance, type SettlementStatus } from "@/lib/user-performance";
 import { toPublicValueAssessment } from "@/lib/value-assessment-store";
 
@@ -38,15 +41,17 @@ export type DashboardPreferenceInput = {
 export async function getUserDashboardOverview(user: ChatGPTUser) {
   const account = await ensureUserProductAccount(user);
   const db = await getDb();
-  const [matches, history, unreadRows] = await Promise.all([
+  const [matches, history, unreadRows, membershipCenter] = await Promise.all([
     loadVisiblePredictionCards(user.email),
     loadPublishedPerformanceRecords(),
     db.select({ total: count() }).from(userNotifications).where(and(
       eq(userNotifications.userEmail, user.email),
       isNull(userNotifications.readAt),
     )),
+    getUserMembershipCenter(user),
   ]);
-  const settledRows = history
+  const accessibleHistory = membershipCenter.membership.productAccess ? history : [];
+  const settledRows = accessibleHistory
     .filter((record) => record.resultStatus !== "pending")
     .map((record) => ({
       settlementStatus: record.resultStatus as SettlementStatus,
@@ -55,14 +60,19 @@ export async function getUserDashboardOverview(user: ChatGPTUser) {
       settledAt: record.settledAt ?? record.publishedAt,
     }));
   const performance = summarizePerformance(settledRows);
+  const accessibleMatches = membershipCenter.membership.productAccess ? matches : [];
   const visibleMatches = account.preferences.showWithdrawn
-    ? matches
-    : matches.filter((match) => match.status !== "withdrawn");
+    ? accessibleMatches
+    : accessibleMatches.filter((match) => match.status !== "withdrawn");
+  const effectivePreferences = membershipCenter.membership.entitlements.detailedAnalysis
+    ? account.preferences
+    : { ...account.preferences, defaultAnalysisView: "quick" as const };
 
   return {
     generatedAt: new Date().toISOString(),
     profile: account.profile,
-    preferences: account.preferences,
+    preferences: effectivePreferences,
+    membership: membershipCenter.membership,
     counts: {
       watchlist: visibleMatches.filter((match) => match.status === "watchlist").length,
       final: visibleMatches.filter((match) => match.status === "final").length,
@@ -70,12 +80,12 @@ export async function getUserDashboardOverview(user: ChatGPTUser) {
       saved: visibleMatches.filter((match) => match.saved).length,
       valueOpportunities: visibleMatches.filter((match) => match.value?.recommendationEligible).length,
       marketAnomalies: visibleMatches.filter((match) => match.value?.status === "market_anomaly").length,
-      publishedHistory: history.length,
+      publishedHistory: accessibleHistory.length,
       settledHistory: settledRows.length,
       notificationsUnread: Number(unreadRows[0]?.total ?? 0),
     },
     matches: visibleMatches.slice(0, 24),
-    latestHistory: history.slice(0, 6),
+    latestHistory: accessibleHistory.slice(0, 6),
     performance,
     availability: {
       publishableAnalysisCount: visibleMatches.length,
@@ -84,17 +94,28 @@ export async function getUserDashboardOverview(user: ChatGPTUser) {
       bankrollStatus: "active_cp13" as const,
       couponStatus: "active_cp13" as const,
       notificationStatus: "active_cp14" as const,
-      publicIdentityStatus: "planned_cp15" as const,
+      membershipStatus: "active_cp15" as const,
+      publicIdentityStatus: "external_provider_gate" as const,
     },
   };
 }
 
 export async function getUserPerformanceHistory(user: ChatGPTUser) {
   const account = await ensureUserProductAccount(user);
+  const membershipCenter = await getUserMembershipCenter(user);
   const records = await loadPublishedPerformanceRecords();
+  const historyDays = membershipCenter.membership.entitlements.historyDays;
+  const historyCutoffMs = historyDays === null
+    ? null
+    : Date.now() - historyDays * 86_400_000;
+  const planVisibleRecords = !membershipCenter.membership.productAccess
+    ? []
+    : historyCutoffMs === null
+      ? records
+      : records.filter((record) => Date.parse(record.publishedAt) >= historyCutoffMs);
   const visibleRecords = account.preferences.showWithdrawn
-    ? records
-    : records.filter((record) => record.resultStatus !== "withdrawn");
+    ? planVisibleRecords
+    : planVisibleRecords.filter((record) => record.resultStatus !== "withdrawn");
   const settledRows = visibleRecords
     .filter((record) => record.resultStatus !== "pending")
     .map((record) => ({
@@ -107,6 +128,7 @@ export async function getUserPerformanceHistory(user: ChatGPTUser) {
     generatedAt: new Date().toISOString(),
     profile: account.profile,
     preferences: account.preferences,
+    membership: membershipCenter.membership,
     summary: summarizePerformance(settledRows),
     pendingCount: visibleRecords.filter((record) => record.resultStatus === "pending").length,
     records: visibleRecords,
@@ -120,6 +142,10 @@ export async function getUserPerformanceHistory(user: ChatGPTUser) {
       withdrawnRecordsPermanent: true,
       roiUnavailableUntilValueAndStakeLedger: true,
       methodWeightsHidden: true,
+      visibleHistoryDays: historyDays,
+      historyIsPlanLimited: historyDays !== null,
+      csvExportAllowed: membershipCenter.membership.entitlements.exportFormats.includes("csv"),
+      advancedExportsAllowed: membershipCenter.membership.entitlements.exportFormats.some((format) => format !== "csv"),
     },
   };
 }
@@ -156,6 +182,7 @@ export async function getUserMatchAnalysis(user: ChatGPTUser, fixtureId: string)
   ]);
   const version = selectedVersion[0];
   if (!version || version.researchOnly) return null;
+  const access = await authorizeMatchAnalysisView(user, fixture.id);
   const historyFixtures = await db.select().from(fixtures).where(and(
     eq(fixtures.leagueId, fixture.leagueId),
     eq(fixtures.status, "finished"),
@@ -189,6 +216,7 @@ export async function getUserMatchAnalysis(user: ChatGPTUser, fixtureId: string)
 
   return {
     generatedAt: new Date().toISOString(),
+    access,
     thread: {
       id: thread.id,
       status: thread.status,
@@ -272,11 +300,16 @@ export async function updateUserDashboardPreferences(user: ChatGPTUser, input: D
     throw new ModelLabValidationError("Dashboard preferences are required.");
   }
   await ensureUserProductAccount(user);
+  const membershipCenter = await getUserMembershipCenter(user);
   const db = await getDb();
   const values: Partial<typeof userDashboardPreferences.$inferInsert> = { updatedAt: new Date().toISOString() };
   if (input.defaultAnalysisView !== undefined) {
     if (!( ["quick", "detailed"] as string[]).includes(input.defaultAnalysisView)) {
       throw new ModelLabValidationError("The analysis view is invalid.");
+    }
+    if (input.defaultAnalysisView === "detailed"
+      && !membershipCenter.membership.entitlements.detailedAnalysis) {
+      throw new ModelLabValidationError("Detaylı analiz görünümü Pro veya Expert paketine açıktır.");
     }
     values.defaultAnalysisView = input.defaultAnalysisView;
   }
@@ -297,33 +330,6 @@ export async function updateUserDashboardPreferences(user: ChatGPTUser, input: D
   const [preferences] = await db.select().from(userDashboardPreferences)
     .where(eq(userDashboardPreferences.userEmail, user.email)).limit(1);
   return preferences;
-}
-
-export async function ensureUserProductAccount(user: ChatGPTUser) {
-  const db = await getDb();
-  const nowIso = new Date().toISOString();
-  await db.batch([
-    db.insert(userProfiles).values({
-      email: user.email,
-      displayName: user.displayName,
-      lastSeenAt: nowIso,
-      updatedAt: nowIso,
-    }).onConflictDoUpdate({
-      target: userProfiles.email,
-      set: { displayName: user.displayName, lastSeenAt: nowIso, updatedAt: nowIso },
-    }),
-    db.insert(userDashboardPreferences).values({ userEmail: user.email })
-      .onConflictDoNothing(),
-    db.insert(userNotificationPreferences).values({ userEmail: user.email })
-      .onConflictDoNothing(),
-  ]);
-  const [[profile], [preferences]] = await Promise.all([
-    db.select().from(userProfiles).where(eq(userProfiles.email, user.email)).limit(1),
-    db.select().from(userDashboardPreferences)
-      .where(eq(userDashboardPreferences.userEmail, user.email)).limit(1),
-  ]);
-  if (!profile || !preferences) throw new Error("The user dashboard account could not be initialized.");
-  return { profile, preferences };
 }
 
 async function loadVisiblePredictionCards(userEmail: string) {

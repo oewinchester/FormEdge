@@ -26,6 +26,7 @@ import {
   Sparkles,
   Trophy,
   UserRoundCheck,
+  UsersRound,
   XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -270,6 +271,7 @@ export function PredictionOpsConsole({ user, signOutPath }: Props) {
           <a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a>
           <a href="/admin/context-ops"><CloudSun size={17} />Context Ops</a>
           <a href="/admin/notification-ops"><BellRing size={17} />Notification Ops</a>
+          <a href="/admin/member-ops"><UsersRound size={17} />Member Ops</a>
           <a href="#lifecycle"><GitBranch size={17} />Durum protokolü</a>
           <a href="#candidates"><Sparkles size={17} />Aday havuzu</a>
           <a href="#threads"><Fingerprint size={17} />Sürüm geçmişi</a>

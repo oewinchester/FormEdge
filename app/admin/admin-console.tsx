@@ -28,6 +28,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   UploadCloud,
+  UsersRound,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { sampleFootballCsv } from "@/lib/csv-adapter";
@@ -279,6 +280,7 @@ export function AdminConsole({ user, signOutPath }: Props) {
           <a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a>
           <a href="/admin/context-ops"><CloudSun size={17} />Context Ops</a>
           <a href="/admin/notification-ops"><BellRing size={17} />Notification Ops</a>
+          <a href="/admin/member-ops"><UsersRound size={17} />Member Ops</a>
         </nav>
         <div className="admin-sidebar-note"><ShieldAlert size={18} /><b>Beta güvenlik kapısı</b><p>Site şu an yalnız sahibine açık. Beta erişimi genişletilmeden önce ilk-kullanıcı admin ataması kapatılmalıdır.</p></div>
         <a className="admin-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a>

@@ -4,6 +4,7 @@
 import { useState } from "react";
 import {
   BadgeDollarSign,
+  BadgeCheck,
   Banknote,
   Bell,
   Bookmark,
@@ -132,6 +133,7 @@ export function BankrollWorkspace({
           <a href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a>
           <a className="active" href="/dashboard/bankroll"><WalletCards size={18} />Kasa ve kupon<i>{workspace.counts.savedCoupons}</i></a>
           <a href="/dashboard/notifications"><Bell size={18} />Bildirimler</a>
+          <a href="/dashboard/membership"><BadgeCheck size={18} />Üyelik ve profil</a>
         </nav>
         <section className="user-plan-card transparency"><ShieldCheck size={17} /><div><small>GÜVENLİK POLİTİKASI</small><b>Çeyrek-Kelly + sert limit</b><p>Hiçbir hesap gerçek para taşımaz; bu alan yalnızca kişisel kayıt ve karar desteğidir.</p></div></section>
         <a className="user-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a>
@@ -140,7 +142,7 @@ export function BankrollWorkspace({
       <section className="user-main">
         <header className="user-topbar">
           <button type="button" className="user-menu-button" onClick={() => setMenuOpen((value) => !value)} aria-label="Menüyü aç"><Menu size={19} /></button>
-          <div><a href="/dashboard">← Dashboard</a><span>KASA DEFTERİ · CP13</span></div>
+          <div><a href="/dashboard">← Dashboard</a><span>KASA DEFTERİ · CP15 ENTITLEMENTS</span></div>
           <div className="user-top-actions"><button type="button" onClick={() => void refresh()} disabled={working !== null} aria-label="Yenile"><RefreshCw size={16} className={working === "refresh" ? "spin" : ""} /></button><span>{initials(workspace.profile.displayName)}</span></div>
         </header>
 
@@ -166,28 +168,29 @@ export function BankrollWorkspace({
         </section>
 
         <section className="bankroll-coupon-grid">
-          <CouponColumn title="3 maçlık dengeli" eyebrow="DENGELİ ALTERNATİFLER" items={workspace.coupons.balanced} tier="balanced" currency={account.currency} working={working} onSave={saveCoupon} />
-          <CouponColumn title="4–6 maç yüksek oran" eyebrow="YÜKSEK ORAN ALTERNATİFLERİ" items={workspace.coupons.highOdds} tier="high_odds" currency={account.currency} working={working} onSave={saveCoupon} />
+          <CouponColumn title="3 maçlık dengeli" eyebrow="DENGELİ ALTERNATİFLER" items={workspace.coupons.balanced} tier="balanced" currency={account.currency} working={working} onSave={saveCoupon} locked={workspace.access.balancedLocked} />
+          <CouponColumn title="4–6 maç yüksek oran" eyebrow="YÜKSEK ORAN ALTERNATİFLERİ" items={workspace.coupons.highOdds} tier="high_odds" currency={account.currency} working={working} onSave={saveCoupon} locked={workspace.access.highOddsLocked} />
         </section>
 
         <section className="bankroll-ledger-card"><header><div><small>DEĞİŞMEZ HAREKET DEFTERİ</small><h2>Son kasa kayıtları</h2></div><span>{workspace.entries.length} kayıt</span></header>{!workspace.entries.length ? <HonestEmpty title="Kasa hareketi yok." text="Açılış bakiyesi kaydedildiğinde ilk append-only defter satırı burada görünecek." /> : <div>{workspace.entries.map((entry) => <article key={entry.id}><span className={entry.amountSigned >= 0 ? "positive" : "negative"}>{entry.amountSigned >= 0 ? "+" : "−"}</span><div><b>{entryType(entry.entryType)}</b><small>{date(entry.occurredAt)} · {entry.note ?? "Not yok"}</small></div><p><b>{money(Math.abs(entry.amountSigned), account.currency)}</b><small>Bakiye {money(entry.balanceAfter, account.currency)}</small></p></article>)}</div>}</section>
 
-        <nav className="user-mobile-nav"><a href="/dashboard"><LayoutDashboard size={18} /><small>Genel</small></a><a href="/dashboard/performance"><LineChart size={18} /><small>Geçmiş</small></a><a className="active" href="/dashboard/bankroll"><WalletCards size={18} /><small>Kasa</small></a><a href="/dashboard/notifications"><Bell size={18} /><small>Bildirim</small></a></nav>
+        <nav className="user-mobile-nav"><a href="/dashboard"><LayoutDashboard size={18} /><small>Genel</small></a><a href="/dashboard/performance"><LineChart size={18} /><small>Geçmiş</small></a><a className="active" href="/dashboard/bankroll"><WalletCards size={18} /><small>Kasa</small></a><a href="/dashboard/notifications"><Bell size={18} /><small>Bildirim</small></a><a href="/dashboard/membership"><BadgeCheck size={18} /><small>Üyelik</small></a></nav>
       </section>
     </main>
   );
 }
 
-function CouponColumn({ title, eyebrow, items, tier, currency, working, onSave }: {
+function CouponColumn({ title, eyebrow, items, tier, currency, working, locked, onSave }: {
   title: string;
   eyebrow: string;
   items: UserBankrollWorkspace["coupons"]["balanced"];
   tier: "balanced" | "high_odds";
   currency: string;
   working: string | null;
+  locked: boolean;
   onSave: (tier: "balanced" | "high_odds", ids: string[], key: string) => Promise<void>;
 }) {
-  return <section className="bankroll-section-card coupon-column"><header><div><small>{eyebrow}</small><h2>{title}</h2></div><Layers3 size={18} /></header>{!items.length ? <HonestEmpty title="Uygun kombinasyon yok." text="Aynı maç, tekrar eden takım, lig yoğunluğu ve düşük oran yoğunluğu kontrollerinin tamamı geçilmeden alternatif üretilmez." /> : <div className="coupon-list">{items.map((item, index) => { const key = `${tier}-${index}`; const ids = item.legs.map((leg) => leg.assessmentId); return <article key={item.evaluation.selectionIds.join("|")}><header><span>#{index + 1}</span><p><small>BİRLEŞİK ORAN</small><b>{item.evaluation.combinedOdds.toFixed(2)}</b></p><p><small>OLASILIK</small><b>{percent(item.evaluation.combinedProbability)}</b></p></header><div>{item.legs.map((leg) => <p key={leg.assessmentId}><ShieldCheck size={12} /><span>{"homeTeamName" in leg ? `${leg.homeTeamName} — ${leg.awayTeamName}` : leg.candidate.fixtureId}</span><b>{leg.candidate.selection} · {leg.candidate.decimalOdds.toFixed(2)}</b></p>)}</div><footer><span><BadgeDollarSign size={13} />{money(item.stake.recommendedStake, currency)}</span><button type="button" onClick={() => void onSave(tier, ids, key)} disabled={working !== null}>{working === key ? <LoaderCircle className="spin" size={13} /> : <Sparkles size={13} />}Taslağı kaydet</button></footer></article>; })}</div>}</section>;
+  return <section className="bankroll-section-card coupon-column"><header><div><small>{eyebrow}</small><h2>{title}</h2></div><Layers3 size={18} /></header>{locked ? <div className="bankroll-entitlement-lock"><LockKeyhole size={22} /><b>{tier === "high_odds" ? "Expert paketi gerekli." : "Pro veya Expert paketi gerekli."}</b><p>Hazır kuponlar Free pakette kapalıdır. Üyelik sınırı veri katmanında da uygulanır.</p><a href="/dashboard/membership">Paketleri karşılaştır</a></div> : !items.length ? <HonestEmpty title="Uygun kombinasyon yok." text="Aynı maç, tekrar eden takım, lig yoğunluğu ve düşük oran yoğunluğu kontrollerinin tamamı geçilmeden alternatif üretilmez." /> : <div className="coupon-list">{items.map((item, index) => { const key = `${tier}-${index}`; const ids = item.legs.map((leg) => leg.assessmentId); return <article key={item.evaluation.selectionIds.join("|")}><header><span>#{index + 1}</span><p><small>BİRLEŞİK ORAN</small><b>{item.evaluation.combinedOdds.toFixed(2)}</b></p><p><small>OLASILIK</small><b>{percent(item.evaluation.combinedProbability)}</b></p></header><div>{item.legs.map((leg) => <p key={leg.assessmentId}><ShieldCheck size={12} /><span>{"homeTeamName" in leg ? `${leg.homeTeamName} — ${leg.awayTeamName}` : leg.candidate.fixtureId}</span><b>{leg.candidate.selection} · {leg.candidate.decimalOdds.toFixed(2)}</b></p>)}</div><footer><span><BadgeDollarSign size={13} />{money(item.stake.recommendedStake, currency)}</span><button type="button" onClick={() => void onSave(tier, ids, key)} disabled={working !== null}>{working === key ? <LoaderCircle className="spin" size={13} /> : <Sparkles size={13} />}Taslağı kaydet</button></footer></article>; })}</div>}</section>;
 }
 
 function HonestEmpty({ title, text }: { title: string; text: string }) {

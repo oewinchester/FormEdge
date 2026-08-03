@@ -32,17 +32,31 @@ export const userProfiles = sqliteTable(
     subscriptionStatus: text("subscription_status", {
       enum: ["beta", "trial", "active", "paused", "cancelled"],
     }).notNull().default("beta"),
+    betaAccessStatus: text("beta_access_status", {
+      enum: ["pending", "invited", "active", "suspended"],
+    }).notNull().default("pending"),
+    onboardingStatus: text("onboarding_status", {
+      enum: ["pending", "completed"],
+    }).notNull().default("pending"),
+    countryCode: text("country_code"),
     riskProfile: text("risk_profile", { enum: ["cautious", "balanced", "bold"] }),
     riskAssessmentStatus: text("risk_assessment_status", {
       enum: ["pending", "completed"],
     }).notNull().default("pending"),
+    ageEligibilityAcknowledgedAt: text("age_eligibility_acknowledged_at"),
     responsibleUseAcknowledgedAt: text("responsible_use_acknowledged_at"),
+    termsAcceptedAt: text("terms_accepted_at"),
+    termsRevision: text("terms_revision"),
+    onboardingCompletedAt: text("onboarding_completed_at"),
+    trialStartedAt: text("trial_started_at"),
+    trialEndsAt: text("trial_ends_at"),
     lastSeenAt: text("last_seen_at").notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (table) => [
     index("user_profiles_plan_idx").on(table.plan, table.subscriptionStatus),
+    index("user_profiles_beta_access_idx").on(table.betaAccessStatus, table.onboardingStatus),
     index("user_profiles_last_seen_idx").on(table.lastSeenAt),
   ],
 );
@@ -61,6 +75,104 @@ export const userDashboardPreferences = sqliteTable("user_dashboard_preferences"
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+export const betaWaitlistEntries = sqliteTable(
+  "beta_waitlist_entries",
+  {
+    id: text("id").primaryKey(),
+    email: text("email").notNull(),
+    displayName: text("display_name"),
+    locale: text("locale", { enum: ["tr", "en"] }).notNull().default("tr"),
+    countryCode: text("country_code").notNull(),
+    status: text("status", {
+      enum: ["waitlisted", "invited", "accepted", "blocked", "withdrawn"],
+    }).notNull().default("waitlisted"),
+    source: text("source", { enum: ["landing", "member", "admin"] }).notNull().default("landing"),
+    ageConfirmed: integer("age_confirmed", { mode: "boolean" }).notNull(),
+    responsibleUseConfirmed: integer("responsible_use_confirmed", { mode: "boolean" }).notNull(),
+    privacyAcknowledged: integer("privacy_acknowledged", { mode: "boolean" }).notNull(),
+    termsRevision: text("terms_revision").notNull(),
+    invitedAt: text("invited_at"),
+    acceptedAt: text("accepted_at"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("beta_waitlist_entries_email_unique").on(table.email),
+    index("beta_waitlist_entries_status_time_idx").on(table.status, table.createdAt),
+  ],
+);
+
+export const userRiskAssessments = sqliteTable(
+  "user_risk_assessments",
+  {
+    id: text("id").primaryKey(),
+    userEmail: text("user_email").notNull().references(() => userProfiles.email),
+    schemaVersion: text("schema_version").notNull(),
+    answersJson: text("answers_json").notNull(),
+    score: integer("score").notNull(),
+    rawProfile: text("raw_profile", { enum: ["cautious", "balanced", "bold"] }).notNull(),
+    resultProfile: text("result_profile", { enum: ["cautious", "balanced", "bold"] }).notNull(),
+    safetyOverride: integer("safety_override", { mode: "boolean" }).notNull().default(false),
+    safetyFlagsJson: text("safety_flags_json").notNull().default("[]"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("user_risk_assessments_user_time_idx").on(table.userEmail, table.createdAt),
+    index("user_risk_assessments_result_idx").on(table.resultProfile, table.safetyOverride),
+  ],
+);
+
+export const membershipEvents = sqliteTable(
+  "membership_events",
+  {
+    id: text("id").primaryKey(),
+    userEmail: text("user_email").notNull().references(() => userProfiles.email),
+    eventType: text("event_type", {
+      enum: ["onboarding_completed", "trial_started", "trial_expired", "access_changed", "plan_changed"],
+    }).notNull(),
+    fromPlan: text("from_plan", { enum: ["free", "pro", "expert"] }),
+    toPlan: text("to_plan", { enum: ["free", "pro", "expert"] }),
+    fromSubscriptionStatus: text("from_subscription_status", {
+      enum: ["beta", "trial", "active", "paused", "cancelled"],
+    }),
+    toSubscriptionStatus: text("to_subscription_status", {
+      enum: ["beta", "trial", "active", "paused", "cancelled"],
+    }),
+    actorEmail: text("actor_email").notNull(),
+    reasonCode: text("reason_code").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    metadataJson: text("metadata_json").notNull().default("{}"),
+    occurredAt: text("occurred_at").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("membership_events_idempotency_unique").on(table.idempotencyKey),
+    index("membership_events_user_time_idx").on(table.userEmail, table.occurredAt),
+    index("membership_events_type_time_idx").on(table.eventType, table.occurredAt),
+  ],
+);
+
+export const userFeatureUsage = sqliteTable(
+  "user_feature_usage",
+  {
+    id: text("id").primaryKey(),
+    userEmail: text("user_email").notNull().references(() => userProfiles.email),
+    feature: text("feature", { enum: ["match_analysis"] }).notNull(),
+    usageDay: text("usage_day").notNull(),
+    resourceId: text("resource_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("user_feature_usage_resource_unique").on(
+      table.userEmail,
+      table.feature,
+      table.usageDay,
+      table.resourceId,
+    ),
+    index("user_feature_usage_daily_idx").on(table.userEmail, table.feature, table.usageDay),
+  ],
+);
 
 export const dataSources = sqliteTable(
   "data_sources",
