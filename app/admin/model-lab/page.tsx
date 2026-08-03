@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ArrowLeft, FlaskConical, LockKeyhole, ShieldCheck } from "lucide-react";
 import {
-  chatGPTSignInPath,
+  formEdgeSignInPath,
   chatGPTSignOutPath,
   getChatGPTUser,
 } from "@/app/chatgpt-auth";
@@ -25,7 +25,7 @@ export default async function ModelLabPage() {
           <small>FORMEDGE · MODEL CONTROL</small>
           <h1>Model laboratuvarı korumalıdır.</h1>
           <p>Backtest veri setleri, olasılık ölçümleri ve lig×pazar yayın kapıları yalnızca yetkili yönetici veya analiz editörleri tarafından açılabilir.</p>
-          <a className="admin-primary-link" href={chatGPTSignInPath("/admin/model-lab")}><ShieldCheck size={17} />ChatGPT ile güvenli giriş</a>
+          <a className="admin-primary-link" href={formEdgeSignInPath("/admin/model-lab")}><ShieldCheck size={17} />Giriş ekranını aç</a>
           <a className="admin-back-link" href="/admin"><ArrowLeft size={15} />Veri konsoluna dön</a>
           <span className="model-auth-mark"><FlaskConical size={13} />POINT-IN-TIME ONLY</span>
         </section>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, BadgeCheck, LockKeyhole, ShieldCheck, Target } from "lucide-react";
 import {
-  chatGPTSignInPath,
+  formEdgeSignInPath,
   chatGPTSignOutPath,
   getChatGPTUser,
 } from "@/app/chatgpt-auth";
@@ -33,7 +33,7 @@ async function MatchAnalysisContent({ params }: { params: Promise<{ fixtureId: s
           <small>FORMEDGE · MATCH INTELLIGENCE</small>
           <h1>Maç analizi giriş gerektirir.</h1>
           <p>Olasılıklar, form karşılaştırması, kadro durumu ve tahmin sürüm geçmişi yalnız hesabınız üzerinden görüntülenebilir.</p>
-          <a className="admin-primary-link" href={chatGPTSignInPath(returnTo)}><ShieldCheck size={17} />ChatGPT ile güvenli giriş</a>
+          <a className="admin-primary-link" href={formEdgeSignInPath(returnTo)}><ShieldCheck size={17} />Giriş ekranını aç</a>
           <Link className="admin-back-link" href="/"><ArrowLeft size={15} />Ana siteye dön</Link>
           <span className="model-auth-mark"><Target size={13} />RESULTS OPEN · METHOD PRIVATE</span>
         </section>

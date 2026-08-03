@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ArrowLeft, BellRing, LockKeyhole, ShieldCheck } from "lucide-react";
 import {
-  chatGPTSignInPath,
+  formEdgeSignInPath,
   chatGPTSignOutPath,
   getChatGPTUser,
 } from "@/app/chatgpt-auth";
@@ -24,7 +24,7 @@ export default async function NotificationOpsPage() {
           <small>FORMEDGE · DELIVERY CONTROL</small>
           <h1>Bildirim operasyonları korumalıdır.</h1>
           <p>Outbox kuyruğu, kanal teslimleri ve yeniden deneme işlemleri yalnızca yetkili yönetici veya analiz editörlerine açıktır.</p>
-          <a className="admin-primary-link" href={chatGPTSignInPath("/admin/notification-ops")}><ShieldCheck size={17} />ChatGPT ile güvenli giriş</a>
+          <a className="admin-primary-link" href={formEdgeSignInPath("/admin/notification-ops")}><ShieldCheck size={17} />Giriş ekranını aç</a>
           <a className="admin-back-link" href="/admin/predictions"><ArrowLeft size={15} />Prediction Ops’a dön</a>
           <span className="model-auth-mark"><BellRing size={13} />IDEMPOTENT OUTBOX</span>
         </section>

@@ -21,6 +21,10 @@ import {
   type AdminImportEnvelope,
   recordCount,
 } from "@/lib/import-contract";
+import {
+  legacyFirstAdminBootstrapAllowed,
+  synchronizeConfiguredOwnerAccess,
+} from "@/lib/access-control";
 
 export type AdminActor = {
   email: string;
@@ -45,9 +49,10 @@ export async function requireAdminActor(): Promise<AdminActor> {
   if (!user) throw new AdminAccessError(401, "Sign in is required.");
 
   const db = await getDb();
+  await synchronizeConfiguredOwnerAccess(user);
   let [member] = await db.select().from(appMembers).where(eq(appMembers.email, user.email)).limit(1);
 
-  if (!member) {
+  if (!member && await legacyFirstAdminBootstrapAllowed()) {
     const [{ total }] = await db.select({ total: count() }).from(appMembers);
     if (total === 0) {
       await db.insert(appMembers).values({

@@ -18,7 +18,7 @@ const CALLBACK_PATH = "/callback";
 
 export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
-  const email = requestHeaders.get(USER_EMAIL_HEADER);
+  const email = requestHeaders.get(USER_EMAIL_HEADER)?.trim().toLowerCase();
   if (!email) return null;
 
   const encodedFullName = requestHeaders.get(USER_FULL_NAME_HEADER);
@@ -52,6 +52,17 @@ export function chatGPTSignInPath(returnTo: string): string {
 export function chatGPTSignOutPath(returnTo = "/"): string {
   const safeReturnTo = safeRelativeReturnPath(returnTo);
   return `${SIGN_OUT_PATH}?return_to=${encodeURIComponent(safeReturnTo)}`;
+}
+
+export function formEdgeSignInPath(returnTo: string): string {
+  const safeReturnTo = safeRelativeReturnPath(returnTo);
+  return `/auth/sign-in?next=${encodeURIComponent(safeReturnTo)}`;
+}
+
+export function safeFormEdgeReturnPath(value: unknown, fallback = "/portal"): string {
+  if (typeof value !== "string") return fallback;
+  const safeValue = safeRelativeReturnPath(value);
+  return safeValue === "/" && value !== "/" ? fallback : safeValue;
 }
 
 function safeRelativeReturnPath(value: string): string {

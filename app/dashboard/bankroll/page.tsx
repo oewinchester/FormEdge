@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, LockKeyhole, ShieldCheck, WalletCards } from "lucide-react";
 import {
-  chatGPTSignInPath,
+  formEdgeSignInPath,
   chatGPTSignOutPath,
   getChatGPTUser,
 } from "@/app/chatgpt-auth";
@@ -22,7 +22,7 @@ export default async function BankrollPage() {
     return <main className="admin-auth-shell user-auth-shell"><section className="admin-auth-card">
       <span className="admin-auth-icon"><LockKeyhole size={24} /></span><small>FORMEDGE · BANKROLL LEDGER</small>
       <h1>Kasa ve kupon alanı giriş gerektirir.</h1><p>Kasa hareketleri, risk profili, çeyrek-Kelly üst limitleri ve kaydedilmiş kupon taslakları hesabınıza bağlı olarak saklanır.</p>
-      <a className="admin-primary-link" href={chatGPTSignInPath("/dashboard/bankroll")}><ShieldCheck size={17} />ChatGPT ile güvenli giriş</a>
+      <a className="admin-primary-link" href={formEdgeSignInPath("/dashboard/bankroll")}><ShieldCheck size={17} />Giriş ekranını aç</a>
       <Link className="admin-back-link" href="/"><ArrowLeft size={15} />Ana siteye dön</Link><span className="model-auth-mark"><WalletCards size={13} />TRACKING ONLY · NO PAYMENT</span>
     </section></main>;
   }

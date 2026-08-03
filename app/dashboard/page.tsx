@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, LayoutDashboard, LockKeyhole, ShieldCheck } from "lucide-react";
 import {
-  chatGPTSignInPath,
+  formEdgeSignInPath,
   chatGPTSignOutPath,
   getChatGPTUser,
 } from "@/app/chatgpt-auth";
@@ -26,7 +26,7 @@ export default async function DashboardPage() {
           <small>FORMEDGE · MEMBER SPACE</small>
           <h1>Kullanıcı dashboardı giriş gerektirir.</h1>
           <p>İzleme kayıtları, final analizleri, kişisel tercihler ve değiştirilemez performans geçmişi hesabınıza bağlı olarak saklanır.</p>
-          <a className="admin-primary-link" href={chatGPTSignInPath("/dashboard")}><ShieldCheck size={17} />ChatGPT ile güvenli giriş</a>
+          <a className="admin-primary-link" href={formEdgeSignInPath("/dashboard")}><ShieldCheck size={17} />Giriş ekranını aç</a>
           <Link className="admin-back-link" href="/"><ArrowLeft size={15} />Ana siteye dön</Link>
           <span className="model-auth-mark"><LayoutDashboard size={13} />D1 PERSISTENT PROFILE</span>
         </section>

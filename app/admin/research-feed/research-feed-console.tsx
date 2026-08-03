@@ -234,6 +234,7 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
       <aside className="admin-sidebar">
         <a className="admin-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a>
         <nav>
+          <a href="/portal"><Database size={17} />Panel merkezi</a>
           <a href="/admin"><Database size={17} />Veri konsolu</a>
           <a className="active" href="#overview"><DatabaseZap size={17} />Research Feed</a>
           <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>

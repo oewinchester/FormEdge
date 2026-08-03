@@ -59,7 +59,7 @@ export function JoinExperience() {
     <main className="join-shell">
       <header className="join-header">
         <a href="/" className="join-wordmark"><span>F</span><b>FORMEDGE</b></a>
-        <nav><a href="/"><ArrowLeft size={15} />{tx("Ana site", "Home")}</a><button type="button" onClick={() => setLanguage(language === "tr" ? "en" : "tr")}>{language === "tr" ? "EN" : "TR"}</button></nav>
+        <nav><a href="/"><ArrowLeft size={15} />{tx("Ana site", "Home")}</a><a href="/auth/sign-in?next=%2Fportal"><ShieldCheck size={15} />{tx("Giriş yap", "Sign in")}</a><button type="button" onClick={() => setLanguage(language === "tr" ? "en" : "tr")}>{language === "tr" ? "EN" : "TR"}</button></nav>
       </header>
       <section className="join-grid">
         <section className="join-story">

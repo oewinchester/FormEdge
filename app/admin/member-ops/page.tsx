@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ArrowLeft, LockKeyhole, ShieldCheck, UsersRound } from "lucide-react";
 import {
-  chatGPTSignInPath,
+  formEdgeSignInPath,
   chatGPTSignOutPath,
   getChatGPTUser,
 } from "@/app/chatgpt-auth";
@@ -20,7 +20,7 @@ export default async function MemberOpsPage() {
     return <main className="admin-auth-shell"><section className="admin-auth-card">
       <span className="admin-auth-icon"><LockKeyhole size={24} /></span><small>FORMEDGE · MEMBER CONTROL</small>
       <h1>Üyelik operasyonları korumalıdır.</h1><p>Bekleme listesi, onboarding kanıtı, paket yetkileri ve beta erişimi yalnız yetkili yönetici veya analiz editörleri tarafından görülebilir.</p>
-      <a className="admin-primary-link" href={chatGPTSignInPath("/admin/member-ops")}><ShieldCheck size={17} />ChatGPT ile güvenli giriş</a>
+      <a className="admin-primary-link" href={formEdgeSignInPath("/admin/member-ops")}><ShieldCheck size={17} />Giriş ekranını aç</a>
       <a className="admin-back-link" href="/admin"><ArrowLeft size={15} />Veri konsoluna dön</a><span className="model-auth-mark"><UsersRound size={13} />PII · ADMIN ONLY</span>
     </section></main>;
   }

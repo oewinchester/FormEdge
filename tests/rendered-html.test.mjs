@@ -21,7 +21,7 @@ test("renders the signed-out Model Lab protection wall", async () => {
   const html = await response.text();
   assert.match(html, /Model laboratuvarı korumalıdır/i);
   assert.match(html, /POINT-IN-TIME ONLY/i);
-  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /auth\/sign-in/i);
 });
 
 test("renders the signed-out Research Feed protection wall", async () => {
@@ -30,7 +30,7 @@ test("renders the signed-out Research Feed protection wall", async () => {
   const html = await response.text();
   assert.match(html, /Araştırma veri akışı korumalıdır/i);
   assert.match(html, /PUBLIC CSV · RESEARCH ONLY/i);
-  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /auth\/sign-in/i);
   assert.match(html, /admin%2Fresearch-feed|admin\/research-feed/i);
 });
 
@@ -40,7 +40,7 @@ test("renders the signed-out Prediction Ops protection wall", async () => {
   const html = await response.text();
   assert.match(html, /Tahmin operasyonları korumalıdır/i);
   assert.match(html, /APPEND-ONLY LIFECYCLE/i);
-  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /auth\/sign-in/i);
   assert.match(html, /admin%2Fpredictions|admin\/predictions/i);
 });
 
@@ -50,7 +50,7 @@ test("renders the signed-out Value Ops protection wall", async () => {
   const html = await response.text();
   assert.match(html, /Değer operasyonları korumalıdır/i);
   assert.match(html, /ODDS ≠ PREDICTION/i);
-  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /auth\/sign-in/i);
   assert.match(html, /admin%2Fvalue-ops|admin\/value-ops/i);
 });
 
@@ -60,7 +60,7 @@ test("renders the signed-out Context Ops protection wall", async () => {
   const html = await response.text();
   assert.match(html, /Bağlam operasyonları korumalıdır/i);
   assert.match(html, /BOUNDED CONTEXT RESCORE/i);
-  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /auth\/sign-in/i);
 });
 
 test("renders the signed-out Notification Ops protection wall", async () => {
@@ -69,7 +69,7 @@ test("renders the signed-out Notification Ops protection wall", async () => {
   const html = await response.text();
   assert.match(html, /Bildirim operasyonları korumalıdır/i);
   assert.match(html, /IDEMPOTENT OUTBOX/i);
-  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /auth\/sign-in/i);
 });
 
 test("renders the public controlled-beta waitlist form", async () => {
@@ -79,6 +79,32 @@ test("renders the public controlled-beta waitlist form", async () => {
   assert.match(html, /Bekleme listesine katıl/i);
   assert.match(html, /CONTROLLED BETA/i);
   assert.match(html, /Kart bilgisi/i);
+});
+
+test("renders the unified sign-in entry and the real SIWC handoff", async () => {
+  const response = await renderRoute("/auth/sign-in?next=%2Fdashboard");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Tek girişle bütün FormEdge panellerine ulaş/i);
+  assert.match(html, /ChatGPT ile güvenli giriş/i);
+  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /Google[\s\S]*Lansmanda/i);
+});
+
+test("renders the unified beta account creation entry without fake providers", async () => {
+  const response = await renderRoute("/auth/sign-up");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Ücretsiz beta hesabı/i);
+  assert.match(html, /kart veya ödeme bilgisi istenmez/i);
+  assert.match(html, /ChatGPT ile hesap oluştur/i);
+  assert.match(html, /E-posta[\s\S]*Lansmanda/i);
+});
+
+test("redirects a signed-out panel hub request through the branded entry", async () => {
+  const response = await renderRoute("/portal");
+  assert.equal(response.status, 307);
+  assert.match(response.headers.get("location") ?? "", /\/auth\/sign-in\?next=%2Fportal$/i);
 });
 
 test("renders a fail-closed wall for an invalid beta invitation", async () => {
@@ -96,7 +122,7 @@ test("renders the signed-out Member Ops protection wall", async () => {
   const html = await response.text();
   assert.match(html, /Üyelik operasyonları korumalıdır/i);
   assert.match(html, /PII · ADMIN ONLY/i);
-  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /auth\/sign-in/i);
 });
 
 test("renders the signed-out member dashboard protection wall", async () => {
@@ -105,7 +131,7 @@ test("renders the signed-out member dashboard protection wall", async () => {
   const html = await response.text();
   assert.match(html, /Kullanıcı dashboardı giriş gerektirir/i);
   assert.match(html, /D1 PERSISTENT PROFILE/i);
-  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /auth\/sign-in/i);
 });
 
 test("renders the signed-out immutable performance protection wall", async () => {
@@ -114,7 +140,7 @@ test("renders the signed-out immutable performance protection wall", async () =>
   const html = await response.text();
   assert.match(html, /Performans geçmişi giriş gerektirir/i);
   assert.match(html, /NO CHERRY PICKING/i);
-  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /auth\/sign-in/i);
 });
 
 test("renders the signed-out bankroll and coupon protection wall", async () => {
@@ -123,7 +149,7 @@ test("renders the signed-out bankroll and coupon protection wall", async () => {
   const html = await response.text();
   assert.match(html, /Kasa ve kupon alanı giriş gerektirir/i);
   assert.match(html, /TRACKING ONLY · NO PAYMENT/i);
-  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /auth\/sign-in/i);
 });
 
 test("renders the signed-out notification center protection wall", async () => {
@@ -132,7 +158,7 @@ test("renders the signed-out notification center protection wall", async () => {
   const html = await response.text();
   assert.match(html, /Bildirim merkezi giriş gerektirir/i);
   assert.match(html, /ACCOUNT-BOUND DELIVERY/i);
-  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /auth\/sign-in/i);
 });
 
 test("renders the signed-out membership center protection wall", async () => {
@@ -141,7 +167,7 @@ test("renders the signed-out membership center protection wall", async () => {
   const html = await response.text();
   assert.match(html, /Üyelik merkezi giriş gerektirir/i);
   assert.match(html, /ENTITLEMENTS · NO PAYMENT/i);
-  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /auth\/sign-in/i);
 });
 
 test("renders the signed-out match analysis protection wall", async () => {
@@ -150,7 +176,7 @@ test("renders the signed-out match analysis protection wall", async () => {
   const html = await response.text();
   assert.match(html, /Maç analizi giriş gerektirir/i);
   assert.match(html, /RESULTS OPEN/i);
-  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /auth\/sign-in/i);
 });
 
 async function renderRoute(pathname) {

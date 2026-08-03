@@ -127,6 +127,7 @@ export function UserDashboard({
       <aside className={`user-sidebar ${menuOpen ? "open" : ""}`}>
         <a className="user-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a>
         <nav>
+          <a href="/portal"><CircleGauge size={18} />Panel merkezi</a>
           <a className="active" href="/dashboard"><LayoutDashboard size={18} />Genel bakış</a>
           <a href="#matches"><CalendarDays size={18} />Maç analizleri</a>
           <a href="#matches" onClick={() => setFilter("saved")}><Bookmark size={18} />İzleme listem<i>{overview.counts.saved}</i></a>
@@ -187,7 +188,7 @@ export function UserDashboard({
 
           <aside className="user-right-rail">
             <section className="user-performance-card"><header><div><small>DEĞİŞTİRİLEMEZ GEÇMİŞ</small><h3>Sistem performansı</h3></div><BarChart3 size={18} /></header><div className="user-performance-score"><span><b>{performance.counts.won}</b><small>KAZANAN</small></span><span><b>{performance.counts.lost}</b><small>KAYBEDEN</small></span><span><b>{performance.counts.withdrawn}</b><small>GERİ ÇEKİLEN</small></span></div><p>Oran, değer ve bağlam kanıtı sürümle dondurulur. Kişisel kasa hareketleri ayrı değişmez defterde tutulur.</p><a href="/dashboard/performance">Tüm geçmişi incele<ChevronRight size={14} /></a></section>
-            <section className="user-roadmap-card"><small>ÜRÜN AŞAMASI</small><h3>Phase 06 · CP15</h3><div><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="active" /></div><ul><li><CheckCircle2 size={13} />Kullanıcı dashboardı</li><li><CheckCircle2 size={13} />De-vig ve değer filtresi</li><li><CheckCircle2 size={13} />Kasa ve güvenli kupon</li><li><CheckCircle2 size={13} />Web içi bildirim + kanal adaptörleri</li><li><CheckCircle2 size={13} />Onboarding ve üyelik · CP15</li><li><FileClock size={13} />Davetli beta operasyonu · CP16</li></ul></section>
+            <section className="user-roadmap-card"><small>ÜRÜN AŞAMASI</small><h3>Phase 07 · CP17B</h3><div><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="active" /></div><ul><li><CheckCircle2 size={13} />Kullanıcı dashboardları</li><li><CheckCircle2 size={13} />Yönetim operasyon panelleri</li><li><CheckCircle2 size={13} />Üyelik, kasa ve bildirim</li><li><CheckCircle2 size={13} />Gerçek araştırma veri akışı</li><li><CheckCircle2 size={13} />Birleşik erişim merkezi · CP17B</li><li><FileClock size={13} />Sıralı backtest otomasyonu · CP17C</li></ul></section>
             <section className="user-risk-card"><AlertTriangle size={17} /><div><small>RİSK PROFİLİ</small><b>{overview.profile.riskProfile ? riskLabel(overview.profile.riskProfile) : "Kayıt testi bekleniyor"}</b><p>Risk profili yalnız görünüm ve kasa limitlerini etkiler; model olasılıkları değişmez.</p><a href="/dashboard/membership">Üyelik merkezini aç<ChevronRight size={12} /></a></div></section>
           </aside>
         </section>

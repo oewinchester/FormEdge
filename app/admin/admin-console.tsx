@@ -271,6 +271,7 @@ export function AdminConsole({ user, signOutPath }: Props) {
       <aside className="admin-sidebar">
         <a className="admin-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a>
         <nav>
+          <a href="/portal"><Database size={17} />Panel merkezi</a>
           <a className="active" href="#overview"><Gauge size={17} />Kontrol merkezi</a>
           <a href="#health"><HeartPulse size={17} />Veri sağlığı</a>
           <a href="#import"><UploadCloud size={17} />Veri içe aktar</a>
@@ -284,7 +285,7 @@ export function AdminConsole({ user, signOutPath }: Props) {
           <a href="/admin/notification-ops"><BellRing size={17} />Notification Ops</a>
           <a href="/admin/member-ops"><UsersRound size={17} />Member Ops</a>
         </nav>
-        <div className="admin-sidebar-note"><ShieldAlert size={18} /><b>Beta güvenlik kapısı</b><p>Site şu an yalnız sahibine açık. Beta erişimi genişletilmeden önce ilk-kullanıcı admin ataması kapatılmalıdır.</p></div>
+        <div className="admin-sidebar-note"><ShieldAlert size={18} /><b>Beta güvenlik kapısı</b><p>Site şu an yalnız sahibine açık. İlk-kullanıcı admin ataması varsayılan olarak kapalı; sahip rolü yalnız üretim ortamı yapılandırmasıyla eşlenir.</p></div>
         <a className="admin-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a>
       </aside>
 

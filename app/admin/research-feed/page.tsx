@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ArrowLeft, DatabaseZap, LockKeyhole, ShieldCheck } from "lucide-react";
 import {
-  chatGPTSignInPath,
+  formEdgeSignInPath,
   chatGPTSignOutPath,
   getChatGPTUser,
 } from "@/app/chatgpt-auth";
@@ -25,7 +25,7 @@ export default async function ResearchFeedPage() {
           <small>FORMEDGE · RESEARCH FEED</small>
           <h1>Araştırma veri akışı korumalıdır.</h1>
           <p>Haricî CSV çekimleri, ham R2 arşivi ve backtest hazırlık durumu yalnızca yetkili yönetici veya analiz editörleri tarafından görüntülenebilir.</p>
-          <a className="admin-primary-link" href={chatGPTSignInPath("/admin/research-feed")}><ShieldCheck size={17} />ChatGPT ile güvenli giriş</a>
+          <a className="admin-primary-link" href={formEdgeSignInPath("/admin/research-feed")}><ShieldCheck size={17} />Giriş ekranını aç</a>
           <a className="admin-back-link" href="/admin"><ArrowLeft size={15} />Veri konsoluna dön</a>
           <span className="model-auth-mark"><DatabaseZap size={13} />PUBLIC CSV · RESEARCH ONLY</span>
         </section>

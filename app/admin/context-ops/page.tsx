@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ArrowLeft, CloudSun, LockKeyhole, ShieldCheck } from "lucide-react";
 import {
-  chatGPTSignInPath,
+  formEdgeSignInPath,
   chatGPTSignOutPath,
   getChatGPTUser,
 } from "@/app/chatgpt-auth";
@@ -24,7 +24,7 @@ export default async function ContextOpsPage() {
           <small>FORMEDGE · CONTEXT CONTROL</small>
           <h1>Bağlam operasyonları korumalıdır.</h1>
           <p>Kadro, eksik oyuncu, teknik direktör, dinlenme, seyahat, hava ve zemin kanıtları yalnızca yetkili yönetici veya analiz editörleri tarafından kaydedilir.</p>
-          <a className="admin-primary-link" href={chatGPTSignInPath("/admin/context-ops")}><ShieldCheck size={17} />ChatGPT ile güvenli giriş</a>
+          <a className="admin-primary-link" href={formEdgeSignInPath("/admin/context-ops")}><ShieldCheck size={17} />Giriş ekranını aç</a>
           <a className="admin-back-link" href="/admin/predictions"><ArrowLeft size={15} />Prediction Ops’a dön</a>
           <span className="model-auth-mark"><CloudSun size={13} />BOUNDED CONTEXT RESCORE</span>
         </section>

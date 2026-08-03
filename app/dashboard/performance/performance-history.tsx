@@ -118,7 +118,7 @@ export function PerformanceHistory({
     <main className="user-shell performance-shell">
       <aside className="user-sidebar">
         <a className="user-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a>
-        <nav><a href="/dashboard"><LayoutDashboard size={18} />Genel bakış</a><a href="/dashboard#matches"><CalendarDays size={18} />Maç analizleri</a><a className="active" href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a><a href="/dashboard/bankroll"><WalletCards size={18} />Kasa ve kupon</a><a href="/dashboard/notifications"><Bell size={18} />Bildirimler</a><a href="/dashboard/membership"><BadgeCheck size={18} />Üyelik ve profil</a></nav>
+        <nav><a href="/portal"><CircleGauge size={18} />Panel merkezi</a><a href="/dashboard"><LayoutDashboard size={18} />Genel bakış</a><a href="/dashboard#matches"><CalendarDays size={18} />Maç analizleri</a><a className="active" href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a><a href="/dashboard/bankroll"><WalletCards size={18} />Kasa ve kupon</a><a href="/dashboard/notifications"><Bell size={18} />Bildirimler</a><a href="/dashboard/membership"><BadgeCheck size={18} />Üyelik ve profil</a></nav>
         <section className="user-plan-card transparency"><LockKeyhole size={17} /><div><small>ŞEFFAFLIK KURALI</small><b>Silme ve gizleme yok</b><p>Finalleşen her kayıt sonuç ne olursa olsun sürüm kimliğiyle kalır.</p></div></section>
         <a className="user-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a>
       </aside>

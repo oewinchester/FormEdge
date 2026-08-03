@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, LineChart, LockKeyhole, ShieldCheck } from "lucide-react";
 import {
-  chatGPTSignInPath,
+  formEdgeSignInPath,
   chatGPTSignOutPath,
   getChatGPTUser,
 } from "@/app/chatgpt-auth";
@@ -26,7 +26,7 @@ export default async function PerformancePage() {
           <small>FORMEDGE · TRANSPARENCY LEDGER</small>
           <h1>Performans geçmişi giriş gerektirir.</h1>
           <p>Kazanan, kaybeden, geri çekilen ve sonuç bekleyen bütün final kayıtları sürüm kimliğiyle birlikte kalıcı olarak gösterilir.</p>
-          <a className="admin-primary-link" href={chatGPTSignInPath("/dashboard/performance")}><ShieldCheck size={17} />ChatGPT ile güvenli giriş</a>
+          <a className="admin-primary-link" href={formEdgeSignInPath("/dashboard/performance")}><ShieldCheck size={17} />Giriş ekranını aç</a>
           <Link className="admin-back-link" href="/"><ArrowLeft size={15} />Ana siteye dön</Link>
           <span className="model-auth-mark"><LineChart size={13} />NO CHERRY PICKING</span>
         </section>

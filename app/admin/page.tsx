@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import { ArrowLeft, LockKeyhole, ShieldCheck } from "lucide-react";
 import {
-  chatGPTSignInPath,
+  formEdgeSignInPath,
   chatGPTSignOutPath,
   getChatGPTUser,
 } from "@/app/chatgpt-auth";
@@ -26,7 +26,7 @@ export default async function AdminPage() {
           <small>FORMEDGE · CONTROL PLANE</small>
           <h1>Veri konsolu korumalıdır.</h1>
           <p>Kaynak kayıtları, ham snapshot’lar ve içe aktarma geçmişi yalnızca yetkili yönetici veya analiz editörleri tarafından açılabilir.</p>
-          <a className="admin-primary-link" href={chatGPTSignInPath("/admin")}><ShieldCheck size={17} />ChatGPT ile güvenli giriş</a>
+          <a className="admin-primary-link" href={formEdgeSignInPath("/admin")}><ShieldCheck size={17} />Giriş ekranını aç</a>
           <a className="admin-back-link" href="/"><ArrowLeft size={15} />Ana siteye dön</a>
         </section>
       </main>

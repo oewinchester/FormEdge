@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, Bell, LockKeyhole, ShieldCheck } from "lucide-react";
 import {
-  chatGPTSignInPath,
+  formEdgeSignInPath,
   chatGPTSignOutPath,
   getChatGPTUser,
 } from "@/app/chatgpt-auth";
@@ -26,7 +26,7 @@ export default async function NotificationsPage() {
           <small>FORMEDGE · NOTIFICATION CENTER</small>
           <h1>Bildirim merkezi giriş gerektirir.</h1>
           <p>Okunma durumu, kanal bağlantıları ve olay tercihleri hesabınıza bağlı D1 kayıtlarında saklanır.</p>
-          <a className="admin-primary-link" href={chatGPTSignInPath("/dashboard/notifications")}><ShieldCheck size={17} />ChatGPT ile güvenli giriş</a>
+          <a className="admin-primary-link" href={formEdgeSignInPath("/dashboard/notifications")}><ShieldCheck size={17} />Giriş ekranını aç</a>
           <Link className="admin-back-link" href="/"><ArrowLeft size={15} />Ana siteye dön</Link>
           <span className="model-auth-mark"><Bell size={13} />ACCOUNT-BOUND DELIVERY</span>
         </section>

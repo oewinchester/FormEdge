@@ -399,7 +399,7 @@ function AnalysisDrawer({ match, language, onClose }: { match: DemoMatch; langua
   );
 }
 
-export function FormEdgeExperience() {
+export function FormEdgeExperience({ signedIn = false }: { signedIn?: boolean }) {
   const [language, setLanguage] = useState<Language>("tr");
   const [menuOpen, setMenuOpen] = useState(false);
   const [filter, setFilter] = useState<"all" | MatchStatus>("all");
@@ -408,6 +408,8 @@ export function FormEdgeExperience() {
   const [selected, setSelected] = useState<DemoMatch | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const tx = (tr: string, en: string) => language === "tr" ? tr : en;
+  const accessPath = signedIn ? "/portal" : "/auth/sign-in?next=%2Fportal";
+  const accountPath = signedIn ? "/portal" : "/auth/sign-up";
   const visible = useMemo(() => demoMatches.filter((match) => filter === "all" || match.status === filter), [filter]);
 
   const scrollTo = (selector: string) => {
@@ -450,11 +452,11 @@ export function FormEdgeExperience() {
         <div className="header-actions">
           <button className="language" type="button" onClick={() => setLanguage(language === "tr" ? "en" : "tr")}>{language === "tr" ? "EN" : "TR"}</button>
           <button className="header-icon notification" type="button" aria-label={tx("Bildirimler", "Notifications")}><Bell size={19} /><i>2</i></button>
-          <button className="login" type="button" onClick={() => window.location.assign("/dashboard")}><UserRound size={18} /><span>{tx("Giriş", "Sign in")}</span></button>
-          <button className="trial" type="button" onClick={() => window.location.assign("/join")}>{tx("Beta listesine katıl", "Join the beta")}<ArrowUpRight size={16} /></button>
+          <button className="login" type="button" onClick={() => window.location.assign(accessPath)}><UserRound size={18} /><span>{signedIn ? tx("Panel merkezi", "Panel hub") : tx("Giriş", "Sign in")}</span></button>
+          <button className="trial" type="button" onClick={() => window.location.assign(signedIn ? "/portal" : "/join")}>{signedIn ? tx("Panelleri aç", "Open panels") : tx("Beta listesine katıl", "Join the beta")}<ArrowUpRight size={16} /></button>
         </div>
       </header>
-      {menuOpen && <nav className="mobile-menu">{nav.map(([label, href]) => <button type="button" key={href} onClick={() => scrollTo(href)}>{label}<ChevronRight size={18} /></button>)}<button type="button"><span className="menu-alert"><Bell size={16} />{tx("Bildirimler", "Notifications")}<i>2</i></span><ChevronRight size={18} /></button><button className="menu-cta" type="button" onClick={() => window.location.assign("/join")}>{tx("Beta listesine katıl", "Join the beta")}<ArrowUpRight size={17} /></button></nav>}
+      {menuOpen && <nav className="mobile-menu">{nav.map(([label, href]) => <button type="button" key={href} onClick={() => scrollTo(href)}>{label}<ChevronRight size={18} /></button>)}<button type="button" onClick={() => window.location.assign(accessPath)}><span className="menu-alert"><UserRound size={16} />{signedIn ? tx("Panel merkezi", "Panel hub") : tx("Giriş yap", "Sign in")}</span><ChevronRight size={18} /></button><button className="menu-cta" type="button" onClick={() => window.location.assign(signedIn ? "/portal" : "/join")}>{signedIn ? tx("Panelleri aç", "Open panels") : tx("Beta listesine katıl", "Join the beta")}<ArrowUpRight size={17} /></button></nav>}
 
       <main>
         <section className="hero" id="top">
@@ -464,7 +466,7 @@ export function FormEdgeExperience() {
               <div className="hero-eyebrow" data-intro><span><i /></span>{tx("BAHİS VAADİ DEĞİL — VERİYLE SINANAN ANALİZ", "NOT A BETTING PROMISE — ANALYSIS TESTED WITH DATA")}</div>
               <h1 data-intro><span>{tx("Formu gör.", "See the form.")}</span><span>{tx("Belirsizliği ölç.", "Measure uncertainty.")}</span><em>{tx("Kararı sen ver.", "Make your call.")}</em></h1>
               <p data-intro>{tx("Güncel formu, oyun hâkimiyetini ve kadro etkisini tek bakışta birleştiren yeni nesil futbol analiz deneyimi.", "A new football analysis experience combining recent form, match dominance and lineup impact in one clear view.")}</p>
-              <div className="hero-actions" data-intro><button type="button" className="primary" onClick={() => scrollTo("#bugun")}>{tx("Örnek analizi incele", "Explore sample analysis")}<ArrowRight size={18} /></button><button type="button" className="secondary" onClick={() => scrollTo("#metod")}><CircleGauge size={17} />{tx("Yöntemi keşfet", "Discover the method")}</button></div>
+              <div className="hero-actions" data-intro><button type="button" className="primary" onClick={() => scrollTo("#bugun")}>{tx("Örnek analizi incele", "Explore sample analysis")}<ArrowRight size={18} /></button><button type="button" className="secondary" onClick={() => window.location.assign(accessPath)}><UserRound size={17} />{signedIn ? tx("Panel merkezine gir", "Open panel hub") : tx("Hesabına giriş yap", "Sign in to your account")}</button></div>
               <div className="beta-proof" data-intro><span><i>UI</i><i>DA</i><i>ML</i></span><p><strong>100–300</strong> {tx("kişilik kontrollü beta", "user controlled beta")}</p></div>
             </div>
             <HeroFootball />
@@ -477,7 +479,7 @@ export function FormEdgeExperience() {
           <div className="dashboard reveal">
             <aside className="sidebar"><Brand /><nav><button className="active"><CalendarDays size={18} />{tx("Bugünün maçları", "Today’s matches")}</button><button><Eye size={18} />{tx("İzleme listesi", "Watchlist")}<i>7</i></button><button><Zap size={18} />{tx("Nihai öneriler", "Final picks")}<i>4</i></button><button><Layers3 size={18} />{tx("Kupon kurucu", "Coupon builder")}</button><button><LineChart size={18} />{tx("Performans", "Performance")}</button><button><WalletCards size={18} />{tx("Kasa", "Bankroll")}</button></nav><div className="side-beta"><Sparkles size={19} /><b>{tx("Beta erişimi", "Beta access")}</b><span>{tx("3 günlük Pro denemesi", "3-day Pro trial")}</span><button onClick={() => window.location.assign("/join")}>{tx("Davet iste", "Request invite")}<ArrowUpRight size={14} /></button></div></aside>
             <div className="dash-main">
-              <header className="dash-header"><div><span><CalendarDays size={14} />03 Ağustos, Pazartesi</span><h3>{tx("Bugünün maçları", "Today’s matches")}</h3><p><i />{tx("Son güncelleme 18:42 · Demo veri", "Updated 18:42 · Demo data")}</p></div><div><button className="search-button" aria-label={tx("Ara", "Search")}><Search size={18} /></button><button className="avatar">UM</button></div></header>
+              <header className="dash-header"><div><span><CalendarDays size={14} />{tx("Temsili maç günü", "Illustrative match day")}</span><h3>{tx("Ürün ön izlemesi", "Product preview")}</h3><p><i />{tx("Canlı akış değil · Demo veri", "Not a live feed · Demo data")}</p></div><div><button className="search-button" aria-label={tx("Ara", "Search")}><Search size={18} /></button><button className="avatar" type="button" onClick={() => window.location.assign(accessPath)} aria-label={tx("Panel merkezini aç", "Open panel hub")}>FE</button></div></header>
               <div className="summary-grid">
                 <article className="summary radar"><header><span><CircleGauge size={16} />{tx("Model radarı", "Model radar")}</span><ChevronRight size={16} /></header><div className="radar-values"><p><b>42</b><span>{tx("Analiz", "Analyzed")}</span></p><p className="accent"><b>11</b><span>{tx("Eşiği geçti", "Qualified")}</span></p><p><b>31</b><span>{tx("Çekimser", "Abstained")}</span></p></div><div className="tiny-bars"><i /><i /><i /><i /><i /><i /><i /><i /></div></article>
                 <article className="summary form-summary"><header><span><TrendingUp size={16} />{tx("Form üstünlüğü", "Form dominance")}</span><em>+18%</em></header><div><b>88</b><span>/100</span><i>↑</i></div><p>{tx("Son 5/10, rakip gücü, saha ve oyun hâkimiyeti.", "Last 5/10, opponent strength, venue and dominance.")}</p></article>
@@ -523,7 +525,7 @@ export function FormEdgeExperience() {
               { name: "Free", price: "0", className: "free", desc: ["Sistemi güvenle keşfet.", "Explore the system safely."], features: [["Günde 3 hızlı analiz", "3 quick analyses daily"], ["7 günlük performans", "7-day performance"], ["Temel sanal kasa", "Basic virtual bankroll"]] },
               { name: "Pro", price: annual ? "279" : "329", className: "pro", desc: ["Tüm nihai öneriler ve derin analiz.", "All final picks and deep analysis."], features: [["Sınırsız maç analizi", "Unlimited match analysis"], ["Doğrulanmış ana pazarlar", "Validated core markets"], ["Kupon kurucu ve web push", "Coupon builder and web push"], ["Tam standart geçmiş", "Full standard history"]] },
               { name: "Expert", price: annual ? "499" : "579", className: "expert", desc: ["Uzman filtreler ve otomasyon.", "Expert filters and automation."], features: [["Tüm doğrulanmış pazarlar", "All validated markets"], ["Gelişmiş geçmiş ve export", "Advanced history and export"], ["Telegram + özel bildirim", "Telegram + custom alerts"], ["Top 5 kupon alternatifi", "Top 5 coupon alternatives"]] },
-            ].map((plan) => <article className={`price-card ${plan.className} reveal-card`} key={plan.name}>{plan.name === "Pro" && <em className="popular">{tx("EN DENGELİ", "MOST BALANCED")}</em>}<header><span>{plan.name[0]}</span><b>{plan.name}</b></header><p>{plan.desc[language === "tr" ? 0 : 1]}</p><div className="price"><small>₺</small><b>{plan.price}</b><span>/{tx("ay", "mo")}</span></div>{annual && plan.name !== "Free" && <em className="annual-note">{tx("Yıllık faturalandırılır", "Billed annually")}</em>}<ul>{plan.features.map((feature) => <li key={feature[0]}><Check size={15} />{feature[language === "tr" ? 0 : 1]}</li>)}</ul><button onClick={() => window.location.assign("/join")}>{plan.name === "Free" ? tx("Ücretsiz başla", "Start free") : tx("Paketi incele", "Explore plan")}<ArrowUpRight size={16} /></button></article>)}
+            ].map((plan) => <article className={`price-card ${plan.className} reveal-card`} key={plan.name}>{plan.name === "Pro" && <em className="popular">{tx("EN DENGELİ", "MOST BALANCED")}</em>}<header><span>{plan.name[0]}</span><b>{plan.name}</b></header><p>{plan.desc[language === "tr" ? 0 : 1]}</p><div className="price"><small>₺</small><b>{plan.price}</b><span>/{tx("ay", "mo")}</span></div>{annual && plan.name !== "Free" && <em className="annual-note">{tx("Yıllık faturalandırılır", "Billed annually")}</em>}<ul>{plan.features.map((feature) => <li key={feature[0]}><Check size={15} />{feature[language === "tr" ? 0 : 1]}</li>)}</ul><button onClick={() => window.location.assign(accountPath)}>{signedIn ? tx("Hesabında incele", "Review in account") : plan.name === "Free" ? tx("Ücretsiz hesap oluştur", "Create free account") : tx("Hesap oluştur ve incele", "Create account to explore")}<ArrowUpRight size={16} /></button></article>)}
           </div>
           <p className="price-note reveal">{tx("Fiyatlar yalnızca beta konumlandırma hipotezidir; satış teklifi değildir.", "Prices are beta positioning hypotheses only and are not a sales offer.")}</p>
         </section>

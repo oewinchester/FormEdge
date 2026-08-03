@@ -7,8 +7,15 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.1 · Checkpoint 17A · Aşama 7 / Research Data Feed & Backtest Bootstrap**
+**v0.7.0-alpha.2 · Checkpoint 17B · Aşama 7 / Unified Access & Panel Hub**
 
+- Ana sayfa, bekleme listesi, giriş, kayıt, birleşik panel merkezi, kullanıcı dashboardları ve yönetim konsollarını tek yönlendirme mimarisinde birleştiren erişim akışı
+- ChatGPT SIWC ile çalışan gerçek oturum yolu; hazır olmayan Google, Apple ve e-posta sağlayıcılarını açıkça “Lansmanda” durumunda tutan dürüst giriş ekranı
+- İlk güvenli girişte D1 ürün hesabı/profili oluşturan, kullanıcı rolü ile admin/editör rolünü sunucu tarafında ayıran kalıcı hesap katmanı
+- Üretim ortamında tanımlanan sahip e-postasını idempotent biçimde aktif admin rolüyle eşleyen; kaynak kodda e-posta veya erişim anahtarı tutmayan owner bootstrap
+- Varsayılan ilk-kullanıcı-admin davranışını kapatan, yalnız açık legacy ortam bayrağıyla etkinleşebilen fail-closed yönetim yetkisi
+- Kullanıcı için beş dashboardı ve yetkili owner/editör için sekiz operasyon panelini tek ekranda görünür ve doğrudan erişilebilir sunan responsive Panel Merkezi
+- Landing üzerindeki temsili ürün ön izlemesini D1 tabanlı gerçek dashboardlardan açıkça ayıran demo/gerçek veri sınırı
 - Responsive, 3D destekli ürün landing sayfası
 - D1 tabanlı futbol veri çekirdeği ve R2 ham veri arşivi
 - Football-Data.co.uk public CSV uçlarını yalnız sabit lig/sezon allowlist’i üzerinden alan, yönlendirmeyi kapatan ve dosya boyutunu 3 MB ile sınırlayan araştırma adaptörü
@@ -112,12 +119,13 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.5.2 | CP14 | İdempotent outbox, web içi bildirim merkezi, Web Push/Telegram adaptörleri ve Notification Ops | Tamamlandı |
 | v0.6.0 | CP15 | Waitlist, onboarding/risk testi, Free–Pro–Expert entitlement ve kartsız 72 saatlik deneme temeli | Tamamlandı |
 | v0.6.1 | CP16 | Fail-closed davet/kapasite operasyonu, şifreli token, rate limit, teslim outbox’ı ve zamanlayıcı sözleşmesi | Tamamlandı |
-| **v0.7.0-alpha.1** | **CP17A** | **Allowlist public CSV adaptörü, R2 ham arşiv, D1 provenance, 25 sezonluk araştırma kuyruğu ve backtest bootstrap konsolu** | **Mevcut** |
-| v0.7.0-alpha.2 | CP17B | Gerçek veri üzerinde sıralı dataset/backtest koşuları, shadow validation, drift ve lig × model karşılaştırması | Planlandı |
+| v0.7.0-alpha.1 | CP17A | Allowlist public CSV adaptörü, R2 ham arşiv, D1 provenance, 25 sezonluk araştırma kuyruğu ve backtest bootstrap konsolu | Tamamlandı |
+| **v0.7.0-alpha.2** | **CP17B** | **Birleşik giriş/kayıt akışı, D1 hesap başlangıcı, env-tanımlı owner rolü ve kullanıcı + admin Panel Merkezi** | **Mevcut** |
+| v0.7.0-alpha.3 | CP17C | Gerçek veri üzerinde sıralı dataset/backtest koşuları, shadow validation, drift ve lig × model karşılaştırması | Planlandı |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 
-Ücretli veya herkese açık beta öncesindeki dış bağımlılık kapıları: 3–5 lisanslı pilot lig kaynağı, public site erişimi, üretim kimlik sağlayıcısı, e-posta relay’i, zamanlayıcı, veri revizyon zamanları, şirket/ödeme altyapısı ve ülke bazlı hukuk incelemesidir. CP17A gerçek tarihsel maç verisiyle model araştırmasını başlatır; kaynağı üretim lisanslı veya tarihsel oranları point-in-time kanıtlı gibi göstermez. Kapılar kapanmadan model araştırması ilerleyebilir, kullanıcı daveti ve bahis önerisi yayını ilerleyemez.
+Ücretli veya herkese açık beta öncesindeki dış bağımlılık kapıları: 3–5 lisanslı pilot lig kaynağı, public site erişimi, public üretim kimlik sağlayıcısı, e-posta relay’i, zamanlayıcı, veri revizyon zamanları, şirket/ödeme altyapısı ve ülke bazlı hukuk incelemesidir. CP17A gerçek tarihsel maç verisiyle model araştırmasını başlatır; CP17B mevcut özel beta içinde bütün gerçek panelleri tek erişim merkezinde görünür kılar. Kaynak üretim lisanslı veya tarihsel oranlar point-in-time kanıtlı gibi gösterilmez. Kapılar kapanmadan model araştırması ilerleyebilir, kullanıcı daveti ve bahis önerisi yayını ilerleyemez.
 
 ## Model güvenlik kuralları
 

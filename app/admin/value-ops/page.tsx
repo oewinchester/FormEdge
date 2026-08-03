@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ArrowLeft, BadgeDollarSign, LockKeyhole, ShieldCheck } from "lucide-react";
 import {
-  chatGPTSignInPath,
+  formEdgeSignInPath,
   chatGPTSignOutPath,
   getChatGPTUser,
 } from "@/app/chatgpt-auth";
@@ -25,7 +25,7 @@ export default async function ValueOpsPage() {
           <small>FORMEDGE · VALUE CONTROL</small>
           <h1>Değer operasyonları korumalıdır.</h1>
           <p>Şirket bazlı oran snapshotları, de-vig uzlaşısı, piyasa anomalileri ve değişmez değer kanıtları yalnızca yetkili yönetici veya analiz editörlerine açıktır.</p>
-          <a className="admin-primary-link" href={chatGPTSignInPath("/admin/value-ops")}><ShieldCheck size={17} />ChatGPT ile güvenli giriş</a>
+          <a className="admin-primary-link" href={formEdgeSignInPath("/admin/value-ops")}><ShieldCheck size={17} />Giriş ekranını aç</a>
           <a className="admin-back-link" href="/admin/predictions"><ArrowLeft size={15} />Prediction Ops’a dön</a>
           <span className="model-auth-mark"><BadgeDollarSign size={13} />ODDS ≠ PREDICTION</span>
         </section>

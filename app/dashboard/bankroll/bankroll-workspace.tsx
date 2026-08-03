@@ -128,6 +128,7 @@ export function BankrollWorkspace({
       <aside className={`user-sidebar ${menuOpen ? "open" : ""}`}>
         <a className="user-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a>
         <nav>
+          <a href="/portal"><CircleGauge size={18} />Panel merkezi</a>
           <a href="/dashboard"><LayoutDashboard size={18} />Genel bakış</a>
           <a href="/dashboard#matches"><Bookmark size={18} />Maç analizleri</a>
           <a href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a>

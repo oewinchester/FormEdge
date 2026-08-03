@@ -93,6 +93,7 @@ export function NotificationOpsConsole({ user, signOutPath }: { user: { displayN
       <aside className="admin-sidebar">
         <a className="admin-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a>
         <nav>
+          <a href="/portal"><Database size={17} />Panel merkezi</a>
           <a href="/admin"><Database size={17} />Veri konsolu</a>
           <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>
           <a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a>
