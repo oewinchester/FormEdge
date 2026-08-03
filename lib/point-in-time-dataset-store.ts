@@ -46,6 +46,7 @@ export type FeatureDatasetSummary = {
   oddsCoverage: number;
   featureSchemaVersion: string;
   benchmarkSchemaVersion: string;
+  ablationSchemaVersion: string;
   builderVersion: string;
   datasetChecksumSha256: string;
   leakageViolationCount: number;
@@ -238,6 +239,7 @@ export async function createPointInTimeDataset(
       oddsCoverage: result.audit.oddsCoverage,
       featureSchemaVersion: result.featureSchemaVersion,
       benchmarkSchemaVersion: result.benchmarkSchemaVersion,
+      ablationSchemaVersion: result.ablationSchemaVersion,
       builderVersion: result.builderVersion,
       configJson,
       datasetChecksumSha256: result.datasetChecksumSha256,
@@ -274,6 +276,7 @@ export async function createPointInTimeDataset(
           closingAway: sample.odds?.closingAway ?? null,
           featureJson: canonicalDatasetJson(featurePayload),
           benchmarkJson: canonicalDatasetJson(featurePayload.benchmarks),
+          ablationJson: canonicalDatasetJson(featurePayload.ablations),
           sampleJson: canonicalDatasetJson(sample),
         })
       ));
@@ -321,6 +324,7 @@ export async function createPointInTimeDataset(
         oddsCoverage: result.audit.oddsCoverage,
         featureSchemaVersion: result.featureSchemaVersion,
         benchmarkSchemaVersion: result.benchmarkSchemaVersion,
+        ablationSchemaVersion: result.ablationSchemaVersion,
         builderVersion: result.builderVersion,
         configJson,
         datasetChecksumSha256: result.datasetChecksumSha256,
@@ -389,6 +393,7 @@ function toDatasetSummary(row: typeof featureDatasetRuns.$inferSelect): FeatureD
     oddsCoverage: row.oddsCoverage,
     featureSchemaVersion: row.featureSchemaVersion,
     benchmarkSchemaVersion: row.benchmarkSchemaVersion,
+    ablationSchemaVersion: row.ablationSchemaVersion,
     builderVersion: row.builderVersion,
     datasetChecksumSha256: row.datasetChecksumSha256,
     leakageViolationCount: audit.leakageViolationCount ?? 0,

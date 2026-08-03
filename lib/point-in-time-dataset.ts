@@ -13,8 +13,13 @@ import {
   type BenchmarkForecast,
   type BenchmarkFixture,
 } from "./benchmark-models.ts";
+import {
+  ABLATION_SCHEMA_VERSION,
+  buildFormAblationForecast,
+  type FormAblationForecast,
+} from "./evidence-lab.ts";
 
-export const DATASET_BUILDER_VERSION = "point-in-time-d1-v2" as const;
+export const DATASET_BUILDER_VERSION = "point-in-time-d1-v3" as const;
 
 export type DatasetFixtureRow = {
   id: string;
@@ -67,6 +72,7 @@ export type DatasetRejectionCode =
 export type PointInTimeFeaturePayload = {
   builderVersion: typeof DATASET_BUILDER_VERSION;
   featureSchemaVersion: typeof FEATURE_SCHEMA_VERSION;
+  ablationSchemaVersion: typeof ABLATION_SCHEMA_VERSION;
   availabilityPolicy: "fixture_end_plus_buffer";
   resultAvailabilityHours: number;
   target: {
@@ -90,6 +96,7 @@ export type PointInTimeFeaturePayload = {
   };
   features: ReturnType<typeof buildFormAdvantageFeatures>;
   benchmarks: BenchmarkForecast;
+  ablations: FormAblationForecast;
 };
 
 export type PointInTimeDatasetRecord = {
@@ -115,6 +122,7 @@ export type PointInTimeDatasetResult = {
   builderVersion: typeof DATASET_BUILDER_VERSION;
   featureSchemaVersion: typeof FEATURE_SCHEMA_VERSION;
   benchmarkSchemaVersion: typeof BENCHMARK_SCHEMA_VERSION;
+  ablationSchemaVersion: typeof ABLATION_SCHEMA_VERSION;
   config: PointInTimeDatasetConfig;
   records: PointInTimeDatasetRecord[];
   samples: BacktestSample[];
@@ -218,6 +226,14 @@ export async function buildPointInTimeDataset(input: {
         awayHistory,
         h2hFromHomePerspective: h2hHistory,
       });
+      const ablations = buildFormAblationForecast({
+        predictionAt,
+        homeTeamId: target.homeTeamId,
+        awayTeamId: target.awayTeamId,
+        homeHistory,
+        awayHistory,
+        h2hFromHomePerspective: h2hHistory,
+      });
       const benchmarkHistory = benchmarkRows.map(toBenchmarkFixture);
       const benchmarkHistoryFingerprint = await sha256(canonicalJson(benchmarkHistory));
       const benchmarks = buildBenchmarkForecast({
@@ -242,6 +258,7 @@ export async function buildPointInTimeDataset(input: {
       const featurePayload: PointInTimeFeaturePayload = {
         builderVersion: DATASET_BUILDER_VERSION,
         featureSchemaVersion: FEATURE_SCHEMA_VERSION,
+        ablationSchemaVersion: ABLATION_SCHEMA_VERSION,
         availabilityPolicy: "fixture_end_plus_buffer",
         resultAvailabilityHours: config.resultAvailabilityHours,
         target: {
@@ -265,6 +282,7 @@ export async function buildPointInTimeDataset(input: {
         },
         features,
         benchmarks,
+        ablations,
       };
       const featureFingerprint = await sha256(canonicalJson(featurePayload));
       const sample: BacktestSample = {
@@ -303,6 +321,7 @@ export async function buildPointInTimeDataset(input: {
     builderVersion: DATASET_BUILDER_VERSION,
     featureSchemaVersion: FEATURE_SCHEMA_VERSION,
     benchmarkSchemaVersion: BENCHMARK_SCHEMA_VERSION,
+    ablationSchemaVersion: ABLATION_SCHEMA_VERSION,
     config,
     samples,
   }));
@@ -317,6 +336,7 @@ export async function buildPointInTimeDataset(input: {
     builderVersion: DATASET_BUILDER_VERSION,
     featureSchemaVersion: FEATURE_SCHEMA_VERSION,
     benchmarkSchemaVersion: BENCHMARK_SCHEMA_VERSION,
+    ablationSchemaVersion: ABLATION_SCHEMA_VERSION,
     config,
     records,
     samples,

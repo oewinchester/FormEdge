@@ -7,7 +7,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.3.3 · Checkpoint 08 · Aşama 3 / Offline Model Lab**
+**v0.3.4 · Checkpoint 09 · Aşama 3 / Offline Model Lab**
 
 - Responsive, 3D destekli ürün landing sayfası
 - D1 tabanlı futbol veri çekirdeği ve R2 ham veri arşivi
@@ -24,6 +24,11 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 - 180 günlük yarı ömürlü hücum–savunma gücü ve skor matrisi kullanan Poisson benchmarkı
 - Poisson gücüne öğrenilen düşük skor rho düzeltmesi ekleyen iki aşamalı Dixon–Coles benchmarkı
 - Dört model dalını aynı dataset, aynı walk-forward fold ve aynı OOS metriklerle karşılaştıran araştırma konsolu
+- Form taktiğinin sonuç, dominasyon, recency, saha ve `%4/%8/%12` H2H varyantlarını development-only ablation ile karşılaştıran kanıt motoru
+- Kronolojik `%60` geliştirme, `%20` kalibrasyon ve en yeni `%20` dokunulmamış holdout ayrımı; dilimler arasında 6 saat sonuç ambargosu
+- Kalibrasyon diliminde öğrenilen, yeterli log loss kazancı yoksa reddedilen tek parametreli temperature scaling
+- Holdout isabeti için Wilson `%95` güven aralığı; log loss, Brier, ECE, reliability ve deterministik paired-bootstrap karşılaştırması
+- Her değişmez dataset için yalnız bir kez dondurulan lig × pazar kanıt kaydı ve tekrar bakmayı engelleyen kalıcı evidence matrix
 - Research → Analysis-only → Shadow → Limited yayın akışı; genel yayın yalnız manuel kararla
 
 ## Sürüm ve checkpoint yol haritası
@@ -34,8 +39,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.2 | CP04–CP05 | D1/R2 veri çekirdeği, kontrollü JSON/CSV importu, veri sağlığı ve eşleme incelemesi | Tamamlandı |
 | v0.3.1 | CP06 | Form + dominasyon baseline, sızıntı denetimi, walk-forward ve yayın kapıları | Tamamlandı |
 | v0.3.2 | CP07 | Gerçek D1 point-in-time dataset builder ve değişmez provenance | Tamamlandı |
-| **v0.3.3** | **CP08** | **Elo ve Poisson/Dixon–Coles karşılaştırma modelleri** | **Mevcut** |
-| v0.3.4 | CP09 | Ablation, kalibrasyon, holdout ve lig × pazar kanıt matrisi | Sıradaki |
+| v0.3.3 | CP08 | Elo ve Poisson/Dixon–Coles karşılaştırma modelleri | Tamamlandı |
+| **v0.3.4** | **CP09** | **Ablation, kalibrasyon, holdout ve lig × pazar kanıt matrisi** | **Mevcut** |
 | v0.4 | CP10–CP11 | Tahmin sürümleme, izleme/final durum makinesi, maç analizleri ve şeffaf performans geçmişi | Planlandı |
 | v0.5 | CP12–CP14 | De-vig/değer filtresi, kadro-bağlam yeniden skoru, kupon, kasa ve bildirim motoru | Planlandı |
 | v0.6 | CP15–CP16 | Waitlist, Free/Pro/Expert, kartsız beta denemesi ve 100–300 kişilik davetli beta | Planlandı |
@@ -56,8 +61,12 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 7. Gelişmiş veri tamlığı `%85` altındaki maç analiz edilir fakat öneri havuzuna giremez.
 8. Sentetik QA koşuları hiçbir gerçek lig yayın kapısını yükseltemez.
 9. Kaynak revizyon zamanı doğrulanmamış tarihsel datasetler yalnız araştırma amaçlıdır ve hiçbir yayın kapısını yükseltemez.
-10. Benchmark lideri önce out-of-sample log loss, sonra Brier ile belirlenir; tek bir dataset üretim tercihi için yeterli değildir.
-11. Otomasyon genel öneri aşamasına geçemez.
+10. Ablation ve model seçimi yalnız geliştirme diliminde, temperature scaling yalnız kalibrasyon diliminde yapılır.
+11. En yeni holdout seçime geri beslenmez; holdout lideri yalnız rapordur ve üretim tercihi değildir.
+12. H2H varyantı en az 400 geliştirme örneği ve önceden tanımlı log loss/Brier eşiği olmadan seçilemez.
+13. Aynı değişmez dataset için tamamlanan evidence koşusu yeniden hesaplanmaz; mevcut denetim kaydı geri döndürülür.
+14. Kaynak revizyon zamanları doğrulanmadığı sürece tüm kanıt hücreleri `blocked` ve research-only kalır.
+15. Otomasyon genel öneri aşamasına geçemez.
 
 ## Teknoloji
 
@@ -79,6 +88,8 @@ lib/point-in-time-dataset.ts Saf ve deterministik tarihsel dataset üreticisi
 lib/point-in-time-dataset-store.ts D1 dataset/provenance kayıt zinciri
 lib/benchmark-models.ts      Elo, Poisson ve iki aşamalı Dixon–Coles çekirdeği
 lib/benchmark-suite-store.ts Aynı dataset üzerinde dört dallı deney orkestrasyonu
+lib/evidence-lab.ts          Ablation, kalibrasyon ve temporal holdout çekirdeği
+lib/evidence-lab-store.ts    Tek-seferlik kanıt koşusu ve lig × pazar matrisi
 lib/admin-data.ts            Veri alımı, kalite ve yönetici yetkilendirmesi
 tests/                       Veri ve model güvenlik testleri
 ```

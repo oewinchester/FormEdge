@@ -36,6 +36,13 @@
       "when": 1785750704275,
       "tag": "0004_milky_silverclaw",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1785753832943,
+      "tag": "0005_stale_killer_shrike",
+      "breakpoints": true
     }
   ]
 }

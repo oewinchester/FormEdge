@@ -440,7 +440,7 @@ export async function getRawSnapshot(actor: AdminActor, runId: string) {
     .where(eq(ingestionRuns.id, runId))
     .limit(1);
   if (!run) return null;
-  const object = await getBucket().get(run.snapshotKey);
+  const object = await (await getBucket()).get(run.snapshotKey);
   if (!object) return null;
   await db.insert(auditLogs).values({
     id: crypto.randomUUID(),

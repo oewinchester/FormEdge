@@ -10,6 +10,8 @@ import {
 } from "@/db/schema";
 import type { AdminActor } from "@/lib/admin-data";
 import { BENCHMARK_SCHEMA_VERSION } from "@/lib/benchmark-models";
+import { ABLATION_SCHEMA_VERSION, EVIDENCE_SCHEMA_VERSION } from "@/lib/evidence-lab";
+import { getEvidenceMatrixOverview } from "@/lib/evidence-lab-store";
 import {
   FEATURE_SCHEMA_VERSION,
   ModelLabValidationError,
@@ -88,12 +90,14 @@ export async function getModelLabOverview(actor: AdminActor) {
     [{ total: runCount }],
     [{ total: gateCount }],
     datasetOverview,
+    evidenceOverview,
   ] = await Promise.all([
     db.select({ total: count() }).from(modelDefinitions),
     db.select({ total: count() }).from(modelVersions),
     db.select({ total: count() }).from(backtestRuns),
     db.select({ total: count() }).from(releaseGates),
     getPointInTimeDatasetOverview(),
+    getEvidenceMatrixOverview(),
   ]);
   const runs = await db.select({
     id: backtestRuns.id,
@@ -156,12 +160,14 @@ export async function getModelLabOverview(actor: AdminActor) {
       datasets: datasetOverview.count,
       runs: runCount,
       gates: gateCount,
+      evidence: evidenceOverview.count,
     },
     datasets: datasetOverview.datasets,
     datasetReadiness: datasetOverview.readiness,
     runs,
     gates,
     versions,
+    evidence: evidenceOverview.rows,
     policy: {
       pointInTimeRequired: true,
       automatedGeneralRelease: false,
@@ -171,6 +177,9 @@ export async function getModelLabOverview(actor: AdminActor) {
       minimumRecommendationDataCompleteness: 0.85,
       featureSchemaVersion: FEATURE_SCHEMA_VERSION,
       benchmarkSchemaVersion: BENCHMARK_SCHEMA_VERSION,
+      ablationSchemaVersion: ABLATION_SCHEMA_VERSION,
+      evidenceSchemaVersion: EVIDENCE_SCHEMA_VERSION,
+      minimumEvidenceSamples: evidenceOverview.minimumEvidenceSamples,
       dataset: datasetOverview.policy,
     },
   };

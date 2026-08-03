@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { BENCHMARK_SCHEMA_VERSION } from "../lib/benchmark-models.ts";
+import { ABLATION_SCHEMA_VERSION, FORM_ABLATION_CODES } from "../lib/evidence-lab.ts";
 import { buildPointInTimeDataset } from "../lib/point-in-time-dataset.ts";
 
 const config = {
@@ -20,6 +21,7 @@ test("D1-shaped history produces audited point-in-time samples", async () => {
   assert.equal(result.audit.rejectedSampleCount + result.samples.length, result.audit.finishedFixtureCount);
   assert.match(result.datasetChecksumSha256, /^[a-f0-9]{64}$/);
   assert.equal(result.benchmarkSchemaVersion, BENCHMARK_SCHEMA_VERSION);
+  assert.equal(result.ablationSchemaVersion, ABLATION_SCHEMA_VERSION);
 
   for (const record of result.records) {
     const predictionMs = Date.parse(record.sample.predictionAt);
@@ -28,6 +30,13 @@ test("D1-shaped history produces audited point-in-time samples", async () => {
     assert.ok(Date.parse(record.featurePayload.provenance.closingOddsCapturedAt) < Date.parse(record.sample.kickoffAt));
     assert.ok(Date.parse(record.featurePayload.provenance.benchmarkHistoryCutoffAt) <= predictionMs);
     assert.equal(record.featurePayload.benchmarks.benchmarkSchemaVersion, BENCHMARK_SCHEMA_VERSION);
+    assert.equal(record.featurePayload.ablationSchemaVersion, ABLATION_SCHEMA_VERSION);
+    assert.equal(record.featurePayload.ablations.ablationSchemaVersion, ABLATION_SCHEMA_VERSION);
+    assert.deepEqual(Object.keys(record.featurePayload.ablations.variants), [...FORM_ABLATION_CODES]);
+    for (const variant of Object.values(record.featurePayload.ablations.variants)) {
+      const total = Object.values(variant.probabilities).reduce((sum, value) => sum + value, 0);
+      assert.ok(Math.abs(total - 1) < 1e-7);
+    }
     const benchmarkTotal = Object.values(record.featurePayload.benchmarks.dixonColes.probabilities)
       .reduce((sum, value) => sum + value, 0);
     assert.ok(Math.abs(benchmarkTotal - 1) < 1e-7);
