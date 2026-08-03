@@ -44,6 +44,9 @@ export type FinalizationBlockerCode =
   | "FIXTURE_NOT_SCHEDULED"
   | "LINEUPS_NOT_CONFIRMED"
   | "DATA_COMPLETENESS_LOW"
+  | "CONTEXT_MISSING"
+  | "CONTEXT_INCOMPLETE"
+  | "CONTEXT_NOT_READY"
   | "RELEASE_GATE_CLOSED"
   | "SOURCE_RESEARCH_ONLY";
 
@@ -57,6 +60,9 @@ export type VersionSnapshot = {
   dataCompleteness: number;
   lineupState: LineupState;
   lineupFingerprint: string | null;
+  contextFingerprint: string | null;
+  contextCompleteness: number | null;
+  contextEligible: boolean;
   releaseGateAllowed: boolean;
   researchOnly: boolean;
   featureFingerprint: string;
@@ -66,6 +72,7 @@ export type MaterialChangeCode =
   | "SELECTION_CHANGED"
   | "PROBABILITY_SHIFT"
   | "LINEUP_CHANGED_AFTER_FINAL"
+  | "CONTEXT_CHANGED_AFTER_FINAL"
   | "DATA_COMPLETENESS_DROPPED"
   | "FINALIZATION_GATE_LOST";
 
@@ -86,6 +93,11 @@ export function evaluateFinalizationGate(snapshot: VersionSnapshot) {
     || snapshot.dataCompleteness < FINALIZATION_MINIMUM_DATA_COMPLETENESS) {
     blockers.push("DATA_COMPLETENESS_LOW");
   }
+  if (!snapshot.contextFingerprint) blockers.push("CONTEXT_MISSING");
+  else if (snapshot.contextCompleteness === null
+    || !Number.isFinite(snapshot.contextCompleteness)
+    || snapshot.contextCompleteness < 0.8) blockers.push("CONTEXT_INCOMPLETE");
+  else if (!snapshot.contextEligible) blockers.push("CONTEXT_NOT_READY");
   if (!snapshot.releaseGateAllowed) blockers.push("RELEASE_GATE_CLOSED");
   if (snapshot.researchOnly) blockers.push("SOURCE_RESEARCH_ONLY");
   return {
@@ -123,6 +135,11 @@ export function assessMaterialChange(previous: VersionSnapshot, current: Version
     && current.lineupFingerprint
     && previous.lineupFingerprint !== current.lineupFingerprint) {
     reasons.push("LINEUP_CHANGED_AFTER_FINAL");
+  }
+  if (previous.contextFingerprint
+    && current.contextFingerprint
+    && previous.contextFingerprint !== current.contextFingerprint) {
+    reasons.push("CONTEXT_CHANGED_AFTER_FINAL");
   }
   if (previous.dataCompleteness >= FINALIZATION_MINIMUM_DATA_COMPLETENESS
     && current.dataCompleteness < FINALIZATION_MINIMUM_DATA_COMPLETENESS) {

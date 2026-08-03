@@ -302,6 +302,31 @@ export const lineupSnapshots = sqliteTable(
   ],
 );
 
+export const fixtureContextSnapshots = sqliteTable(
+  "fixture_context_snapshots",
+  {
+    id: text("id").primaryKey(),
+    fixtureId: text("fixture_id").notNull().references(() => fixtures.id),
+    capturedAt: text("captured_at").notNull(),
+    sourceKind: text("source_kind", {
+      enum: ["manual", "public_dataset", "licensed_feed"],
+    }).notNull().default("manual"),
+    completeness: real("completeness").notNull(),
+    homeContextJson: text("home_context_json").notNull(),
+    awayContextJson: text("away_context_json").notNull(),
+    matchContextJson: text("match_context_json").notNull(),
+    snapshotFingerprint: text("snapshot_fingerprint").notNull(),
+    ingestionRunId: text("ingestion_run_id").references(() => ingestionRuns.id),
+    createdByEmail: text("created_by_email").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("fixture_context_snapshots_fingerprint_unique").on(table.snapshotFingerprint),
+    index("fixture_context_snapshots_fixture_time_idx").on(table.fixtureId, table.capturedAt),
+    index("fixture_context_snapshots_source_idx").on(table.sourceKind, table.capturedAt),
+  ],
+);
+
 export const featureDatasetRuns = sqliteTable(
   "feature_dataset_runs",
   {
@@ -607,6 +632,9 @@ export const predictionVersions = sqliteTable(
     featureFingerprint: text("feature_fingerprint").notNull(),
     versionFingerprint: text("version_fingerprint").notNull(),
     supersedesVersionId: text("supersedes_version_id"),
+    baseProbabilityHome: real("base_probability_home"),
+    baseProbabilityDraw: real("base_probability_draw"),
+    baseProbabilityAway: real("base_probability_away"),
     probabilityHome: real("probability_home").notNull(),
     probabilityDraw: real("probability_draw").notNull(),
     probabilityAway: real("probability_away").notNull(),
@@ -617,6 +645,15 @@ export const predictionVersions = sqliteTable(
     lineupState: text("lineup_state", { enum: ["none", "probable", "confirmed"] }).notNull().default("none"),
     lineupFingerprint: text("lineup_fingerprint"),
     lineupSnapshotIdsJson: text("lineup_snapshot_ids_json").notNull().default("[]"),
+    contextSnapshotId: text("context_snapshot_id").references(() => fixtureContextSnapshots.id),
+    contextEngineSchemaVersion: text("context_engine_schema_version"),
+    contextFingerprint: text("context_fingerprint"),
+    contextCompleteness: real("context_completeness"),
+    contextUncertaintyShrink: real("context_uncertainty_shrink"),
+    contextDirectionalLogit: real("context_directional_logit"),
+    contextEligible: integer("context_eligible", { mode: "boolean" }).notNull().default(false),
+    contextBlockerCodesJson: text("context_blocker_codes_json").notNull().default("[]"),
+    contextJson: text("context_json").notNull().default("null"),
     releaseGateAllowed: integer("release_gate_allowed", { mode: "boolean" }).notNull().default(false),
     researchOnly: integer("research_only", { mode: "boolean" }).notNull().default(true),
     recommendationEligible: integer("recommendation_eligible", { mode: "boolean" }).notNull().default(false),
@@ -734,6 +771,116 @@ export const predictionValueAssessments = sqliteTable(
     index("prediction_value_assessments_thread_idx").on(table.threadId, table.assessedAt),
     index("prediction_value_assessments_fixture_idx").on(table.fixtureId, table.assessedAt),
     index("prediction_value_assessments_status_idx").on(table.status, table.recommendationEligible),
+  ],
+);
+
+export const userBankrollAccounts = sqliteTable(
+  "user_bankroll_accounts",
+  {
+    userEmail: text("user_email").primaryKey().references(() => userProfiles.email),
+    currency: text("currency", { enum: ["TRY", "USD", "EUR", "GBP"] }).notNull().default("TRY"),
+    initialized: integer("initialized", { mode: "boolean" }).notNull().default(false),
+    currentBalance: real("current_balance").notNull().default(0),
+    currentOpenExposure: real("current_open_exposure").notNull().default(0),
+    totalDeposited: real("total_deposited").notNull().default(0),
+    totalWithdrawn: real("total_withdrawn").notNull().default(0),
+    totalStaked: real("total_staked").notNull().default(0),
+    totalReturned: real("total_returned").notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [index("user_bankroll_accounts_updated_idx").on(table.updatedAt)],
+);
+
+export const userCoupons = sqliteTable(
+  "user_coupons",
+  {
+    id: text("id").primaryKey(),
+    userEmail: text("user_email").notNull().references(() => userProfiles.email),
+    tier: text("tier", { enum: ["custom", "balanced", "high_odds"] }).notNull(),
+    status: text("status", { enum: ["draft", "placed", "settled", "cancelled"] }).notNull().default("draft"),
+    legCount: integer("leg_count").notNull(),
+    combinedOdds: real("combined_odds").notNull(),
+    combinedProbability: real("combined_probability").notNull(),
+    expectedReturnMultiple: real("expected_return_multiple").notNull(),
+    correlationGuardJson: text("correlation_guard_json").notNull(),
+    stakeRecommendationJson: text("stake_recommendation_json").notNull().default("null"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("user_coupons_user_status_idx").on(table.userEmail, table.status),
+    index("user_coupons_created_idx").on(table.userEmail, table.createdAt),
+  ],
+);
+
+export const userCouponSelections = sqliteTable(
+  "user_coupon_selections",
+  {
+    couponId: text("coupon_id").notNull().references(() => userCoupons.id),
+    valueAssessmentId: text("value_assessment_id").notNull().references(() => predictionValueAssessments.id),
+    fixtureId: text("fixture_id").notNull().references(() => fixtures.id),
+    selection: text("selection", { enum: ["1", "X", "2"] }).notNull(),
+    decimalOddsSnapshot: real("decimal_odds_snapshot").notNull(),
+    modelProbabilitySnapshot: real("model_probability_snapshot").notNull(),
+    position: integer("position").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.couponId, table.valueAssessmentId] }),
+    uniqueIndex("user_coupon_selections_position_unique").on(table.couponId, table.position),
+    index("user_coupon_selections_fixture_idx").on(table.fixtureId),
+  ],
+);
+
+export const userBetRecords = sqliteTable(
+  "user_bet_records",
+  {
+    id: text("id").primaryKey(),
+    userEmail: text("user_email").notNull().references(() => userProfiles.email),
+    kind: text("kind", { enum: ["single", "coupon"] }).notNull(),
+    valueAssessmentId: text("value_assessment_id").references(() => predictionValueAssessments.id),
+    couponId: text("coupon_id").references(() => userCoupons.id),
+    status: text("status", { enum: ["pending", "won", "lost", "void", "cancelled"] }).notNull().default("pending"),
+    currency: text("currency", { enum: ["TRY", "USD", "EUR", "GBP"] }).notNull(),
+    decimalOddsSnapshot: real("decimal_odds_snapshot").notNull(),
+    modelProbabilitySnapshot: real("model_probability_snapshot").notNull(),
+    stakeAmount: real("stake_amount").notNull(),
+    potentialReturn: real("potential_return").notNull(),
+    payoutAmount: real("payout_amount"),
+    engineEvidenceJson: text("engine_evidence_json").notNull(),
+    placedAt: text("placed_at").notNull(),
+    settledAt: text("settled_at"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("user_bet_records_user_status_idx").on(table.userEmail, table.status),
+    index("user_bet_records_placed_idx").on(table.userEmail, table.placedAt),
+  ],
+);
+
+export const userBankrollEntries = sqliteTable(
+  "user_bankroll_entries",
+  {
+    id: text("id").primaryKey(),
+    userEmail: text("user_email").notNull().references(() => userProfiles.email),
+    entryType: text("entry_type", {
+      enum: ["opening", "deposit", "withdrawal", "stake", "payout", "refund", "adjustment"],
+    }).notNull(),
+    amountSigned: real("amount_signed").notNull(),
+    balanceAfter: real("balance_after").notNull(),
+    betRecordId: text("bet_record_id").references(() => userBetRecords.id),
+    couponId: text("coupon_id").references(() => userCoupons.id),
+    idempotencyKey: text("idempotency_key").notNull(),
+    note: text("note"),
+    occurredAt: text("occurred_at").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("user_bankroll_entries_idempotency_unique").on(table.idempotencyKey),
+    index("user_bankroll_entries_user_time_idx").on(table.userEmail, table.occurredAt),
+    index("user_bankroll_entries_bet_idx").on(table.betRecordId),
   ],
 );
 

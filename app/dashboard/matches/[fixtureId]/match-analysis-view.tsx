@@ -11,6 +11,7 @@ import {
   CalendarDays,
   ChevronRight,
   Clock3,
+  CloudSun,
   Database,
   Eye,
   Fingerprint,
@@ -72,7 +73,7 @@ export function MatchAnalysisView({
 
   return (
     <main className="user-shell match-analysis-shell">
-      <aside className="user-sidebar"><a className="user-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a><nav><a href="/dashboard"><LayoutDashboard size={18} />Genel bakış</a><a className="active" href="/dashboard#matches"><CalendarDays size={18} />Maç analizleri</a><a href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a><span><WalletCards size={18} />Kasa<em>CP13</em></span></nav><section className="user-plan-card transparency"><LockKeyhole size={17} /><div><small>YÖNTEM POLİTİKASI</small><b>Sonuçlar açık</b><p>Olasılık, veri zamanı ve sürüm görünür; özel ağırlık formülü gizlidir.</p></div></section><a className="user-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a></aside>
+      <aside className="user-sidebar"><a className="user-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a><nav><a href="/dashboard"><LayoutDashboard size={18} />Genel bakış</a><a className="active" href="/dashboard#matches"><CalendarDays size={18} />Maç analizleri</a><a href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a><a href="/dashboard/bankroll"><WalletCards size={18} />Kasa ve kupon</a></nav><section className="user-plan-card transparency"><LockKeyhole size={17} /><div><small>YÖNTEM POLİTİKASI</small><b>Sonuçlar açık</b><p>Olasılık, veri zamanı ve sürüm görünür; özel ağırlık formülü gizlidir.</p></div></section><a className="user-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a></aside>
       <section className="user-main">
         <header className="user-topbar"><div><a href="/dashboard"><ArrowLeft size={14} />Dashboard</a><span>MATCH INTELLIGENCE · {analysis.thread.market}</span></div><div className="match-top-actions"><button type="button" className={analysis.thread.saved ? "saved" : ""} onClick={() => void toggleSaved()} disabled={saving}>{saving ? <LoaderCircle size={15} className="spin" /> : analysis.thread.saved ? <BookmarkCheck size={15} /> : <Bookmark size={15} />}{analysis.thread.saved ? "Kaydedildi" : "İzlemeye ekle"}</button></div></header>
         {error && <div className="user-message error"><XCircle size={16} />{error}</div>}
@@ -86,6 +87,7 @@ export function MatchAnalysisView({
         {analysis.thread.withdrawalReason && <section className="match-withdrawal-banner"><ShieldAlert size={18} /><div><b>Bu analiz geri çekildi.</b><p>{analysis.thread.withdrawalReason}</p></div></section>}
 
         <ValueEvidenceCard value={analysis.value} detailed={view === "detailed"} />
+        <ContextEvidenceCard analysis={analysis.analysis} />
 
         <section className="match-quick-grid">
           <FormSummaryCard title={analysis.fixture.homeTeamName} side="home" form={analysis.form.home} />
@@ -100,7 +102,7 @@ export function MatchAnalysisView({
 
         <section className="match-events-card"><header><div><small>PUBLIC EVENT LOG</small><h2>Durum geçmişi</h2></div><ShieldCheck size={18} /></header><div>{analysis.events.map((event) => <article key={event.id}><span className={`event-dot ${event.eventType}`} /><div><b>#{event.sequence} · {eventLabel(event.eventType)}</b><p>{event.reasonText}</p><small>{formatDate(event.occurredAt)}</small></div><em>{event.toStatus}</em></article>)}</div></section>
         <section className="match-method-note"><LockKeyhole size={17} /><div><b>Algoritmanın özel ağırlıkları açıklanmaz.</b><p>Olasılık, tahmin zamanı, veri kesimi, kadro durumu, oran snapshotı, de-vig kanıtı, sürüm kimliği ve bütün sonuç geçmişi denetlenebilir kalır.</p></div></section>
-        <footer className="user-footer"><span>FormEdge match intelligence · CP12 value evidence</span><a href="/dashboard/performance">Performans geçmişi<ChevronRight size={13} /></a></footer>
+        <footer className="user-footer"><span>FormEdge match intelligence · CP13 context + value evidence</span><a href="/dashboard/performance">Performans geçmişi<ChevronRight size={13} /></a></footer>
       </section>
       <nav className="user-mobile-nav"><a href="/dashboard"><LayoutDashboard size={19} /><span>Ana sayfa</span></a><a className="active" href="/dashboard#matches"><Target size={19} /><span>Analiz</span></a><a href="/dashboard/performance"><LineChart size={19} /><span>Geçmiş</span></a></nav>
     </main>
@@ -109,6 +111,24 @@ export function MatchAnalysisView({
 
 type TeamForm = UserMatchAnalysis["form"]["home"];
 type MatchValue = UserMatchAnalysis["value"];
+
+function ContextEvidenceCard({ analysis }: { analysis: UserMatchAnalysis["analysis"] }) {
+  const context = analysis.context;
+  const maximumShift = analysis.baseProbabilities
+    ? Math.max(
+      Math.abs(analysis.probabilities.home - analysis.baseProbabilities.home),
+      Math.abs(analysis.probabilities.draw - analysis.baseProbabilities.draw),
+      Math.abs(analysis.probabilities.away - analysis.baseProbabilities.away),
+    )
+    : null;
+  return <section className={`match-context-card ${context.eligible ? "ready" : "blocked"}`}>
+    <header><div><small>POINT-IN-TIME CONTEXT · {context.engineSchemaVersion ?? "KANIT YOK"}</small><h2>Bağlam yeniden skoru</h2></div><span><CloudSun size={14} />{context.eligible ? "BAĞLAM HAZIR" : "BAĞLAM KAPALI"}</span></header>
+    <p>Kadro, eksik oyuncu, teknik direktör, dinlenme, seyahat, hava ve zemin snapshotı tahmin sürümüyle donduruldu. Özel ağırlıklar açıklanmaz.</p>
+    <div><span><small>TAMLIK</small><b>{context.completeness === null ? "—" : `%${formatPercent(context.completeness)}`}</b></span><span><small>BELİRSİZLİK DARALTMASI</small><b>{context.uncertaintyShrink === null ? "—" : `%${formatPercent(context.uncertaintyShrink)}`}</b></span><span><small>MAKS. OLASILIK DEĞİŞİMİ</small><b>{maximumShift === null ? "—" : signedPercent(maximumShift)}</b></span><span><small>SNAPSHOT</small><b>{context.snapshotId ? "Donduruldu" : "Yok"}</b></span></div>
+    {context.blockers.length > 0 && <footer><ShieldAlert size={13} />{context.blockers.join(" · ")}</footer>}
+    {context.fingerprint && <code>{context.fingerprint.slice(0, 16)}</code>}
+  </section>;
+}
 
 function ValueEvidenceCard({ value, detailed }: { value: MatchValue; detailed: boolean }) {
   if (!value) {

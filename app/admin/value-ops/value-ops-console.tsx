@@ -8,6 +8,7 @@ import {
   BookOpenCheck,
   CheckCircle2,
   Clock3,
+  CloudSun,
   Database,
   Fingerprint,
   FlaskConical,
@@ -112,6 +113,7 @@ export function ValueOpsConsole({ user, signOutPath }: Props) {
           <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>
           <a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a>
           <a className="active" href="#overview"><BadgeDollarSign size={17} />Value Ops</a>
+          <a href="/admin/context-ops"><CloudSun size={17} />Context Ops</a>
           <a href="#policy"><ShieldCheck size={17} />Değer politikası</a>
           <a href="#ledger"><Fingerprint size={17} />Kanıt defteri</a>
         </nav>

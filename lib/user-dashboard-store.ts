@@ -71,8 +71,8 @@ export async function getUserDashboardOverview(user: ChatGPTUser) {
       publishableAnalysisCount: visibleMatches.length,
       researchRecordsHidden: true,
       valueEngineStatus: "active_cp12" as const,
-      bankrollStatus: "planned_cp13" as const,
-      couponStatus: "planned_cp13" as const,
+      bankrollStatus: "active_cp13" as const,
+      couponStatus: "active_cp13" as const,
       notificationStatus: "planned_cp14" as const,
       publicIdentityStatus: "planned_cp15" as const,
     },
@@ -289,7 +289,7 @@ export async function updateUserDashboardPreferences(user: ChatGPTUser, input: D
   return preferences;
 }
 
-async function ensureUserProductAccount(user: ChatGPTUser) {
+export async function ensureUserProductAccount(user: ChatGPTUser) {
   const db = await getDb();
   const nowIso = new Date().toISOString();
   await db.batch([
@@ -499,9 +499,28 @@ function toAnalysisVersion(version: typeof predictionVersions.$inferSelect) {
       draw: version.probabilityDraw,
       away: version.probabilityAway,
     },
+    baseProbabilities: version.baseProbabilityHome === null
+      || version.baseProbabilityDraw === null
+      || version.baseProbabilityAway === null
+      ? null
+      : {
+        home: version.baseProbabilityHome,
+        draw: version.baseProbabilityDraw,
+        away: version.baseProbabilityAway,
+      },
     confidence: version.confidence,
     dataCompleteness: version.dataCompleteness,
     lineupState: version.lineupState,
+    context: {
+      snapshotId: version.contextSnapshotId,
+      engineSchemaVersion: version.contextEngineSchemaVersion,
+      fingerprint: version.contextFingerprint,
+      completeness: version.contextCompleteness,
+      uncertaintyShrink: version.contextUncertaintyShrink,
+      directionalLogit: version.contextDirectionalLogit,
+      eligible: version.contextEligible,
+      blockers: parseJson<string[]>(version.contextBlockerCodesJson, []),
+    },
     versionFingerprint: version.versionFingerprint,
     odds: parseJson<Record<string, unknown> | null>(version.oddsJson, null),
   };

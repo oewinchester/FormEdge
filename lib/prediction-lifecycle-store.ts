@@ -11,6 +11,7 @@ import {
 import { getDb } from "@/db";
 import {
   auditLogs,
+  fixtureContextSnapshots,
   fixtures,
   leagues,
   lineupSnapshots,
@@ -25,7 +26,7 @@ import {
   teams,
 } from "@/db/schema";
 import type { AdminActor } from "@/lib/admin-data";
-import { ModelLabValidationError } from "@/lib/model-lab";
+import { ModelLabValidationError, type ProbabilityTriple } from "@/lib/model-lab";
 import {
   FINALIZATION_MINIMUM_DATA_COMPLETENESS,
   MATERIAL_PROBABILITY_SHIFT,
@@ -46,6 +47,13 @@ import {
   buildUpcomingPointInTimeForecast,
 } from "@/lib/point-in-time-dataset";
 import { ensureValueAssessmentForVersion } from "@/lib/value-assessment-store";
+import {
+  CONTEXT_ENGINE_SCHEMA_VERSION,
+  evaluateFixtureContext,
+  type FixtureContextAssessment,
+  type MatchContextInput,
+  type TeamContextInput,
+} from "@/lib/context-engine";
 
 const INITIAL_WINDOW_HOURS = 72;
 const MINIMUM_TIME_TO_KICKOFF_MINUTES = 30;
@@ -209,7 +217,7 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
     throw new ModelLabValidationError(`Initial watchlist opens ${INITIAL_WINDOW_HOURS} hours before kickoff.`);
   }
 
-  const [fixtureRows, statRows, oddsRows, lineupRows, gateRows, threadRows, modelRows] = await Promise.all([
+  const [fixtureRows, statRows, oddsRows, lineupRows, contextRows, gateRows, threadRows, modelRows] = await Promise.all([
     db.select({
       id: fixtures.id,
       leagueId: fixtures.leagueId,
@@ -249,6 +257,13 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
     db.select().from(lineupSnapshots)
       .where(and(eq(lineupSnapshots.fixtureId, target.id), lte(lineupSnapshots.capturedAt, nowIso)))
       .orderBy(desc(lineupSnapshots.capturedAt), desc(lineupSnapshots.id)),
+    db.select().from(fixtureContextSnapshots)
+      .where(and(
+        eq(fixtureContextSnapshots.fixtureId, target.id),
+        lte(fixtureContextSnapshots.capturedAt, nowIso),
+      ))
+      .orderBy(desc(fixtureContextSnapshots.capturedAt), desc(fixtureContextSnapshots.id))
+      .limit(1),
     db.select().from(releaseGates)
       .where(and(eq(releaseGates.leagueLabel, target.leagueLabel), eq(releaseGates.market, "1X2")))
       .limit(1),
@@ -273,18 +288,28 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
     resultAvailabilityHours: RESULT_AVAILABILITY_HOURS,
   });
   const lineup = await resolveLineupEvidence(lineupRows, target.homeTeamId, target.awayTeamId);
+  const context = await resolveContextEvidence({
+    row: contextRows[0] ?? null,
+    fixtureId: target.id,
+    predictionAt: forecast.predictionAt,
+    kickoffAt: target.kickoffAt,
+    baseProbabilities: forecast.probabilities,
+  });
   const releaseGateAllowed = gateRows[0]?.automatedRecommendationAllowed === true;
   const researchOnly = true;
-  const predictedOutcome = topOutcome(forecast.probabilities);
+  const predictedOutcome = topOutcome(context.probabilities);
   const snapshot: VersionSnapshot = {
     predictionAt: forecast.predictionAt,
     kickoffAt: forecast.kickoffAt,
     fixtureStatus: target.status,
-    probabilities: forecast.probabilities,
+    probabilities: context.probabilities,
     predictedOutcome,
     dataCompleteness: forecast.dataCompleteness,
     lineupState: lineup.state,
     lineupFingerprint: lineup.fingerprint,
+    contextFingerprint: context.fingerprint,
+    contextCompleteness: context.completeness,
+    contextEligible: context.eligible,
     releaseGateAllowed,
     researchOnly,
     featureFingerprint: forecast.featureFingerprint,
@@ -312,7 +337,8 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
     lifecycleSchemaVersion: PREDICTION_LIFECYCLE_SCHEMA_VERSION,
     modelCode: "form-dominance-baseline",
     modelVersionId: modelRows[0]?.id ?? null,
-    probabilities: forecast.probabilities,
+    baseProbabilities: forecast.probabilities,
+    probabilities: context.probabilities,
     dataCompleteness: forecast.dataCompleteness,
     homeHistoryFixtureIds: forecast.featurePayload.provenance.homeHistoryFixtureIds,
     awayHistoryFixtureIds: forecast.featurePayload.provenance.awayHistoryFixtureIds,
@@ -321,6 +347,8 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
     oddsCapturedAt: forecast.odds?.capturedAt ?? null,
     valueOddsFingerprint,
     lineupFingerprint: lineup.fingerprint,
+    contextFingerprint: context.fingerprint,
+    contextSnapshotId: context.snapshotId,
     releaseGateAllowed,
     researchOnly,
     fixtureStatus: target.status,
@@ -359,6 +387,12 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
       snapshotIds: lineup.snapshotIds,
       fingerprint: lineup.fingerprint,
     },
+    context: {
+      snapshotId: context.snapshotId,
+      snapshotFingerprint: context.snapshotFingerprint,
+      fingerprint: context.fingerprint,
+      assessment: context.assessment,
+    },
     finalization,
     valueOddsFingerprint,
   });
@@ -377,16 +411,28 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
     featureFingerprint: forecast.featureFingerprint,
     versionFingerprint,
     supersedesVersionId: previousVersion?.id ?? null,
-    probabilityHome: forecast.probabilities.home,
-    probabilityDraw: forecast.probabilities.draw,
-    probabilityAway: forecast.probabilities.away,
+    baseProbabilityHome: forecast.probabilities.home,
+    baseProbabilityDraw: forecast.probabilities.draw,
+    baseProbabilityAway: forecast.probabilities.away,
+    probabilityHome: context.probabilities.home,
+    probabilityDraw: context.probabilities.draw,
+    probabilityAway: context.probabilities.away,
     predictedOutcome,
     recommendationOutcome: finalization.eligible ? predictedOutcome : null,
-    confidence: Math.max(forecast.probabilities.home, forecast.probabilities.draw, forecast.probabilities.away),
+    confidence: Math.max(context.probabilities.home, context.probabilities.draw, context.probabilities.away),
     dataCompleteness: forecast.dataCompleteness,
     lineupState: lineup.state,
     lineupFingerprint: lineup.fingerprint,
     lineupSnapshotIdsJson: canonicalPredictionJson(lineup.snapshotIds),
+    contextSnapshotId: context.snapshotId,
+    contextEngineSchemaVersion: context.assessment?.schemaVersion ?? null,
+    contextFingerprint: context.fingerprint,
+    contextCompleteness: context.completeness,
+    contextUncertaintyShrink: context.assessment?.uncertaintyShrink ?? null,
+    contextDirectionalLogit: context.assessment?.directionalLogit ?? null,
+    contextEligible: context.eligible,
+    contextBlockerCodesJson: canonicalPredictionJson(context.blockers),
+    contextJson: canonicalPredictionJson(context.assessment),
     releaseGateAllowed,
     researchOnly,
     recommendationEligible: finalization.eligible,
@@ -698,6 +744,71 @@ async function hydrateThread(thread: typeof predictionThreads.$inferSelect) {
   };
 }
 
+async function resolveContextEvidence(input: {
+  row: typeof fixtureContextSnapshots.$inferSelect | null;
+  fixtureId: string;
+  predictionAt: string;
+  kickoffAt: string;
+  baseProbabilities: ProbabilityTriple;
+}) {
+  if (!input.row) {
+    return {
+      snapshotId: null,
+      snapshotFingerprint: null,
+      fingerprint: null,
+      completeness: null,
+      eligible: false,
+      blockers: ["CONTEXT_MISSING"],
+      probabilities: input.baseProbabilities,
+      assessment: null as FixtureContextAssessment | null,
+    };
+  }
+  try {
+    const assessment = evaluateFixtureContext({
+      fixtureId: input.fixtureId,
+      capturedAt: input.row.capturedAt,
+      predictionAt: input.predictionAt,
+      kickoffAt: input.kickoffAt,
+      completeness: input.row.completeness,
+      baseProbabilities: input.baseProbabilities,
+      home: parseJson<TeamContextInput>(input.row.homeContextJson, null as never),
+      away: parseJson<TeamContextInput>(input.row.awayContextJson, null as never),
+      match: parseJson<MatchContextInput>(input.row.matchContextJson, null as never),
+    });
+    const fingerprint = await predictionIdentity({
+      engineSchemaVersion: CONTEXT_ENGINE_SCHEMA_VERSION,
+      snapshotFingerprint: input.row.snapshotFingerprint,
+      assessment,
+    });
+    return {
+      snapshotId: input.row.id,
+      snapshotFingerprint: input.row.snapshotFingerprint,
+      fingerprint,
+      completeness: assessment.completeness,
+      eligible: assessment.recommendationContextEligible,
+      blockers: assessment.blockers,
+      probabilities: assessment.adjustedProbabilities,
+      assessment,
+    };
+  } catch {
+    const fingerprint = await predictionIdentity({
+      engineSchemaVersion: CONTEXT_ENGINE_SCHEMA_VERSION,
+      snapshotFingerprint: input.row.snapshotFingerprint,
+      invalid: true,
+    });
+    return {
+      snapshotId: input.row.id,
+      snapshotFingerprint: input.row.snapshotFingerprint,
+      fingerprint,
+      completeness: input.row.completeness,
+      eligible: false,
+      blockers: ["CONTEXT_INVALID"],
+      probabilities: input.baseProbabilities,
+      assessment: null as FixtureContextAssessment | null,
+    };
+  }
+}
+
 async function resolveLineupEvidence(
   rows: Array<typeof lineupSnapshots.$inferSelect>,
   homeTeamId: string,
@@ -755,6 +866,9 @@ function toSnapshot(
     dataCompleteness: row.dataCompleteness,
     lineupState: row.lineupState,
     lineupFingerprint: row.lineupFingerprint,
+    contextFingerprint: row.contextFingerprint,
+    contextCompleteness: row.contextCompleteness,
+    contextEligible: row.contextEligible,
     releaseGateAllowed: row.releaseGateAllowed,
     researchOnly: row.researchOnly,
     featureFingerprint: row.featureFingerprint,
@@ -779,12 +893,29 @@ function toVersionSummary(row: typeof predictionVersions.$inferSelect) {
       draw: row.probabilityDraw,
       away: row.probabilityAway,
     },
+    baseProbabilities: row.baseProbabilityHome === null
+      || row.baseProbabilityDraw === null
+      || row.baseProbabilityAway === null
+      ? null
+      : {
+        home: row.baseProbabilityHome,
+        draw: row.baseProbabilityDraw,
+        away: row.baseProbabilityAway,
+      },
     predictedOutcome: row.predictedOutcome,
     recommendationOutcome: row.recommendationOutcome,
     confidence: row.confidence,
     dataCompleteness: row.dataCompleteness,
     lineupState: row.lineupState,
     lineupFingerprint: row.lineupFingerprint,
+    contextSnapshotId: row.contextSnapshotId,
+    contextEngineSchemaVersion: row.contextEngineSchemaVersion,
+    contextFingerprint: row.contextFingerprint,
+    contextCompleteness: row.contextCompleteness,
+    contextUncertaintyShrink: row.contextUncertaintyShrink,
+    contextDirectionalLogit: row.contextDirectionalLogit,
+    contextEligible: row.contextEligible,
+    contextBlockerCodes: parseJson<string[]>(row.contextBlockerCodesJson, []),
     releaseGateAllowed: row.releaseGateAllowed,
     researchOnly: row.researchOnly,
     recommendationEligible: row.recommendationEligible,

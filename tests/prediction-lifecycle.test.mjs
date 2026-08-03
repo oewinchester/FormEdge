@@ -34,11 +34,14 @@ test("finalization opens only when every lineup, data, release and source gate p
     dataCompleteness: 0.84,
     releaseGateAllowed: false,
     researchOnly: true,
+    contextCompleteness: 0.79,
+    contextEligible: false,
   });
   assert.equal(blocked.eligible, false);
   assert.deepEqual(blocked.blockers, [
     "LINEUPS_NOT_CONFIRMED",
     "DATA_COMPLETENESS_LOW",
+    "CONTEXT_INCOMPLETE",
     "RELEASE_GATE_CLOSED",
     "SOURCE_RESEARCH_ONLY",
   ]);
@@ -103,6 +106,9 @@ function snapshot() {
     dataCompleteness: 0.92,
     lineupState: "confirmed",
     lineupFingerprint: "lineup-sha-v1",
+    contextFingerprint: "context-sha-v1",
+    contextCompleteness: 0.92,
+    contextEligible: true,
     releaseGateAllowed: true,
     researchOnly: false,
     featureFingerprint: "feature-sha-v1",

@@ -11,6 +11,7 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  CloudSun,
   Database,
   FlaskConical,
   Gauge,
@@ -568,6 +569,7 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
           <a className="active" href="#overview"><FlaskConical size={17} />Model Lab</a>
           <a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a>
           <a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a>
+          <a href="/admin/context-ops"><CloudSun size={17} />Context Ops</a>
           <a href="#datasets"><Database size={17} />D1 dataset</a>
           <a href="#benchmarks"><Sigma size={17} />Benchmarklar</a>
           <a href="#evidence"><ShieldCheck size={17} />Kanıt matrisi</a>

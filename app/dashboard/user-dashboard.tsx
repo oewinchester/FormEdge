@@ -130,7 +130,7 @@ export function UserDashboard({
           <a href="#matches"><CalendarDays size={18} />Maç analizleri</a>
           <a href="#matches" onClick={() => setFilter("saved")}><Bookmark size={18} />İzleme listem<i>{overview.counts.saved}</i></a>
           <a href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a>
-          <span><WalletCards size={18} />Kasa<em>CP13</em></span>
+          <a href="/dashboard/bankroll"><WalletCards size={18} />Kasa ve kupon</a>
           <span><Bell size={18} />Bildirimler<em>CP14</em></span>
         </nav>
         <section className="user-plan-card"><Sparkles size={17} /><div><small>ÜYELİK</small><b>{overview.profile.plan.toUpperCase()} · Ücretsiz beta</b><p>Pro/Expert ve 3 günlük deneme CP15–16’da açılacak.</p></div></section>
@@ -183,8 +183,8 @@ export function UserDashboard({
           </section>
 
           <aside className="user-right-rail">
-            <section className="user-performance-card"><header><div><small>DEĞİŞTİRİLEMEZ GEÇMİŞ</small><h3>Sistem performansı</h3></div><BarChart3 size={18} /></header><div className="user-performance-score"><span><b>{performance.counts.won}</b><small>KAZANAN</small></span><span><b>{performance.counts.lost}</b><small>KAYBEDEN</small></span><span><b>{performance.counts.withdrawn}</b><small>GERİ ÇEKİLEN</small></span></div><p>Oran ve değer kanıtı artık sürümle dondurulur. ROI ve kasa getirisi, gerçek stake defteri CP13’te açılana kadar gösterilmez.</p><a href="/dashboard/performance">Tüm geçmişi incele<ChevronRight size={14} /></a></section>
-            <section className="user-roadmap-card"><small>ÜRÜN AŞAMASI</small><h3>Phase 04 · CP12</h3><div><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="active" /><i /></div><ul><li><CheckCircle2 size={13} />Kullanıcı dashboardı</li><li><CheckCircle2 size={13} />De-vig ve değer filtresi</li><li><FileClock size={13} />Kasa ve kupon · CP13</li><li><FileClock size={13} />Bildirimler · CP14</li></ul></section>
+            <section className="user-performance-card"><header><div><small>DEĞİŞTİRİLEMEZ GEÇMİŞ</small><h3>Sistem performansı</h3></div><BarChart3 size={18} /></header><div className="user-performance-score"><span><b>{performance.counts.won}</b><small>KAZANAN</small></span><span><b>{performance.counts.lost}</b><small>KAYBEDEN</small></span><span><b>{performance.counts.withdrawn}</b><small>GERİ ÇEKİLEN</small></span></div><p>Oran, değer ve bağlam kanıtı sürümle dondurulur. Kişisel kasa hareketleri ayrı değişmez defterde tutulur.</p><a href="/dashboard/performance">Tüm geçmişi incele<ChevronRight size={14} /></a></section>
+            <section className="user-roadmap-card"><small>ÜRÜN AŞAMASI</small><h3>Phase 05 · CP13</h3><div><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="active" /></div><ul><li><CheckCircle2 size={13} />Kullanıcı dashboardı</li><li><CheckCircle2 size={13} />De-vig ve değer filtresi</li><li><CheckCircle2 size={13} />Kasa ve güvenli kupon</li><li><FileClock size={13} />Bildirimler · CP14</li></ul></section>
             <section className="user-risk-card"><AlertTriangle size={17} /><div><small>RİSK PROFİLİ</small><b>{overview.profile.riskProfile ? riskLabel(overview.profile.riskProfile) : "Kayıt testi bekleniyor"}</b><p>Profil testi üyelik onboarding’iyle CP15’te açılacak. Olasılıklar risk profiline göre değiştirilmez.</p></div></section>
           </aside>
         </section>
@@ -192,7 +192,7 @@ export function UserDashboard({
         <footer className="user-footer"><span>FormEdge member dashboard · CP12</span><a href="/">Ana site<ChevronRight size={13} /></a></footer>
       </section>
 
-      <nav className="user-mobile-nav"><a className="active" href="/dashboard"><LayoutDashboard size={19} /><span>Ana sayfa</span></a><a href="#matches"><CalendarDays size={19} /><span>Maçlar</span></a><a href="/dashboard/performance"><LineChart size={19} /><span>Geçmiş</span></a><span><WalletCards size={19} /><small>CP13</small></span></nav>
+      <nav className="user-mobile-nav"><a className="active" href="/dashboard"><LayoutDashboard size={19} /><span>Ana sayfa</span></a><a href="#matches"><CalendarDays size={19} /><span>Maçlar</span></a><a href="/dashboard/performance"><LineChart size={19} /><span>Geçmiş</span></a><a href="/dashboard/bankroll"><WalletCards size={19} /><span>Kasa</span></a></nav>
     </main>
   );
 }

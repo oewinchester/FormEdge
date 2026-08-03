@@ -7,7 +7,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.5.0 · Checkpoint 12 · Aşama 4 / Value & Market Evidence Layer**
+**v0.5.1 · Checkpoint 13 · Aşama 5 / Context, Bankroll & Coupon Safety Layer**
 
 - Responsive, 3D destekli ürün landing sayfası
 - D1 tabanlı futbol veri çekirdeği ve R2 ham veri arşivi
@@ -51,6 +51,16 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 - Her tahmin sürümü için model, de-vig piyasa uzlaşısı, en iyi oran/şirket, edge, EV, tazelik ve kanıt SHA’sını D1’de değişmez saklayan değer defteri
 - Yönetici ve analiz editörü için korumalı, responsive Value Ops konsolu
 - Dashboard, detaylı maç analizi, performans tablosu ve CSV dışa aktarımında dondurulmuş oran/değer kanıtı
+- Sakat/cezalı oyuncu, önemli oyuncu formu, teknik direktör görev süresi, dinlenme, seyahat, hava, zemin ve derbi kanıtını point-in-time snapshot olarak saklayan bağlam katmanı
+- Eksik veya altı saatten eski bağlamda öneriyi kapatan; doğrulanmış bağlam etkisini tek sonuçta en fazla `%8` olasılık kaymasıyla sınırlayan yeniden skor motoru
+- Derbi, hava, zemin ve yeni teknik direktörü yön varsayımı olarak kullanmak yerine olasılıkları merkeze daraltan belirsizlik protokolü
+- Taban olasılık ile bağlam sonrası olasılığı aynı değişmez tahmin sürümünde ayrı ayrı saklayan bağlam provenance zinciri
+- Yönetici ve analiz editörü için yapılandırılmış kanıt girişi, snapshot geçmişi ve yeni tahmin sürümü üretimi sunan korumalı Context Ops konsolu
+- Temkinli, dengeli ve atak risk profilleri için çeyrek-Kelly hesaplayan; tekli bahiste mutlak `%2`, kuponda `%0,75` üst sınırı uygulayan kasa motoru
+- Kullanıcının açılış, ekleme ve çıkarma hareketlerini idempotent ve append-only D1 defterinde tutan kişisel kasa alanı
+- Aynı maçtan iki seçim, tekrar eden takım, lig yoğunlaşması ve düşük oran yoğunlaşmasını engelleyen deterministik kupon korelasyon motoru
+- Değer kapısını geçen seçimlerden en iyi tekliler, 3 maçlık dengeli ve 4–6 maçlık yüksek oran alternatifleri üreten; oran/olasılık snapshotıyla kupon taslağı saklayan kullanıcı çalışma alanı
+- Gerçek para veya ödeme hareketi yapmadığını açıkça belirten tracking-only sorumlu kullanım sınırı
 
 ## Sürüm ve checkpoint yol haritası
 
@@ -64,8 +74,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.3.4 | CP09 | Ablation, kalibrasyon, holdout ve lig × pazar kanıt matrisi | Tamamlandı |
 | v0.4.0 | CP10 | Değişmez tahmin sürümleri, izleme/final/geri çekme durum makinesi ve Prediction Ops | Tamamlandı |
 | v0.4.1 | CP11 | Kullanıcı dashboardı, maç analizi ve filtrelenebilir, şeffaf performans geçmişi | Tamamlandı |
-| **v0.5.0** | **CP12** | **De-vig piyasa uzlaşısı, değişmez oran/değer kanıtı ve anomali kontrolleri** | **Mevcut** |
-| v0.5.1 | CP13 | Kadro/bağlam yeniden skoru, kupon korelasyon kontrolü ve çeyrek-Kelly kasa defteri | Planlandı |
+| v0.5.0 | CP12 | De-vig piyasa uzlaşısı, değişmez oran/değer kanıtı ve anomali kontrolleri | Tamamlandı |
+| **v0.5.1** | **CP13** | **Kadro/bağlam yeniden skoru, kupon korelasyon kontrolü ve çeyrek-Kelly kasa defteri** | **Mevcut** |
 | v0.5.2 | CP14 | Web içi, tarayıcı push ve Telegram bildirim motoru | Planlandı |
 | v0.6 | CP15–CP16 | Waitlist, Free/Pro/Expert, kartsız beta denemesi ve 100–300 kişilik davetli beta | Planlandı |
 | v0.7 | CP17 | Shadow validation, drift takibi, performans ve fiyat araştırması | Planlandı |
@@ -100,6 +110,12 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 22. Değer fırsatı için en az iki taze ve eksiksiz 1X2 şirket snapshotı, en az `%4` edge, `%3` EV ve `1.20` oran birlikte gerekir.
 23. Şirket ayrışması veya maddi oran hareketi tahmini silmez; bahis uygunluğunu kapatır ve yeni sürüm kanıtında görünür kalır.
 24. Her yayın geçmişi kendi tahmin sürümüne bağlı oran/değer snapshotını taşır; sonraki oran değişimi geçmiş kaydı yeniden yazamaz.
+25. Bağlam snapshotı yoksa taban olasılık korunur; eksik veri sıfırla doldurulmaz ve öneri kapısı açılmaz.
+26. Bağlam yeniden skoru tek sonuçta en fazla `%8` olasılık kayması üretebilir; yönü kanıtlanamayan hava, zemin, derbi ve teknik direktör değişimi yalnız belirsizliği artırır.
+27. Bağlam snapshotı tahmin anından sonra veya kickoff sonrasında yakalanamaz; altı saatten eski ya da `%80` altı tamlıktaki bağlam öneriye uygun değildir.
+28. Kasa önerisi çeyrek-Kelly kullanır; negatif edge her risk profilinde sıfır stake üretir ve risk profili model olasılığını değiştiremez.
+29. Aynı maçtan iki seçim, tekrar eden takım veya ikiden fazla aynı lig seçimi otomatik kupona giremez.
+30. Kasa alanı gerçek para tutmaz ve bahis şirketine işlem göndermez; tüm bakiyeler kişisel takip defteridir.
 
 ## Teknoloji
 
@@ -111,7 +127,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Veri depolama mimarisi
 
-- **D1 ana ilişkisel veritabanıdır:** lig, takım, fikstür, istatistik, oran snapshotı, de-vig değer kanıtı, model kanıtı, tahmin yaşam döngüsü, kullanıcı profili, tercih, izleme listesi ve performans settlement kayıtları burada tutulur.
+- **D1 ana ilişkisel veritabanıdır:** lig, takım, fikstür, istatistik, oran ve bağlam snapshotları, de-vig değer kanıtı, model kanıtı, tahmin yaşam döngüsü, kullanıcı profili, tercih, izleme listesi, kasa/kupon defteri ve performans settlement kayıtları burada tutulur.
 - **R2 ham ve büyük nesne katmanıdır:** kaynak snapshotları, kontrollü import dosyaları ve gelecekte üretilecek PDF/CSV dışa aktarımları burada tutulur.
 - MVP için ayrı bir PostgreSQL veya analitik veritabanı gerekmez. Trafik ve tarihsel hacim D1 sorgu sınırlarını anlamlı biçimde aşarsa yalnız raporlama amaçlı bir warehouse eklenir; ürünün doğruluk kaynağı D1 kalır.
 - Tarayıcı depolaması kalıcı ürün verisi için kullanılmaz; yalnız geçici arayüz durumu için kullanılabilir.
@@ -137,6 +153,11 @@ lib/user-dashboard-store.ts      Kullanıcı profili, izleme, maç analizi ve pe
 lib/user-performance.ts          Saf sonuçlandırma ve performans özetleme kuralları
 lib/value-engine.ts              Saf de-vig, piyasa uzlaşısı, değer ve anomali motoru
 lib/value-assessment-store.ts    Tahmin sürümüne bağlı değişmez D1 değer kanıtı ve Value Ops projeksiyonu
+lib/context-engine.ts            Sınırlandırılmış bağlam yeniden skoru ve bağlam yayın kapısı
+lib/context-ops-store.ts         Değişmez D1 bağlam snapshotı ve Context Ops projeksiyonu
+lib/bankroll-engine.ts           Çeyrek-Kelly, risk profili ve açık risk üst limitleri
+lib/coupon-engine.ts             Aynı maç/takım/lig korelasyon korumaları ve deterministik alternatifler
+lib/bankroll-store.ts            Kullanıcı kasa defteri, stake projeksiyonu ve kupon taslakları
 lib/admin-data.ts            Veri alımı, kalite ve yönetici yetkilendirmesi
 tests/                       Veri ve model güvenlik testleri
 ```
