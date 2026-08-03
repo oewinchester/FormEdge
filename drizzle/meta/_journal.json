@@ -43,6 +43,13 @@
       "when": 1785753832943,
       "tag": "0005_stale_killer_shrike",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1785758716542,
+      "tag": "0006_mighty_terror",
+      "breakpoints": true
     }
   ]
 }

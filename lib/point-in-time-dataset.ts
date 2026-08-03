@@ -20,6 +20,7 @@ import {
 } from "./evidence-lab.ts";
 
 export const DATASET_BUILDER_VERSION = "point-in-time-d1-v3" as const;
+export const UPCOMING_FORECAST_BUILDER_VERSION = "upcoming-point-in-time-v1" as const;
 
 export type DatasetFixtureRow = {
   id: string;
@@ -128,6 +129,29 @@ export type PointInTimeDatasetResult = {
   samples: BacktestSample[];
   datasetChecksumSha256: string;
   audit: PointInTimeDatasetAudit;
+};
+
+export type UpcomingPointInTimeForecast = {
+  builderVersion: typeof UPCOMING_FORECAST_BUILDER_VERSION;
+  featureSchemaVersion: typeof FEATURE_SCHEMA_VERSION;
+  benchmarkSchemaVersion: typeof BENCHMARK_SCHEMA_VERSION;
+  ablationSchemaVersion: typeof ABLATION_SCHEMA_VERSION;
+  fixtureId: string;
+  leagueId: string;
+  predictionAt: string;
+  kickoffAt: string;
+  featureCutoffAt: string;
+  probabilities: ReturnType<typeof buildFormAdvantageFeatures>["probabilities"];
+  dataCompleteness: number;
+  featureFingerprint: string;
+  odds: {
+    bookmaker: string;
+    capturedAt: string;
+    home: number;
+    draw: number;
+    away: number;
+  } | null;
+  featurePayload: PointInTimeFeaturePayload;
 };
 
 type NormalizedFixture = DatasetFixtureRow & {
@@ -354,6 +378,179 @@ export async function buildPointInTimeDataset(input: {
       leakageViolationCount: violations.length,
       availabilityAssumption: `Post-match results and stats are treated as available ${config.resultAvailabilityHours} hours after kickoff; every dataset remains research-only until source revision timing is proven.`,
     },
+  };
+}
+
+export async function buildUpcomingPointInTimeForecast(input: {
+  fixtures: DatasetFixtureRow[];
+  stats: DatasetStatRow[];
+  odds: DatasetOddsRow[];
+  targetFixtureId: string;
+  predictionAt: string;
+  minimumHistoryMatches?: number;
+  resultAvailabilityHours?: number;
+}): Promise<UpcomingPointInTimeForecast> {
+  const targetSource = input.fixtures.find((fixture) => fixture.id === input.targetFixtureId);
+  if (!targetSource) throw new ModelLabValidationError("The forecast target fixture could not be found.");
+  const predictionMs = Date.parse(input.predictionAt);
+  const kickoffMs = Date.parse(targetSource.kickoffAt);
+  const minimumHistoryMatches = input.minimumHistoryMatches ?? 5;
+  const resultAvailabilityHours = input.resultAvailabilityHours ?? 4;
+  if (!Number.isFinite(predictionMs) || !Number.isFinite(kickoffMs) || predictionMs >= kickoffMs) {
+    throw new ModelLabValidationError("An upcoming forecast requires a valid prediction time before kickoff.");
+  }
+  if (targetSource.status !== "scheduled") {
+    throw new ModelLabValidationError("Only a scheduled fixture can receive an upcoming forecast.");
+  }
+  const config = normalizeConfig({
+    leagueId: targetSource.leagueId,
+    predictionHorizonHours: 1,
+    minimumHistoryMatches,
+    resultAvailabilityHours,
+  });
+  const normalized = normalizeFixtures(input.fixtures, config);
+  const target = normalized.find((fixture) => fixture.id === targetSource.id);
+  if (!target || target.homeTeamId === target.awayTeamId) {
+    throw new ModelLabValidationError("The forecast target fixture has invalid teams.");
+  }
+  const validFinished = normalized
+    .filter((fixture) => fixture.leagueId === target.leagueId)
+    .filter(isValidFinishedFixture)
+    .sort(compareFixtures);
+  const teamFixtures = indexTeamFixtures(validFinished);
+  const statsByFixtureTeam = indexStats(input.stats);
+  const oddsByFixture = indexOdds(input.odds);
+  const homeRows = historicalFixturesForTeam(teamFixtures, target.homeTeamId, predictionMs, 10);
+  const awayRows = historicalFixturesForTeam(teamFixtures, target.awayTeamId, predictionMs, 10);
+  if (homeRows.length < minimumHistoryMatches || awayRows.length < minimumHistoryMatches) {
+    throw new ModelLabValidationError(
+      `Upcoming forecast requires at least ${minimumHistoryMatches} known matches for both teams.`,
+    );
+  }
+  const h2hRows = historicalHeadToHead(
+    teamFixtures,
+    target.homeTeamId,
+    target.awayTeamId,
+    predictionMs,
+    10,
+  );
+  const homeHistory = homeRows.map((fixture) => toHistoricalMatch(
+    fixture,
+    target.homeTeamId,
+    teamFixtures,
+    statsByFixtureTeam,
+  ));
+  const awayHistory = awayRows.map((fixture) => toHistoricalMatch(
+    fixture,
+    target.awayTeamId,
+    teamFixtures,
+    statsByFixtureTeam,
+  ));
+  const h2hHistory = h2hRows.map((fixture) => toHistoricalMatch(
+    fixture,
+    target.homeTeamId,
+    teamFixtures,
+    statsByFixtureTeam,
+  ));
+  const predictionAt = new Date(predictionMs).toISOString();
+  const features = buildFormAdvantageFeatures({
+    predictionAt,
+    homeTeamId: target.homeTeamId,
+    awayTeamId: target.awayTeamId,
+    homeHistory,
+    awayHistory,
+    h2hFromHomePerspective: h2hHistory,
+  });
+  const ablations = buildFormAblationForecast({
+    predictionAt,
+    homeTeamId: target.homeTeamId,
+    awayTeamId: target.awayTeamId,
+    homeHistory,
+    awayHistory,
+    h2hFromHomePerspective: h2hHistory,
+  });
+  const benchmarkHistory = validFinished
+    .filter((fixture) => fixture.resultKnownMs <= predictionMs)
+    .map(toBenchmarkFixture);
+  const benchmarkHistoryFingerprint = await sha256(canonicalJson(benchmarkHistory));
+  const benchmarks = buildBenchmarkForecast({
+    history: benchmarkHistory,
+    target: {
+      fixtureId: target.id,
+      predictionAt,
+      kickoffAt: target.kickoffAt,
+      homeTeamId: target.homeTeamId,
+      awayTeamId: target.awayTeamId,
+    },
+  });
+  const availableOdds = completeOddsGroups(oddsByFixture.get(target.id) ?? [])
+    .filter((group) => group.capturedMs <= predictionMs)
+    .sort(compareOddsGroupsNewestFirst)[0] ?? null;
+  const featureCutoffMs = Math.max(
+    ...homeRows.map((fixture) => fixture.resultKnownMs),
+    ...awayRows.map((fixture) => fixture.resultKnownMs),
+    Date.parse(benchmarks.historyCutoffAt),
+  );
+  if (featureCutoffMs > predictionMs) {
+    throw new ModelLabValidationError("Upcoming forecast feature cutoff exceeds prediction time.");
+  }
+  const historyCoverage = Math.min(1, Math.min(homeRows.length, awayRows.length) / 10);
+  const advancedCoverage = (features.home.advancedDataCoverage + features.away.advancedDataCoverage) / 2;
+  const dataCompleteness = round(advancedCoverage * 0.8 + historyCoverage * 0.2, 8);
+  const featurePayload: PointInTimeFeaturePayload = {
+    builderVersion: DATASET_BUILDER_VERSION,
+    featureSchemaVersion: FEATURE_SCHEMA_VERSION,
+    ablationSchemaVersion: ABLATION_SCHEMA_VERSION,
+    availabilityPolicy: "fixture_end_plus_buffer",
+    resultAvailabilityHours,
+    target: {
+      fixtureId: target.id,
+      season: target.season,
+      homeTeamId: target.homeTeamId,
+      awayTeamId: target.awayTeamId,
+      kickoffAt: target.kickoffAt,
+      predictionAt,
+    },
+    provenance: {
+      homeHistoryFixtureIds: homeRows.map((fixture) => fixture.id),
+      awayHistoryFixtureIds: awayRows.map((fixture) => fixture.id),
+      h2hFixtureIds: h2hRows.map((fixture) => fixture.id),
+      benchmarkHistoryFixtureCount: benchmarks.historyFixtureCount,
+      benchmarkHistoryCutoffAt: benchmarks.historyCutoffAt,
+      benchmarkHistoryFingerprint,
+      oddsBookmaker: availableOdds?.bookmaker ?? null,
+      oddsCapturedAt: availableOdds?.capturedAt ?? null,
+      closingOddsCapturedAt: null,
+    },
+    features,
+    benchmarks,
+    ablations,
+  };
+  const featureFingerprint = await sha256(canonicalJson({
+    builderVersion: UPCOMING_FORECAST_BUILDER_VERSION,
+    featurePayload,
+  }));
+  return {
+    builderVersion: UPCOMING_FORECAST_BUILDER_VERSION,
+    featureSchemaVersion: FEATURE_SCHEMA_VERSION,
+    benchmarkSchemaVersion: BENCHMARK_SCHEMA_VERSION,
+    ablationSchemaVersion: ABLATION_SCHEMA_VERSION,
+    fixtureId: target.id,
+    leagueId: target.leagueId,
+    predictionAt,
+    kickoffAt: target.kickoffAt,
+    featureCutoffAt: new Date(featureCutoffMs).toISOString(),
+    probabilities: features.probabilities,
+    dataCompleteness,
+    featureFingerprint,
+    odds: availableOdds ? {
+      bookmaker: availableOdds.bookmaker,
+      capturedAt: availableOdds.capturedAt,
+      home: availableOdds.home,
+      draw: availableOdds.draw,
+      away: availableOdds.away,
+    } : null,
+    featurePayload,
   };
 }
 

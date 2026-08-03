@@ -517,6 +517,117 @@ export const modelEvidenceRuns = sqliteTable(
   ],
 );
 
+export const predictionThreads = sqliteTable(
+  "prediction_threads",
+  {
+    id: text("id").primaryKey(),
+    fixtureId: text("fixture_id").notNull().references(() => fixtures.id),
+    leagueId: text("league_id").notNull().references(() => leagues.id),
+    leagueLabel: text("league_label").notNull(),
+    market: text("market", { enum: ["1X2"] }).notNull().default("1X2"),
+    status: text("status", {
+      enum: ["watchlist", "final", "withdrawn", "expired"],
+    }).notNull().default("watchlist"),
+    currentVersionId: text("current_version_id"),
+    finalVersionId: text("final_version_id"),
+    versionCount: integer("version_count").notNull().default(0),
+    eventCount: integer("event_count").notNull().default(0),
+    researchOnly: integer("research_only", { mode: "boolean" }).notNull().default(true),
+    recommendationEligible: integer("recommendation_eligible", { mode: "boolean" }).notNull().default(false),
+    createdByEmail: text("created_by_email").notNull(),
+    lastTransitionByEmail: text("last_transition_by_email"),
+    lastTransitionAt: text("last_transition_at").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("prediction_threads_fixture_market_unique").on(table.fixtureId, table.market),
+    index("prediction_threads_league_market_idx").on(table.leagueId, table.market),
+    index("prediction_threads_status_idx").on(table.status),
+    index("prediction_threads_updated_idx").on(table.updatedAt),
+  ],
+);
+
+export const predictionVersions = sqliteTable(
+  "prediction_versions",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("thread_id").notNull().references(() => predictionThreads.id),
+    fixtureId: text("fixture_id").notNull().references(() => fixtures.id),
+    versionNumber: integer("version_number").notNull(),
+    lifecycleSchemaVersion: text("lifecycle_schema_version").notNull(),
+    trigger: text("trigger", {
+      enum: ["initial_window", "scheduled_refresh", "lineup_probable", "lineup_confirmed", "fixture_status_change", "manual_review"],
+    }).notNull(),
+    modelCode: text("model_code").notNull(),
+    modelVersionId: text("model_version_id").references(() => modelVersions.id),
+    predictionAt: text("prediction_at").notNull(),
+    kickoffAt: text("kickoff_at").notNull(),
+    featureCutoffAt: text("feature_cutoff_at").notNull(),
+    featureFingerprint: text("feature_fingerprint").notNull(),
+    versionFingerprint: text("version_fingerprint").notNull(),
+    supersedesVersionId: text("supersedes_version_id"),
+    probabilityHome: real("probability_home").notNull(),
+    probabilityDraw: real("probability_draw").notNull(),
+    probabilityAway: real("probability_away").notNull(),
+    predictedOutcome: text("predicted_outcome", { enum: ["1", "X", "2"] }).notNull(),
+    recommendationOutcome: text("recommendation_outcome", { enum: ["1", "X", "2"] }),
+    confidence: real("confidence").notNull(),
+    dataCompleteness: real("data_completeness").notNull(),
+    lineupState: text("lineup_state", { enum: ["none", "probable", "confirmed"] }).notNull().default("none"),
+    lineupFingerprint: text("lineup_fingerprint"),
+    lineupSnapshotIdsJson: text("lineup_snapshot_ids_json").notNull().default("[]"),
+    releaseGateAllowed: integer("release_gate_allowed", { mode: "boolean" }).notNull().default(false),
+    researchOnly: integer("research_only", { mode: "boolean" }).notNull().default(true),
+    recommendationEligible: integer("recommendation_eligible", { mode: "boolean" }).notNull().default(false),
+    blockerCodesJson: text("blocker_codes_json").notNull().default("[]"),
+    oddsJson: text("odds_json").notNull().default("null"),
+    payloadJson: text("payload_json").notNull(),
+    createdByEmail: text("created_by_email").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("prediction_versions_thread_number_unique").on(table.threadId, table.versionNumber),
+    uniqueIndex("prediction_versions_thread_fingerprint_unique").on(table.threadId, table.versionFingerprint),
+    index("prediction_versions_fixture_idx").on(table.fixtureId, table.createdAt),
+    index("prediction_versions_model_idx").on(table.modelVersionId),
+  ],
+);
+
+export const predictionEvents = sqliteTable(
+  "prediction_events",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("thread_id").notNull().references(() => predictionThreads.id),
+    sequence: integer("sequence").notNull(),
+    versionId: text("version_id").references(() => predictionVersions.id),
+    eventType: text("event_type", {
+      enum: ["watchlisted", "versioned", "finalized", "withdrawn", "reopened", "expired"],
+    }).notNull(),
+    fromStatus: text("from_status", {
+      enum: ["watchlist", "final", "withdrawn", "expired"],
+    }),
+    toStatus: text("to_status", {
+      enum: ["watchlist", "final", "withdrawn", "expired"],
+    }).notNull(),
+    reasonCode: text("reason_code").notNull(),
+    reasonText: text("reason_text").notNull(),
+    actorType: text("actor_type", { enum: ["system", "admin", "data_import"] }).notNull(),
+    actorEmail: text("actor_email"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    immediateNotification: integer("immediate_notification", { mode: "boolean" }).notNull().default(false),
+    metadataJson: text("metadata_json").notNull().default("{}"),
+    occurredAt: text("occurred_at").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("prediction_events_thread_sequence_unique").on(table.threadId, table.sequence),
+    uniqueIndex("prediction_events_idempotency_unique").on(table.idempotencyKey),
+    index("prediction_events_thread_time_idx").on(table.threadId, table.occurredAt),
+    index("prediction_events_type_idx").on(table.eventType),
+  ],
+);
+
 export const releaseGates = sqliteTable(
   "release_gates",
   {

@@ -17,6 +17,7 @@ import {
   Gauge,
   GitMerge,
   HeartPulse,
+  ListChecks,
   LoaderCircle,
   LogOut,
   RefreshCw,
@@ -271,6 +272,7 @@ export function AdminConsole({ user, signOutPath }: Props) {
           <a href="#mappings"><GitMerge size={17} />Eşleme kuyruğu</a>
           <a href="#runs"><Fingerprint size={17} />Snapshot geçmişi</a>
           <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>
+          <a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a>
         </nav>
         <div className="admin-sidebar-note"><ShieldAlert size={18} /><b>Beta güvenlik kapısı</b><p>Site şu an yalnız sahibine açık. Beta erişimi genişletilmeden önce ilk-kullanıcı admin ataması kapatılmalıdır.</p></div>
         <a className="admin-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a>

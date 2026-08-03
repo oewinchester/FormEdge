@@ -7,7 +7,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.3.4 · Checkpoint 09 · Aşama 3 / Offline Model Lab**
+**v0.4.0 · Checkpoint 10 · Aşama 4 / Prediction Lifecycle**
 
 - Responsive, 3D destekli ürün landing sayfası
 - D1 tabanlı futbol veri çekirdeği ve R2 ham veri arşivi
@@ -30,6 +30,12 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 - Holdout isabeti için Wilson `%95` güven aralığı; log loss, Brier, ECE, reliability ve deterministik paired-bootstrap karşılaştırması
 - Her değişmez dataset için yalnız bir kez dondurulan lig × pazar kanıt kaydı ve tekrar bakmayı engelleyen kalıcı evidence matrix
 - Research → Analysis-only → Shadow → Limited yayın akışı; genel yayın yalnız manuel kararla
+- Maçtan 72 saat önce açılan, kullanıcı önerisinden kesin olarak ayrılmış izleme kayıtları
+- Tahmin, kadro ve kaynak kanıtını SHA-256 kimliğiyle donduran değişmez tahmin sürümleri
+- İzleme → final → geri çekildi / süresi doldu geçişlerini append-only olay geçmişinde saklayan durum makinesi
+- İki kesin kadro, `%85` veri tamlığı, açık yayın kapısı ve üretim-onaylı kaynak olmadan finali engelleyen kadro sonrası yayın kapısı
+- Seçim değişimi, en az `%8` olasılık kayması veya kesin kadro değişiminde final tahmini otomatik geri çekmeye hazırlayan maddi değişiklik protokolü
+- Yönetici ve analiz editörü için korumalı, responsive Prediction Ops konsolu
 
 ## Sürüm ve checkpoint yol haritası
 
@@ -40,8 +46,9 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.3.1 | CP06 | Form + dominasyon baseline, sızıntı denetimi, walk-forward ve yayın kapıları | Tamamlandı |
 | v0.3.2 | CP07 | Gerçek D1 point-in-time dataset builder ve değişmez provenance | Tamamlandı |
 | v0.3.3 | CP08 | Elo ve Poisson/Dixon–Coles karşılaştırma modelleri | Tamamlandı |
-| **v0.3.4** | **CP09** | **Ablation, kalibrasyon, holdout ve lig × pazar kanıt matrisi** | **Mevcut** |
-| v0.4 | CP10–CP11 | Tahmin sürümleme, izleme/final durum makinesi, maç analizleri ve şeffaf performans geçmişi | Planlandı |
+| v0.3.4 | CP09 | Ablation, kalibrasyon, holdout ve lig × pazar kanıt matrisi | Tamamlandı |
+| **v0.4.0** | **CP10** | **Değişmez tahmin sürümleri, izleme/final/geri çekme durum makinesi ve Prediction Ops** | **Mevcut** |
+| v0.4.1 | CP11 | Kullanıcı maç analizleri ve filtrelenebilir, şeffaf performans geçmişi | Sıradaki |
 | v0.5 | CP12–CP14 | De-vig/değer filtresi, kadro-bağlam yeniden skoru, kupon, kasa ve bildirim motoru | Planlandı |
 | v0.6 | CP15–CP16 | Waitlist, Free/Pro/Expert, kartsız beta denemesi ve 100–300 kişilik davetli beta | Planlandı |
 | v0.7 | CP17 | Shadow validation, drift takibi, performans ve fiyat araştırması | Planlandı |
@@ -67,6 +74,9 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 13. Aynı değişmez dataset için tamamlanan evidence koşusu yeniden hesaplanmaz; mevcut denetim kaydı geri döndürülür.
 14. Kaynak revizyon zamanları doğrulanmadığı sürece tüm kanıt hücreleri `blocked` ve research-only kalır.
 15. Otomasyon genel öneri aşamasına geçemez.
+16. Yayınlanmış bir tahmin güncellenemez veya silinemez; her yeniden skor ayrı sürüm, her durum değişikliği ayrı olaydır.
+17. İzleme kaydı kullanıcı önerisi değildir; final etiketi yalnız kesin kadro ve tüm yayın kapıları birlikte geçildiğinde verilebilir.
+18. Final tahminde seçim/kadro değişimi veya en az `%8` olasılık kayması geri çekme olayı üretir; eski sürüm denetim geçmişinde kalır.
 
 ## Teknoloji
 
@@ -90,6 +100,8 @@ lib/benchmark-models.ts      Elo, Poisson ve iki aşamalı Dixon–Coles çekird
 lib/benchmark-suite-store.ts Aynı dataset üzerinde dört dallı deney orkestrasyonu
 lib/evidence-lab.ts          Ablation, kalibrasyon ve temporal holdout çekirdeği
 lib/evidence-lab-store.ts    Tek-seferlik kanıt koşusu ve lig × pazar matrisi
+lib/prediction-lifecycle.ts  Saf durum makinesi, final kapısı ve maddi değişiklik protokolü
+lib/prediction-lifecycle-store.ts D1 tahmin sürümü, olay günlüğü ve operasyon projeksiyonu
 lib/admin-data.ts            Veri alımı, kalite ve yönetici yetkilendirmesi
 tests/                       Veri ve model güvenlik testleri
 ```

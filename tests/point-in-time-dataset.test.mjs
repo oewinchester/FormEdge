@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { BENCHMARK_SCHEMA_VERSION } from "../lib/benchmark-models.ts";
 import { ABLATION_SCHEMA_VERSION, FORM_ABLATION_CODES } from "../lib/evidence-lab.ts";
-import { buildPointInTimeDataset } from "../lib/point-in-time-dataset.ts";
+import {
+  buildPointInTimeDataset,
+  buildUpcomingPointInTimeForecast,
+} from "../lib/point-in-time-dataset.ts";
 
 const config = {
   leagueId: "league-pilot",
@@ -122,6 +125,41 @@ test("insufficient team history is rejected rather than backfilled from the futu
   );
 });
 
+test("an upcoming forecast freezes only evidence available at prediction time", async () => {
+  const input = upcomingHistory();
+  const forecast = await buildUpcomingPointInTimeForecast(input.request);
+
+  assert.equal(forecast.fixtureId, input.target.id);
+  assert.ok(Date.parse(forecast.featureCutoffAt) <= Date.parse(input.predictionAt));
+  assert.equal(forecast.odds?.bookmaker, "A Book");
+  assert.equal(forecast.odds?.capturedAt, input.prePredictionOddsAt);
+  assert.equal(forecast.featurePayload.provenance.closingOddsCapturedAt, null);
+  assert.ok(forecast.featurePayload.provenance.homeHistoryFixtureIds.every((id) => id !== input.futureResult.id));
+  assert.ok(forecast.featurePayload.provenance.awayHistoryFixtureIds.every((id) => id !== input.futureResult.id));
+  assert.match(forecast.featureFingerprint, /^[a-f0-9]{64}$/);
+  assert.ok(Math.abs(Object.values(forecast.probabilities).reduce((sum, value) => sum + value, 0) - 1) < 1e-7);
+});
+
+test("upcoming forecast identity ignores input order and results not yet known", async () => {
+  const input = upcomingHistory();
+  const first = await buildUpcomingPointInTimeForecast(input.request);
+  const reversed = await buildUpcomingPointInTimeForecast({
+    ...input.request,
+    fixtures: [...input.request.fixtures].reverse(),
+    stats: [...input.request.stats].reverse(),
+    odds: [...input.request.odds].reverse(),
+  });
+  const changed = structuredClone(input.request);
+  const future = changed.fixtures.find((fixture) => fixture.id === input.futureResult.id);
+  future.homeScore = 8;
+  future.awayScore = 0;
+  const rebuilt = await buildUpcomingPointInTimeForecast(changed);
+
+  assert.equal(first.featureFingerprint, reversed.featureFingerprint);
+  assert.equal(first.featureFingerprint, rebuilt.featureFingerprint);
+  assert.deepEqual(first.probabilities, rebuilt.probabilities);
+});
+
 function researchHistory(fixtureCount = 128) {
   const teams = Array.from({ length: 8 }, (_, index) => `team-${index + 1}`);
   const fixtures = [];
@@ -160,6 +198,57 @@ function researchHistory(fixtureCount = 128) {
   }
 
   return { fixtures, stats, odds };
+}
+
+function upcomingHistory() {
+  const history = researchHistory();
+  const lastKickoffMs = Math.max(...history.fixtures.map((fixture) => Date.parse(fixture.kickoffAt)));
+  const targetKickoffMs = lastKickoffMs + 7 * 24 * 3_600_000;
+  const predictionMs = targetKickoffMs - 48 * 3_600_000;
+  const target = {
+    id: "pilot-upcoming",
+    leagueId: "league-pilot",
+    season: "2024-25",
+    kickoffAt: new Date(targetKickoffMs).toISOString(),
+    homeTeamId: "team-1",
+    awayTeamId: "team-2",
+    status: "scheduled",
+    homeScore: null,
+    awayScore: null,
+  };
+  const futureResultKickoffMs = predictionMs + 6 * 3_600_000;
+  const futureResult = {
+    id: "pilot-future-result",
+    leagueId: "league-pilot",
+    season: "2024-25",
+    kickoffAt: new Date(futureResultKickoffMs).toISOString(),
+    homeTeamId: "team-1",
+    awayTeamId: "team-2",
+    status: "finished",
+    homeScore: 0,
+    awayScore: 1,
+  };
+  const prePredictionOddsAt = new Date(predictionMs - 12 * 3_600_000).toISOString();
+  history.fixtures.push(futureResult, target);
+  history.stats.push(stat(futureResult.id, futureResult.homeTeamId, true, 201), stat(futureResult.id, futureResult.awayTeamId, false, 201));
+  addOddsGroup(history.odds, target.id, "A Book", Date.parse(prePredictionOddsAt), 1.84, 3.5, 4.3, "available");
+  addOddsGroup(history.odds, target.id, "A Book", predictionMs + 3 * 3_600_000, 2.1, 3.3, 3.7, "future");
+  const predictionAt = new Date(predictionMs).toISOString();
+  return {
+    target,
+    futureResult,
+    predictionAt,
+    prePredictionOddsAt,
+    request: {
+      fixtures: history.fixtures,
+      stats: history.stats,
+      odds: history.odds,
+      targetFixtureId: target.id,
+      predictionAt,
+      minimumHistoryMatches: 5,
+      resultAvailabilityHours: 4,
+    },
+  };
 }
 
 function stat(fixtureId, teamId, home, index) {

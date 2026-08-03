@@ -24,6 +24,16 @@ test("renders the signed-out Model Lab protection wall", async () => {
   assert.match(html, /signin-with-chatgpt/i);
 });
 
+test("renders the signed-out Prediction Ops protection wall", async () => {
+  const response = await renderRoute("/admin/predictions");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Tahmin operasyonları korumalıdır/i);
+  assert.match(html, /APPEND-ONLY LIFECYCLE/i);
+  assert.match(html, /signin-with-chatgpt/i);
+  assert.match(html, /admin%2Fpredictions|admin\/predictions/i);
+});
+
 async function renderRoute(pathname) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${Math.random()}`);

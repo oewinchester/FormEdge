@@ -16,6 +16,7 @@ import {
   GitBranch,
   Layers3,
   LoaderCircle,
+  ListChecks,
   LockKeyhole,
   LogOut,
   Play,
@@ -564,6 +565,7 @@ export function ModelLabConsole({ user, signOutPath }: Props) {
         <nav>
           <a href="/admin"><Database size={17} />Veri konsolu</a>
           <a className="active" href="#overview"><FlaskConical size={17} />Model Lab</a>
+          <a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a>
           <a href="#datasets"><Database size={17} />D1 dataset</a>
           <a href="#benchmarks"><Sigma size={17} />Benchmarklar</a>
           <a href="#evidence"><ShieldCheck size={17} />Kanıt matrisi</a>
