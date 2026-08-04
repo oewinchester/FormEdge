@@ -224,6 +224,15 @@ type AutomationHealth = {
   lastFailureAt: string | null;
 };
 
+type ResearchOperationsGate = {
+  status: "blocked" | "watch" | "operational";
+  healthyWorkers: number;
+  workerCount: 2;
+  blockerCodes: string[];
+  researchOnly: true;
+  recommendationEligible: false;
+};
+
 type AutomationOverview = {
   totals: {
     fixtureFeedRuns: number;
@@ -246,6 +255,7 @@ type AutomationOverview = {
   };
   latestRun: AutomationRun | null;
   health: AutomationHealth;
+  operationsGate: ResearchOperationsGate;
   latestFeedRun: {
     status: "fetching" | "imported" | "unchanged" | "failed";
     sourceRowCount: number;
@@ -583,6 +593,7 @@ export function ShadowValidationConsole({
             <div><small>RESEARCH OBSERVATORY</small><h2>Otomasyon sağlığı ve çalışma geçmişi</h2><p>Saatlik worker’ların durumu, başarı oranı ve süresi yalnız kalıcı D1 çalışma kayıtlarından hesaplanır. Tahmini süre veya örnek sonuç gösterilmez.</p></div>
             <span>Son {overview?.automation.historical.recentRuns.length ?? 0} tarihsel kayıt</span>
           </header>
+          <OperationsGate gate={overview?.automation.operationsGate} />
           <div className="shadow-health-grid">
             <HealthCard title="Forward Shadow" cron="Saat :17" health={overview?.automation.health} />
             <HealthCard title="Tarihsel Backtest" cron="Saat :47" health={overview?.automation.historical.health} />
@@ -689,6 +700,21 @@ function HealthCard({ title, cron, health }: { title: string; cron: string; heal
     <div><span><small>Başarı</small><b>{health?.successRate === null || health?.successRate === undefined ? "—" : `%${decimal(health.successRate * 100, 1)}`}</b></span><span><small>Ort. süre</small><b>{formatMilliseconds(health?.averageDurationMs)}</b></span><span><small>Ardışık hata</small><b>{health?.consecutiveFailures ?? 0}</b></span></div>
     <footer>{health?.lastStartedAt ? `Son başlangıç ${formatDate(health.lastStartedAt)} · ${health.totalRuns} kayıt` : "Henüz kalıcı çalışma kaydı yok."}</footer>
   </article>;
+}
+
+function OperationsGate({ gate }: { gate: ResearchOperationsGate | undefined }) {
+  const status = gate?.status ?? "blocked";
+  const copy = {
+    blocked: ["Operasyon kapısı kapalı", "Saatlik araştırma zincirinin en az bir worker’ı başlamadı veya gecikti. Kalıcı kayıt oluşmadan sağlıklı varsayılmaz."],
+    watch: ["Operasyon dikkat gerektiriyor", "Worker’lar çalışıyor ancak son kalıcı turlarda kısmi veya başarısız sonuç var. Tam başarı görülene kadar gözlem sürer."],
+    operational: ["Araştırma otomasyonu çalışır durumda", "İki saatlik worker da güncel kalıcı kayıt üretiyor. Bu yalnız operasyon sağlığıdır; yayın veya ticari kullanım izni değildir."],
+  }[status];
+  return <section className={`research-operations-gate ${status}`}>
+    {status === "operational" ? <ShieldCheck size={18} /> : <ShieldAlert size={18} />}
+    <div><small>CP17H · RESEARCH OPERATIONS GATE</small><b>{copy[0]}</b><p>{copy[1]}</p></div>
+    <span>{gate ? `${gate.healthyWorkers}/${gate.workerCount} worker` : "0/2 worker"}</span>
+    {!!gate?.blockerCodes.length && <footer>{gate.blockerCodes.map((code) => <code key={code}>{code.replaceAll("_", " ")}</code>)}</footer>}
+  </section>;
 }
 
 function ValidationCard({ validation }: { validation: Validation }) {

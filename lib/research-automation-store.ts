@@ -35,7 +35,10 @@ import {
   defaultShadowValidationThresholds,
   evaluateShadowValidation,
 } from "@/lib/shadow-validation";
-import { summarizeAutomationHealth } from "@/lib/research-automation-health";
+import {
+  evaluateResearchOperationsGate,
+  summarizeAutomationHealth,
+} from "@/lib/research-automation-health";
 
 const AUTOMATION_ACTIVE_KEY = "research-forward-shadow:1x2";
 const FIXTURE_FEED_ACTIVE_KEY = "football-data:fixtures";
@@ -439,6 +442,8 @@ export async function getResearchAutomationOverview(actor: AdminActor) {
     void: observationRows.filter((row) => row.status === "void").length,
     invalid: observationRows.filter((row) => row.status === "invalid").length,
   };
+  const forwardHealth = summarizeAutomationHealth(forwardRunRows, generatedAt);
+  const historicalHealth = summarizeAutomationHealth(historicalRunRows, generatedAt);
   return {
     generatedAt,
     actor: { email: actor.email, displayName: actor.displayName, role: actor.role },
@@ -462,7 +467,8 @@ export async function getResearchAutomationOverview(actor: AdminActor) {
       forwardObserved: totals.settled > 0,
     },
     latestRun: forwardRunRows[0] ? publicAutomationRun(forwardRunRows[0]) : null,
-    health: summarizeAutomationHealth(forwardRunRows, generatedAt),
+    health: forwardHealth,
+    operationsGate: evaluateResearchOperationsGate(forwardHealth, historicalHealth),
     latestFeedRun: feedRows[0] ? publicFixtureFeedRun(feedRows[0]) : null,
     leagues,
     recentRuns: forwardRunRows.map(publicAutomationRun),
@@ -476,7 +482,7 @@ export async function getResearchAutomationOverview(actor: AdminActor) {
         recommendationEligible: false,
       },
       latestRun: historicalRunRows[0] ? publicAutomationRun(historicalRunRows[0]) : null,
-      health: summarizeAutomationHealth(historicalRunRows, generatedAt),
+      health: historicalHealth,
       recentRuns: historicalRunRows.map(publicAutomationRun),
     },
   };

@@ -18,6 +18,42 @@ export type AutomationHealth = {
   lastFailureAt: string | null;
 };
 
+export type ResearchOperationsGate = {
+  status: "blocked" | "watch" | "operational";
+  healthyWorkers: number;
+  workerCount: 2;
+  blockerCodes: string[];
+  researchOnly: true;
+  recommendationEligible: false;
+};
+
+export function evaluateResearchOperationsGate(
+  forward: AutomationHealth,
+  historical: AutomationHealth,
+): ResearchOperationsGate {
+  const workers = [
+    ["FORWARD", forward],
+    ["HISTORICAL", historical],
+  ] as const;
+  const blockerCodes = workers.flatMap(([prefix, health]) => {
+    if (health.status === "not_started") return [`${prefix}_NOT_STARTED`];
+    if (health.status === "stale") return [`${prefix}_STALE`];
+    if (health.status === "degraded") return [`${prefix}_DEGRADED`];
+    return [];
+  });
+  const hardBlocked = workers.some(([, health]) => health.status === "not_started" || health.status === "stale");
+  const degraded = workers.some(([, health]) => health.status === "degraded");
+
+  return {
+    status: hardBlocked ? "blocked" : degraded ? "watch" : "operational",
+    healthyWorkers: workers.filter(([, health]) => health.status === "healthy" || health.status === "running").length,
+    workerCount: 2,
+    blockerCodes,
+    researchOnly: true,
+    recommendationEligible: false,
+  };
+}
+
 export function summarizeAutomationHealth(
   runs: AutomationHealthRun[],
   nowIso = new Date().toISOString(),

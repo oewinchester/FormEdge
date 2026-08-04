@@ -7,7 +7,11 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.7 · Checkpoint 17G · Aşama 7 / Research Observatory**
+**v0.7.0-alpha.8 · Checkpoint 17H · Aşama 7 / Research Operations Gate**
+
+- Forward ve tarihsel worker sağlığını tek fail-closed araştırma operasyon kapısında birleştiren deterministik değerlendirme
+- Worker başlamadı, gecikti veya son turda hata/kısmi sonuç ürettiğinde açık blocker kodları ve operatör görünümü
+- İki worker sağlıklı olsa bile sonucu yalnız operasyonel araştırma durumu olarak tanımlayan; öneri ve ticari yayın uygunluğunu kapalı tutan sınır
 
 - Forward ve tarihsel worker sağlığını kalıcı D1 kayıtlarından `sağlıklı`, `dikkat`, `gecikmiş`, `çalışıyor` veya `başlamadı` olarak deterministik özetleyen gözlem katmanı
 - Gerçek başarı oranı, ortalama/maksimum süre, ardışık hata ve son başarı/hata zamanlarını örnek veri veya tahmini süre üretmeden hesaplayan saf sağlık motoru
@@ -158,7 +162,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.7.0-alpha.4 | CP17D | Saatlik gerçek fikstür/sonuç toplama, değişmez ileri-zaman gözlemleri ve lig bazlı Forward Shadow konsolu | Tamamlandı |
 | v0.7.0-alpha.5 | CP17E | Ayrı saatlik tarihsel kampanya worker’ı, D1 iş ayrımı ve kademeli backtest ilerleme konsolu | Tamamlandı |
 | v0.7.0-alpha.6 | CP17F | Repo-sınırlı deploy key, fast-forward checkpoint mirror, HTTPS tüneli ve yeniden-deneme durumu | Tamamlandı |
-| **v0.7.0-alpha.7** | **CP17G** | **D1 tabanlı otomasyon sağlığı, süre/hata geçmişi ve lig × aşama Research Observatory** | **Mevcut** |
+| v0.7.0-alpha.7 | CP17G | D1 tabanlı otomasyon sağlığı, süre/hata geçmişi ve lig × aşama Research Observatory | Tamamlandı |
+| **v0.7.0-alpha.8** | **CP17H** | **Forward + tarihsel worker için birleşik fail-closed Research Operations Gate ve açık blocker kodları** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 
