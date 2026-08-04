@@ -7,7 +7,12 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.5 · Checkpoint 17E · Aşama 7 / Dual Research Automation**
+**v0.7.0-alpha.6 · Checkpoint 17F · Aşama 7 / Durable GitHub Mirror**
+
+- Her Sites checkpoint commit’ini repo-sınırlı deploy key ile GitHub `main` dalına otomatik ve yalnız fast-forward gönderen versioned post-commit mirror
+- Standart SSH erişimi kapalı ortamlarda GitHub’ın resmî `ssh.github.com:443` kanalını mevcut HTTPS CONNECT tünelinden kullanan güvenli taşıma
+- Başarısız mirror denemesini Sites checkpoint’ini bozmadan `pending` kaydeden ve sonraki checkpoint’te yeniden deneyen operasyon sözleşmesi
+- PAT, özel anahtar, GitHub kimlik bilgisi veya credential içeren remote URL’yi kaynak koduna ve commit geçmişine almayan secret sınırı
 
 - Her saat `:47` çalışan, tarihsel kaynak → dataset → dört-model benchmark → evidence → stabilite zincirinden tur başına yalnız bir ağır aşama ilerleten Cloudflare scheduled worker
 - Aktif kampanyayı D1’den kaldığı yerden sürdüren; başarısız bir ligin bütün kuyruğu bloke etmesini dönüşümlü pilot-lig seçimiyle önleyen tarihsel araştırma orkestrasyonu
@@ -145,7 +150,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.7.0-alpha.2 | CP17B | Birleşik giriş/kayıt akışı, D1 hesap başlangıcı, env-tanımlı owner rolü ve kullanıcı + admin Panel Merkezi | Tamamlandı |
 | v0.7.0-alpha.3 | CP17C | Gerçek veri üzerinde kalıcı sıralı dataset/backtest kampanyaları, fail-closed shadow readiness, drift ve lig × model karşılaştırması | Tamamlandı |
 | v0.7.0-alpha.4 | CP17D | Saatlik gerçek fikstür/sonuç toplama, değişmez ileri-zaman gözlemleri ve lig bazlı Forward Shadow konsolu | Tamamlandı |
-| **v0.7.0-alpha.5** | **CP17E** | **Ayrı saatlik tarihsel kampanya worker’ı, D1 iş ayrımı ve kademeli backtest ilerleme konsolu** | **Mevcut** |
+| v0.7.0-alpha.5 | CP17E | Ayrı saatlik tarihsel kampanya worker’ı, D1 iş ayrımı ve kademeli backtest ilerleme konsolu | Tamamlandı |
+| **v0.7.0-alpha.6** | **CP17F** | **Repo-sınırlı deploy key, fast-forward checkpoint mirror, HTTPS tüneli ve yeniden-deneme durumu** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 
@@ -220,6 +226,25 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 - Drizzle ORM ve sürümlü SQLite migration’ları
 - GSAP, Three.js ve standart Web Push
 - Node test runner ve ESLint
+
+## GitHub checkpoint mirror
+
+Sites `origin` deposu birincil ve değişmez kaynak olmaya devam eder. Repo-sınırlı
+GitHub deploy key çalışma alanında hazır olduğunda `.githooks/post-commit`, her
+yeni checkpoint commit’ini GitHub’ın resmî SSH-over-HTTPS `443` yoluyla
+`oewinchester/FormEdge` deposunun
+`main` dalına yalnız fast-forward olarak gönderir. Force-push yapılmaz; GitHub
+geçici olarak erişilemezse Sites checkpoint’i engellenmez, durum `.git` altında
+`pending` kaydedilir ve sonraki checkpoint’te yeniden denenir.
+
+- `npm run mirror:setup`: sabit GitHub remote’unu, doğrulanmış host anahtarlarını
+  ve versioned hook yolunu hazırlar. Kısıtlı çalışma ortamlarında GitHub’ın
+  `ssh.github.com:443` kanalı mevcut HTTPS CONNECT tünelinden geçirilir.
+- `npm run mirror:push`: bekleyen commit’i elle yeniden gönderir.
+- `npm run mirror:status`: son eşzamanlama durumunu gösterir.
+
+Deploy key hiçbir zaman kaynak dosyalarına, Git remote URL’sine, loglara veya
+commit geçmişine yazılmaz.
 
 ## Veri depolama mimarisi
 

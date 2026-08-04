@@ -1,6 +1,6 @@
 {
   "name": "mac-form-analizi",
-  "version": "0.7.0-alpha.5",
+  "version": "0.7.0-alpha.6",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -13,7 +13,10 @@
     "test": "npm run build && node --test tests/*.test.mjs",
     "validate:artifact": "bash scripts/validate-artifact.sh",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
+    "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
+    "mirror:setup": "bash scripts/setup-github-mirror.sh",
+    "mirror:push": "bash scripts/push-github-mirror.sh",
+    "mirror:status": "bash scripts/github-mirror-status.sh"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

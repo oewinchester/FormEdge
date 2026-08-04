@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+# A failed mirror must never invalidate a completed local/Sites commit. The
+# mirror script records a retryable state under .git and this hook always exits
+# successfully so the next checkpoint can retry.
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+"$repo_root/scripts/push-github-mirror.sh" --hook || true
+exit 0
