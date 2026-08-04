@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, lt, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   auditLogs,
@@ -6,6 +6,7 @@ import {
   featureDatasetRuns,
   leagues,
   modelEvidenceRuns,
+  researchAutomationRuns,
   researchSourceRuns,
   shadowValidationRuns,
   validationCampaigns,
@@ -34,6 +35,7 @@ import {
 
 const MARKET = "1X2" as const;
 const EVIDENCE_SAMPLE_MINIMUM = 90;
+const HISTORICAL_AUTOMATION_ACTIVE_KEY = "research-historical-validation:1x2";
 
 export class ShadowValidationHttpError extends Error {
   constructor(
@@ -184,6 +186,146 @@ export async function startShadowValidationCampaign(actor: AdminActor, leagueCod
   });
   const [campaign] = await db.select().from(validationCampaigns).where(eq(validationCampaigns.id, campaignId)).limit(1);
   return { campaign: publicCampaign(campaign), validation: null, reused: false };
+}
+
+export async function runHistoricalValidationAutomationCycle(
+  actor: AdminActor,
+  trigger: "admin" | "scheduler" = "admin",
+) {
+  requireCampaignAdmin(actor);
+  const db = await getDb();
+  const runId = crypto.randomUUID();
+  const startedAt = new Date().toISOString();
+  await db.update(researchAutomationRuns).set({
+    activeKey: null,
+    status: "failed",
+    errorCode: "STALE_HISTORICAL_AUTOMATION_LOCK",
+    errorMessage: "Önceki tarihsel otomasyon turu zaman sınırını aştığı için kilit güvenli biçimde bırakıldı.",
+    completedAt: startedAt,
+  }).where(and(
+    eq(researchAutomationRuns.activeKey, HISTORICAL_AUTOMATION_ACTIVE_KEY),
+    eq(researchAutomationRuns.jobKind, "historical_validation"),
+    eq(researchAutomationRuns.status, "running"),
+    lt(researchAutomationRuns.startedAt, new Date(Date.parse(startedAt) - 45 * 60_000).toISOString()),
+  ));
+  const inserted = await db.insert(researchAutomationRuns).values({
+    id: runId,
+    activeKey: HISTORICAL_AUTOMATION_ACTIVE_KEY,
+    jobKind: "historical_validation",
+    trigger,
+    status: "running",
+    actorEmail: actor.email,
+    startedAt,
+  }).onConflictDoNothing();
+  if (changedRows(inserted) === 0) {
+    const [active] = await db.select().from(researchAutomationRuns)
+      .where(eq(researchAutomationRuns.activeKey, HISTORICAL_AUTOMATION_ACTIVE_KEY))
+      .limit(1);
+    if (active) return { run: publicHistoricalAutomationRun(active), reused: true };
+    throw new ShadowValidationHttpError(409, "HISTORICAL_AUTOMATION_CONFLICT", "Tarihsel doğrulama otomasyonu aynı anda başka bir tur çalıştırıyor.");
+  }
+
+  let campaignId: string | null = null;
+  let leagueCode: string | null = null;
+  let stage: string | null = null;
+  try {
+    const target = await selectHistoricalAutomationCampaign(actor);
+    if (!target) {
+      const completedAt = new Date().toISOString();
+      await db.update(researchAutomationRuns).set({
+        activeKey: null,
+        status: "completed",
+        summaryJson: canonicalJson({
+          idle: true,
+          message: "Bütün pilot liglerin güncel kaynak parmak izleri için tarihsel kampanyalar tamamlandı.",
+          researchOnly: true,
+          recommendationEligible: false,
+        }),
+        completedAt,
+      }).where(eq(researchAutomationRuns.id, runId));
+      await db.insert(auditLogs).values({
+        id: crypto.randomUUID(),
+        actorEmail: actor.email,
+        action: "research.historical_automation.idle",
+        entityType: "research_automation_run",
+        entityId: runId,
+        detailsJson: canonicalJson({ trigger, pilotLeagueCount: FOOTBALL_DATA_PILOT_LEAGUES.length }),
+      });
+      return { run: await loadHistoricalAutomationRun(runId), reused: false };
+    }
+
+    campaignId = target.campaign.id;
+    leagueCode = target.campaign.leagueCode;
+    stage = target.campaign.currentStage;
+    await db.update(researchAutomationRuns).set({
+      historicalCampaignId: campaignId,
+      historicalLeagueCode: leagueCode,
+      historicalStage: stage,
+    }).where(eq(researchAutomationRuns.id, runId));
+    const result = await advanceShadowValidationCampaign(actor, campaignId);
+    const completedAt = new Date().toISOString();
+    const sourceState = result.campaign.sourceState as { readySeasonCount?: number; seasons?: unknown[] };
+    const summary = {
+      idle: false,
+      campaignCreated: target.created,
+      campaignId,
+      leagueCode,
+      leagueLabel: result.campaign.leagueLabel,
+      stageCompleted: result.stageCompleted,
+      nextStage: result.campaign.currentStage,
+      campaignStatus: result.campaign.status,
+      done: result.done,
+      readySeasonCount: sourceState.readySeasonCount ?? null,
+      targetSeasonCount: sourceState.seasons?.length ?? FOOTBALL_DATA_RESEARCH_SEASONS.length,
+      message: result.done
+        ? `${result.campaign.leagueLabel} tarihsel doğrulama kampanyası tamamlandı.`
+        : `${result.campaign.leagueLabel} için ${stage} aşaması tamamlandı; sıradaki aşama ${result.campaign.currentStage}.`,
+      researchOnly: true,
+      recommendationEligible: false,
+    };
+    await db.update(researchAutomationRuns).set({
+      activeKey: null,
+      status: "completed",
+      historicalStage: result.stageCompleted ?? stage,
+      summaryJson: canonicalJson(summary),
+      completedAt,
+    }).where(eq(researchAutomationRuns.id, runId));
+    await db.insert(auditLogs).values({
+      id: crypto.randomUUID(),
+      actorEmail: actor.email,
+      action: "research.historical_automation.completed",
+      entityType: "research_automation_run",
+      entityId: runId,
+      detailsJson: canonicalJson({ trigger, campaignId, leagueCode, stageCompleted: result.stageCompleted, nextStage: result.campaign.currentStage, done: result.done }),
+    });
+    return { run: await loadHistoricalAutomationRun(runId), reused: false };
+  } catch (error) {
+    const normalized = normalizeCampaignError(error);
+    await db.update(researchAutomationRuns).set({
+      activeKey: null,
+      status: "failed",
+      historicalCampaignId: campaignId,
+      historicalLeagueCode: leagueCode,
+      historicalStage: stage,
+      summaryJson: canonicalJson({ campaignId, leagueCode, stage, researchOnly: true, recommendationEligible: false }),
+      errorCode: normalized.code,
+      errorMessage: normalized.message.slice(0, 500),
+      completedAt: new Date().toISOString(),
+    }).where(eq(researchAutomationRuns.id, runId));
+    try {
+      await db.insert(auditLogs).values({
+        id: crypto.randomUUID(),
+        actorEmail: actor.email,
+        action: "research.historical_automation.failed",
+        entityType: "research_automation_run",
+        entityId: runId,
+        detailsJson: canonicalJson({ trigger, campaignId, leagueCode, stage, code: normalized.code }),
+      });
+    } catch {
+      // Preserve the original automation failure.
+    }
+    throw normalized;
+  }
 }
 
 export async function advanceShadowValidationCampaign(actor: AdminActor, campaignId: unknown) {
@@ -558,6 +700,81 @@ async function getLeagueSourceState(leagueCode: string) {
     revisionTimingVerified: false,
     commercialReuseVerified: false,
     seasons,
+  };
+}
+
+async function selectHistoricalAutomationCampaign(actor: AdminActor) {
+  const db = await getDb();
+  const [active] = await db.select().from(validationCampaigns)
+    .where(and(
+      isNotNull(validationCampaigns.activeKey),
+      or(
+        eq(validationCampaigns.status, "queued"),
+        eq(validationCampaigns.status, "running"),
+      ),
+    ))
+    .orderBy(asc(validationCampaigns.startedAt))
+    .limit(1);
+  if (active) return { campaign: publicCampaign(active), created: false };
+
+  const recentAttempts = await db.select({
+    leagueCode: researchAutomationRuns.historicalLeagueCode,
+    startedAt: researchAutomationRuns.startedAt,
+  }).from(researchAutomationRuns)
+    .where(eq(researchAutomationRuns.jobKind, "historical_validation"))
+    .orderBy(desc(researchAutomationRuns.startedAt))
+    .limit(100);
+  const latestAttemptByLeague = new Map<string, string>();
+  for (const attempt of recentAttempts) {
+    if (attempt.leagueCode && !latestAttemptByLeague.has(attempt.leagueCode)) {
+      latestAttemptByLeague.set(attempt.leagueCode, attempt.startedAt);
+    }
+  }
+  const orderedLeagues = [...FOOTBALL_DATA_PILOT_LEAGUES].sort((first, second) => (
+    (latestAttemptByLeague.get(first.code) ?? "").localeCompare(latestAttemptByLeague.get(second.code) ?? "")
+    || first.code.localeCompare(second.code)
+  ));
+  for (const league of orderedLeagues) {
+    const started = await startShadowValidationCampaign(actor, league.code);
+    if (started.campaign.status !== "completed") {
+      return { campaign: started.campaign, created: !started.reused };
+    }
+  }
+  return null;
+}
+
+async function loadHistoricalAutomationRun(id: string) {
+  const db = await getDb();
+  const [row] = await db.select().from(researchAutomationRuns)
+    .where(eq(researchAutomationRuns.id, id))
+    .limit(1);
+  return row ? publicHistoricalAutomationRun(row) : null;
+}
+
+function publicHistoricalAutomationRun(row: typeof researchAutomationRuns.$inferSelect) {
+  return {
+    id: row.id,
+    jobKind: row.jobKind,
+    trigger: row.trigger,
+    status: row.status,
+    fixtureFeedRunId: row.fixtureFeedRunId,
+    liveLeagueCode: row.liveLeagueCode,
+    liveResultStatus: row.liveResultStatus,
+    historicalCampaignId: row.historicalCampaignId,
+    historicalLeagueCode: row.historicalLeagueCode,
+    historicalStage: row.historicalStage,
+    candidateCount: row.candidateCount,
+    predictionsCreated: row.predictionsCreated,
+    predictionsReused: row.predictionsReused,
+    predictionsFailed: row.predictionsFailed,
+    observationsCaptured: row.observationsCaptured,
+    observationsSettled: row.observationsSettled,
+    observationsPending: row.observationsPending,
+    summary: parseJson<Record<string, unknown>>(row.summaryJson, {}),
+    errorCode: row.errorCode,
+    errorMessage: row.errorMessage,
+    startedAt: row.startedAt,
+    completedAt: row.completedAt,
   };
 }
 

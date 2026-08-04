@@ -396,11 +396,17 @@ export const researchAutomationRuns = sqliteTable(
   {
     id: text("id").primaryKey(),
     activeKey: text("active_key"),
+    jobKind: text("job_kind", {
+      enum: ["forward_shadow", "historical_validation"],
+    }).notNull().default("forward_shadow"),
     trigger: text("trigger", { enum: ["admin", "scheduler"] }).notNull(),
     status: text("status", { enum: ["running", "completed", "partial", "failed"] }).notNull().default("running"),
     fixtureFeedRunId: text("fixture_feed_run_id").references(() => researchFixtureFeedRuns.id),
     liveLeagueCode: text("live_league_code"),
     liveResultStatus: text("live_result_status"),
+    historicalCampaignId: text("historical_campaign_id"),
+    historicalLeagueCode: text("historical_league_code"),
+    historicalStage: text("historical_stage"),
     candidateCount: integer("candidate_count").notNull().default(0),
     predictionsCreated: integer("predictions_created").notNull().default(0),
     predictionsReused: integer("predictions_reused").notNull().default(0),
@@ -420,6 +426,8 @@ export const researchAutomationRuns = sqliteTable(
     uniqueIndex("research_automation_runs_active_key_unique").on(table.activeKey),
     index("research_automation_runs_status_time_idx").on(table.status, table.startedAt),
     index("research_automation_runs_trigger_time_idx").on(table.trigger, table.startedAt),
+    index("research_automation_runs_job_time_idx").on(table.jobKind, table.startedAt),
+    index("research_automation_runs_historical_league_time_idx").on(table.historicalLeagueCode, table.startedAt),
   ],
 );
 

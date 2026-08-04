@@ -174,10 +174,14 @@ type ActionResult = {
 
 type AutomationRun = {
   id: string;
+  jobKind: "forward_shadow" | "historical_validation";
   trigger: "admin" | "scheduler";
   status: "running" | "completed" | "partial" | "failed";
   liveLeagueCode: string | null;
   liveResultStatus: string | null;
+  historicalCampaignId: string | null;
+  historicalLeagueCode: string | null;
+  historicalStage: Stage | null;
   candidateCount: number;
   predictionsCreated: number;
   predictionsReused: number;
@@ -185,6 +189,21 @@ type AutomationRun = {
   observationsCaptured: number;
   observationsSettled: number;
   observationsPending: number;
+  summary: {
+    idle?: boolean;
+    message?: string;
+    campaignCreated?: boolean;
+    campaignId?: string;
+    leagueCode?: string;
+    leagueLabel?: string;
+    stageCompleted?: Stage;
+    nextStage?: Stage;
+    campaignStatus?: CampaignStatus;
+    done?: boolean;
+    readySeasonCount?: number | null;
+    targetSeasonCount?: number;
+    [key: string]: unknown;
+  };
   errorCode: string | null;
   errorMessage: string | null;
   startedAt: string;
@@ -195,6 +214,7 @@ type AutomationOverview = {
   totals: {
     fixtureFeedRuns: number;
     automationRuns: number;
+    historicalAutomationRuns: number;
     pending: number;
     settled: number;
     void: number;
@@ -242,6 +262,17 @@ type AutomationOverview = {
     };
   }>;
   recentRuns: AutomationRun[];
+  historical: {
+    policy: {
+      cron: string;
+      cadence: "hourly";
+      maximumStagesPerCycle: 1;
+      researchOnly: true;
+      recommendationEligible: false;
+    };
+    latestRun: AutomationRun | null;
+    recentRuns: AutomationRun[];
+  };
 };
 
 const STAGES: Array<{ key: Exclude<Stage, "done">; index: string; label: string; note: string }> = [
@@ -264,6 +295,7 @@ export function ShadowValidationConsole({
   const [actingCampaignId, setActingCampaignId] = useState<string | null>(null);
   const [queueLeagueCode, setQueueLeagueCode] = useState<string | null>(null);
   const [automationRunning, setAutomationRunning] = useState(false);
+  const [historicalAutomationRunning, setHistoricalAutomationRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -351,6 +383,36 @@ export function ShadowValidationConsole({
     }
   };
 
+  const runHistoricalAutomation = async () => {
+    setHistoricalAutomationRunning(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/admin/shadow-validation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ action: "run_historical_automation" }),
+      });
+      const payload = await response.json() as {
+        result?: { run: AutomationRun | null; reused: boolean };
+        error?: string;
+      };
+      if (!response.ok || !payload.result?.run) {
+        throw new Error(payload.error ?? "Tarihsel otomasyon turu tamamlanamadı.");
+      }
+      const run = payload.result.run;
+      setNotice(payload.result.reused
+        ? "Çalışan tarihsel otomasyon turu yeniden kullanıldı."
+        : run.summary.message ?? `Tarihsel otomasyon ${automationStatusLabel(run.status)}.`);
+      await loadOverview();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Tarihsel otomasyon turu tamamlanamadı.");
+      await loadOverview();
+    } finally {
+      setHistoricalAutomationRunning(false);
+    }
+  };
+
   const advanceOnce = async (campaign: Campaign) => {
     setActingCampaignId(campaign.id);
     setError(null);
@@ -400,6 +462,7 @@ export function ShadowValidationConsole({
   };
 
   const isAdmin = overview?.actor.role === "admin";
+  const latestHistoricalRun = overview?.automation.historical.latestRun ?? null;
   const validationByCampaign = useMemo(
     () => new Map((overview?.validations ?? []).map((validation) => [validation.campaignId, validation])),
     [overview?.validations],
@@ -427,7 +490,7 @@ export function ShadowValidationConsole({
 
       <section className="admin-main">
         <header className="admin-topbar">
-          <div><a href="/portal"><ArrowLeft size={15} />Panel merkezi</a><span>FORWARD SHADOW · CP17D</span></div>
+          <div><a href="/portal"><ArrowLeft size={15} />Panel merkezi</a><span>DUAL RESEARCH AUTOMATION · CP17E</span></div>
           <div className="admin-user"><span>{initials(user.displayName)}</span><p><b>{user.displayName}</b><small>{overview?.actor.role ?? "yetki kontrol ediliyor"}</small></p></div>
         </header>
 
@@ -472,6 +535,33 @@ export function ShadowValidationConsole({
           <footer><TimerReset size={14} /><span>Cron: <code>{overview?.automation.policy.cron ?? "17 * * * *"}</code>. İlk tahmin sürümü fixture başına tek forward gözlem olarak korunur; sonraki sürümler ilk kaydı değiştirmez.</span></footer>
         </section>
 
+        <section className="shadow-historical-automation" id="historical-automation">
+          <header>
+            <div><small>GRADUAL HISTORICAL BACKTEST</small><h2>Saatlik tarihsel doğrulama kuyruğu</h2><p>Beş pilot ligi gerçek sezon CSV’lerinden başlayarak sırayla işler. Her tur yalnız bir kaynak, dataset, benchmark, evidence veya stabilite aşaması tamamlar.</p></div>
+            <button type="button" onClick={() => void runHistoricalAutomation()} disabled={!isAdmin || historicalAutomationRunning}>
+              {historicalAutomationRunning ? <LoaderCircle className="spin" size={15} /> : <GitBranch size={14} />}
+              {historicalAutomationRunning ? "Tarihsel tur çalışıyor" : "Tek tarihsel tur çalıştır"}
+            </button>
+          </header>
+          <div className="shadow-historical-summary">
+            <article><small>SON TARİHSEL TUR</small><b>{latestHistoricalRun ? automationStatusLabel(latestHistoricalRun.status) : "Henüz yok"}</b><p>{latestHistoricalRun ? `${formatDate(latestHistoricalRun.startedAt)} · ${latestHistoricalRun.trigger === "scheduler" ? "zamanlayıcı" : "admin"}` : "İlk otomatik tur saat :47’de başlar."}</p></article>
+            <article><small>HEDEF LİG</small><b>{latestHistoricalRun?.summary.leagueLabel ?? (latestHistoricalRun?.summary.idle ? "Kuyruk tamam" : "Bekliyor")}</b><p>{latestHistoricalRun?.historicalLeagueCode ?? "Gerçek pilot lig sırası henüz oluşmadı."}</p></article>
+            <article><small>TAMAMLANAN AŞAMA</small><b>{latestHistoricalRun?.summary.stageCompleted ? stageLabel(latestHistoricalRun.summary.stageCompleted) : latestHistoricalRun?.summary.idle ? "Tümü güncel" : "—"}</b><p>{latestHistoricalRun?.summary.nextStage ? `Sırada: ${stageLabel(latestHistoricalRun.summary.nextStage)}` : "Her turda en fazla bir ağır işlem."}</p></article>
+            <article><small>KAYNAK İLERLEMESİ</small><b>{typeof latestHistoricalRun?.summary.readySeasonCount === "number" ? `${latestHistoricalRun.summary.readySeasonCount}/${latestHistoricalRun.summary.targetSeasonCount ?? 5}` : `${overview?.totals.sourceReady ?? 0}/${overview?.totals.pilots ?? 5}`}</b><p>Allowlist sezon arşivi · checksum kilitli</p></article>
+            <article><small>KAMPANYA SONUCU</small><b>{overview?.totals.completedCampaigns ?? 0}/{overview?.totals.pilots ?? 5}</b><p>{overview?.totals.stableSignals ?? 0} retrospektif stabil sinyal · yayın kapalı</p></article>
+            <article><small>ZAMANLAMA</small><b>Saat :47</b><p>Forward worker’dan 30 dakika ayrı</p></article>
+          </div>
+          <div className="shadow-historical-stages">
+            {STAGES.map((item) => {
+              const isCompleted = latestHistoricalRun?.summary.stageCompleted === item.key;
+              const isNext = latestHistoricalRun?.summary.nextStage === item.key;
+              return <span className={isCompleted ? "completed" : isNext ? "next" : ""} key={item.key}><em>{item.index}</em><b>{item.label}</b>{isCompleted ? <CheckCircle2 size={12} /> : isNext ? <ChevronRight size={12} /> : <span />}</span>;
+            })}
+          </div>
+          {latestHistoricalRun?.status === "failed" && <div className="shadow-historical-error"><AlertTriangle size={15} /><span><b>{latestHistoricalRun.errorCode ?? "HISTORICAL_AUTOMATION_FAILED"}</b>{latestHistoricalRun.errorMessage ?? "Tur tamamlanamadı; kaydedilen aşamalar korunur ve lig dönüşümlü sırada yeniden denenir."}</span></div>}
+          <footer><TimerReset size={14} /><span>Cron: <code>{overview?.automation.historical.policy.cron ?? "47 * * * *"}</code>. Otomatik ve manuel tek-tur işlemleri aynı D1 kilidini paylaşır; tamamlanan aşamalar yeniden başlatmada korunur.</span></footer>
+        </section>
+
         <section className="admin-count-grid shadow-count-grid">
           <CountCard label="PİLOT LİG" value={overview?.totals.pilots ?? 0} note="allowlist" icon={DatabaseZap} loading={loading} />
           <CountCard label="KAYNAK HAZIR" value={overview?.totals.sourceReady ?? 0} note="5/5 sezon" icon={Database} loading={loading} />
@@ -483,7 +573,7 @@ export function ShadowValidationConsole({
         <section className="shadow-pipeline-card">
           <header><div><small>SEQUENTIAL WORKER CONTRACT</small><h2>Beş kalıcı aşama · çağrı başına tek ağır iş</h2></div><GitBranch size={21} /></header>
           <div>{STAGES.map((stage) => <article key={stage.key}><span>{stage.index}</span><div><b>{stage.label}</b><p>{stage.note}</p></div><Check size={14} /></article>)}</div>
-          <footer><TimerReset size={15} />Worker zaman aşımı ve yarım kayıt riskini azaltmak için “sırayla tamamla” düğmesi aynı güvenli API’yi ardışık çağırır; sayfa kapanırsa D1’de son aşamadan devam edilir.</footer>
+          <footer><TimerReset size={15} />Saat :47 worker’ı bu aşamaları kendiliğinden tek tek ilerletir. “Sırayla tamamla” yalnız yönetici için hızlandırılmış manuel kontroldür; sayfa kapanırsa D1’de son aşamadan devam edilir.</footer>
         </section>
 
         <section className="shadow-pilot-section" id="pilots">
@@ -534,7 +624,7 @@ export function ShadowValidationConsole({
           </tbody></table></div>
         </section>
 
-        <footer className="admin-footer"><span>FormEdge Forward Shadow · CP17D · research-only</span><a href="/admin/model-lab">Model Lab’e dön <ChevronRight size={13} /></a></footer>
+        <footer className="admin-footer"><span>FormEdge Dual Research Automation · CP17E · research-only</span><a href="/admin/model-lab">Model Lab’e dön <ChevronRight size={13} /></a></footer>
       </section>
     </main>
   );

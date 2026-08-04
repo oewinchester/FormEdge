@@ -10,8 +10,8 @@ import { ShadowValidationConsole } from "./shadow-validation-console";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Forward Shadow Validation — FormEdge",
-  description: "FormEdge gerçek araştırma verisi, kronolojik backtest ve sonuçtan önce kilitlenen ileri-zaman performans gözlemleri.",
+  title: "Research Automation & Shadow Validation — FormEdge",
+  description: "FormEdge kademeli tarihsel backtest otomasyonu, gerçek araştırma verisi ve sonuçtan önce kilitlenen ileri-zaman performans gözlemleri.",
 };
 
 export default async function ShadowValidationPage() {

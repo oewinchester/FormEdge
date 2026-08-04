@@ -7,7 +7,13 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.4 · Checkpoint 17D · Aşama 7 / Automated Forward Shadow**
+**v0.7.0-alpha.5 · Checkpoint 17E · Aşama 7 / Dual Research Automation**
+
+- Her saat `:47` çalışan, tarihsel kaynak → dataset → dört-model benchmark → evidence → stabilite zincirinden tur başına yalnız bir ağır aşama ilerleten Cloudflare scheduled worker
+- Aktif kampanyayı D1’den kaldığı yerden sürdüren; başarısız bir ligin bütün kuyruğu bloke etmesini dönüşümlü pilot-lig seçimiyle önleyen tarihsel araştırma orkestrasyonu
+- Forward gözlem (`:17`) ve tarihsel doğrulama (`:47`) işlerini ayrı kilit, iş türü ve denetim kaydıyla saklayan D1 otomasyon defteri
+- Son tarihsel turu, hedef ligi, biten/sıradaki aşamayı, kaynak ilerlemesini ve kampanya sonucunu gerçek veriden gösteren admin konsolu
+- Admin için forward ve tarihsel tek-tur kontrolleri; analiz editörü için aynı gerçek operasyon geçmişinin salt-okunur görünümü
 
 - Football-Data.co.uk `fixtures.csv` akışını sabit beş pilot lig allowlist’iyle alan; ham CSV’yi R2, HTTP/ETag/checksum provenance’ını D1 üzerinde saklayan gerçek yaklaşan fikstür adaptörü
 - Bet365, Betfred, BetMGM, BetVictor, Bet&Win, Paddy Power ve Betfair Exchange eksiksiz 1X2 üçlülerini araştırma snapshotı olarak alan; upstream capture zamanı doğrulanmadığı için değer/yayın kapısını kapalı tutan oran politikası
@@ -138,11 +144,12 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.7.0-alpha.1 | CP17A | Allowlist public CSV adaptörü, R2 ham arşiv, D1 provenance, 25 sezonluk araştırma kuyruğu ve backtest bootstrap konsolu | Tamamlandı |
 | v0.7.0-alpha.2 | CP17B | Birleşik giriş/kayıt akışı, D1 hesap başlangıcı, env-tanımlı owner rolü ve kullanıcı + admin Panel Merkezi | Tamamlandı |
 | v0.7.0-alpha.3 | CP17C | Gerçek veri üzerinde kalıcı sıralı dataset/backtest kampanyaları, fail-closed shadow readiness, drift ve lig × model karşılaştırması | Tamamlandı |
-| **v0.7.0-alpha.4** | **CP17D** | **Saatlik gerçek fikstür/sonuç toplama, değişmez ileri-zaman gözlemleri ve lig bazlı Forward Shadow konsolu** | **Mevcut** |
+| v0.7.0-alpha.4 | CP17D | Saatlik gerçek fikstür/sonuç toplama, değişmez ileri-zaman gözlemleri ve lig bazlı Forward Shadow konsolu | Tamamlandı |
+| **v0.7.0-alpha.5** | **CP17E** | **Ayrı saatlik tarihsel kampanya worker’ı, D1 iş ayrımı ve kademeli backtest ilerleme konsolu** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 
-Ücretli veya herkese açık beta öncesindeki dış bağımlılık kapıları: 3–5 lisanslı pilot lig kaynağı, public site erişimi, public üretim kimlik sağlayıcısı, e-posta relay’i, zamanlayıcı, veri revizyon zamanları, şirket/ödeme altyapısı ve ülke bazlı hukuk incelemesidir. CP17A gerçek tarihsel maç verisiyle model araştırmasını başlatır; CP17B bütün gerçek panelleri tek erişim merkezinde görünür kılar; CP17C araştırma verisini yeniden başlatılabilir dataset/backtest/stabilite kampanyalarına bağlar; CP17D sonuç bilinmeden önce ileri-zaman gözlemi biriktirir. İleri-zaman kaydı tek başına ticari yayın izni değildir. Kapılar kapanmadan model araştırması ilerleyebilir, kullanıcı daveti ve bahis önerisi yayını ilerleyemez.
+Ücretli veya herkese açık beta öncesindeki dış bağımlılık kapıları: 3–5 lisanslı pilot lig kaynağı, public site erişimi, public üretim kimlik sağlayıcısı, e-posta relay’i, zamanlayıcı, veri revizyon zamanları, şirket/ödeme altyapısı ve ülke bazlı hukuk incelemesidir. CP17A gerçek tarihsel maç verisiyle model araştırmasını başlatır; CP17B bütün gerçek panelleri tek erişim merkezinde görünür kılar; CP17C araştırma verisini yeniden başlatılabilir dataset/backtest/stabilite kampanyalarına bağlar; CP17D sonuç bilinmeden önce ileri-zaman gözlemi biriktirir; CP17E tarihsel kampanyaları kademeli ve otomatik ilerletir. Bu kayıtlar tek başına ticari yayın izni değildir. Kapılar kapanmadan model araştırması ilerleyebilir, kullanıcı daveti ve bahis önerisi yayını ilerleyemez.
 
 ## Model güvenlik kuralları
 
@@ -195,7 +202,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 47. Football-Data CSV’sindeki tarihsel oran kolonları kesin capture zamanı taşımadığı için `oddsSnapshots` tablosuna, değer motoruna veya yayın kanıtına yazılamaz; yalnız değişmez ham dosyada kalır.
 48. Kaynak revizyon zamanı ve ticari yeniden kullanım izni açıkça doğrulanmadığı sürece bu adaptörden gelen her ingestion zorunlu research-only kalır ve recommendation-eligible olamaz.
 49. Her haricî çekim dosya boyutu, içerik şeması, lig kodu, skor–sonuç tutarlılığı ve tekrar fikstür açısından doğrulanmalı; ham dosya SHA-256 ile R2’de, provenance kaydı D1’de saklanmalıdır.
-50. Tarihsel Research Feed sayfa açılışında kendiliğinden veri çekemez; manuel toplu mutasyon yalnız admin eylemiyle başlar, editör salt-okunur kalır ve kullanıcı başına saatlik sınır uygulanır. Ayrı Forward Shadow worker’ı yalnız sabit fikstür ve canlı-sezon allowlist’ini zamanlayabilir.
+50. Tarihsel Research Feed sayfa açılışında kendiliğinden veri çekemez; mutasyon yalnız admin eylemi veya derleme-zamanı allowlist’ine bağlı sabit tarihsel worker ile başlar. Editör salt-okunur kalır; istemci kaynak URL’si veya serbest lig/sezon gönderemez.
 51. CP17C kampanyası her istekte yalnız bir ağır aşama çalıştırır; kaynak, dataset, benchmark, evidence ve stabilite bağlantıları D1’de kalıcı tutulur ve sayfa kapanması zinciri sıfırlayamaz.
 52. Aynı değişmez dataset için güncel dört benchmark koşusu varsa yeni koşu üretilmez; model başına tamamlanmış kayıt idempotent biçimde yeniden kullanılır.
 53. Retrospektif erken/geç dönem stabilitesi, sonuçtan önce kaydedilmiş ileri-zaman shadow performansı sayılamaz; `forwardObserved=false` iken yayın uygunluğu her metrikte `blocked` kalır.
@@ -204,6 +211,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 56. Saatlik araştırma worker’ı tur başına en fazla altı tahmin sürümü oluşturabilir, aynı anda ikinci tur başlatamaz ve zaman aşımına uğrayan kilidi başarısız kayıt bırakarak serbest bırakır.
 57. Fikstür akışındaki oranlar tahmini değiştiremez; upstream capture zamanı doğrulanmadığı için yalnız research snapshot olarak kalır ve recommendation-eligible olamaz.
 58. Bir lig için en az 40 sonuçlanmış gerçek ileri-zaman gözlemi, iki 20’lik zaman penceresi ve bütün kalite/drift kapıları tamamlanmadan forward stabilite adayı üretilemez.
+59. Tarihsel worker her saat `:47` için tek kampanya aşaması ilerletir; `:17` forward worker’ıyla kilit paylaşmaz, bütün tur ve hata sonuçlarını iş türüyle D1’e yazar ve retrospektif sonucu hiçbir zaman forward gözlem gibi işaretleyemez.
 
 ## Teknoloji
 

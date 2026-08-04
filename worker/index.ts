@@ -5,6 +5,7 @@ import {
   SYSTEM_RESEARCH_ACTOR,
   runResearchAutomationCycle,
 } from "../lib/research-automation-store";
+import { runHistoricalValidationAutomationCycle } from "../lib/shadow-validation-store";
 
 interface Env {
   ASSETS: Fetcher;
@@ -51,12 +52,15 @@ const worker = {
 
     return handler.fetch(request, env, ctx);
   },
-  async scheduled(_controller: ScheduledController, _env: Env, ctx: ExecutionContext): Promise<void> {
+  async scheduled(controller: ScheduledController, _env: Env, ctx: ExecutionContext): Promise<void> {
+    const task = controller.cron === "47 * * * *"
+      ? runHistoricalValidationAutomationCycle(SYSTEM_RESEARCH_ACTOR, "scheduler")
+      : runResearchAutomationCycle(SYSTEM_RESEARCH_ACTOR, "scheduler");
     ctx.waitUntil(
-      runResearchAutomationCycle(SYSTEM_RESEARCH_ACTOR, "scheduler")
+      task
         .then(() => undefined)
         .catch((error) => {
-          console.error("FormEdge research automation cycle failed", error);
+          console.error("FormEdge scheduled research cycle failed", { cron: controller.cron, error });
         }),
     );
   },

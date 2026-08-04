@@ -9,6 +9,7 @@ import {
   ShadowValidationHttpError,
   advanceShadowValidationCampaign,
   getShadowValidationOverview,
+  runHistoricalValidationAutomationCycle,
   startShadowValidationCampaign,
 } from "@/lib/shadow-validation-store";
 
@@ -64,7 +65,12 @@ export async function POST(request: Request) {
         result: await runResearchAutomationCycle(actor, "admin"),
       }, { headers: NO_STORE_HEADERS });
     }
-    return Response.json({ error: "action, start, advance veya run_automation olmalıdır." }, { status: 400, headers: NO_STORE_HEADERS });
+    if (body.action === "run_historical_automation") {
+      return Response.json({
+        result: await runHistoricalValidationAutomationCycle(actor, "admin"),
+      }, { headers: NO_STORE_HEADERS });
+    }
+    return Response.json({ error: "action, start, advance, run_automation veya run_historical_automation olmalıdır." }, { status: 400, headers: NO_STORE_HEADERS });
   } catch (error) {
     return errorResponse(error);
   }

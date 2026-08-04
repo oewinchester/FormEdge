@@ -245,6 +245,7 @@ export async function runResearchAutomationCycle(
   const inserted = await db.insert(researchAutomationRuns).values({
     id: runId,
     activeKey: AUTOMATION_ACTIVE_KEY,
+    jobKind: "forward_shadow",
     trigger,
     status: "running",
     actorEmail: actor.email,
@@ -382,6 +383,8 @@ export async function getResearchAutomationOverview(actor: AdminActor) {
       .where(eq(modelEvidenceRuns.status, "completed"))
       .orderBy(desc(modelEvidenceRuns.completedAt)).limit(100),
   ]);
+  const forwardRunRows = runRows.filter((row) => row.jobKind === "forward_shadow");
+  const historicalRunRows = runRows.filter((row) => row.jobKind === "historical_validation");
   const latestEvidenceByLeague = new Map<string, typeof evidenceRows[number]>();
   for (const row of evidenceRows) if (!latestEvidenceByLeague.has(row.leagueId)) latestEvidenceByLeague.set(row.leagueId, row);
   const leagues = FOOTBALL_DATA_PILOT_LEAGUES.map((league) => {
@@ -427,7 +430,8 @@ export async function getResearchAutomationOverview(actor: AdminActor) {
   });
   const totals = {
     fixtureFeedRuns: feedRows.length,
-    automationRuns: runRows.length,
+    automationRuns: forwardRunRows.length,
+    historicalAutomationRuns: historicalRunRows.length,
     pending: observationRows.filter((row) => row.status === "pending").length,
     settled: observationRows.filter((row) => row.status === "settled").length,
     void: observationRows.filter((row) => row.status === "void").length,
@@ -455,11 +459,22 @@ export async function getResearchAutomationOverview(actor: AdminActor) {
       recommendationEligible: false,
       forwardObserved: totals.settled > 0,
     },
-    latestRun: runRows[0] ? publicAutomationRun(runRows[0]) : null,
+    latestRun: forwardRunRows[0] ? publicAutomationRun(forwardRunRows[0]) : null,
     latestFeedRun: feedRows[0] ? publicFixtureFeedRun(feedRows[0]) : null,
     leagues,
-    recentRuns: runRows.map(publicAutomationRun),
+    recentRuns: forwardRunRows.map(publicAutomationRun),
     recentFeedRuns: feedRows.map(publicFixtureFeedRun),
+    historical: {
+      policy: {
+        cron: "47 * * * *",
+        cadence: "hourly" as const,
+        maximumStagesPerCycle: 1,
+        researchOnly: true,
+        recommendationEligible: false,
+      },
+      latestRun: historicalRunRows[0] ? publicAutomationRun(historicalRunRows[0]) : null,
+      recentRuns: historicalRunRows.map(publicAutomationRun),
+    },
   };
 }
 
@@ -568,7 +583,9 @@ async function selectNextLiveLeagueCode() {
   const rows = await db.select({
     leagueCode: researchAutomationRuns.liveLeagueCode,
     startedAt: researchAutomationRuns.startedAt,
-  }).from(researchAutomationRuns).orderBy(desc(researchAutomationRuns.startedAt)).limit(100);
+  }).from(researchAutomationRuns)
+    .where(eq(researchAutomationRuns.jobKind, "forward_shadow"))
+    .orderBy(desc(researchAutomationRuns.startedAt)).limit(100);
   const latest = new Map<string, string>();
   for (const row of rows) if (row.leagueCode && !latest.has(row.leagueCode)) latest.set(row.leagueCode, row.startedAt);
   return [...FOOTBALL_DATA_PILOT_LEAGUES]
@@ -645,11 +662,15 @@ function publicFixtureFeedRun(row: typeof researchFixtureFeedRuns.$inferSelect) 
 function publicAutomationRun(row: typeof researchAutomationRuns.$inferSelect) {
   return {
     id: row.id,
+    jobKind: row.jobKind,
     trigger: row.trigger,
     status: row.status,
     fixtureFeedRunId: row.fixtureFeedRunId,
     liveLeagueCode: row.liveLeagueCode,
     liveResultStatus: row.liveResultStatus,
+    historicalCampaignId: row.historicalCampaignId,
+    historicalLeagueCode: row.historicalLeagueCode,
+    historicalStage: row.historicalStage,
     candidateCount: row.candidateCount,
     predictionsCreated: row.predictionsCreated,
     predictionsReused: row.predictionsReused,

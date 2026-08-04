@@ -56,6 +56,9 @@ test("renders the authenticated Shadow Validation control surface without mock r
   assert.match(html, /İleri-zaman toplama aktif/i);
   assert.match(html, /Saatlik araştırma otomasyonu/i);
   assert.match(html, /Şimdi bir tur çalıştır/i);
+  assert.match(html, /Saatlik tarihsel doğrulama kuyruğu/i);
+  assert.match(html, /Tek tarihsel tur çalıştır/i);
+  assert.match(html, /DUAL RESEARCH AUTOMATION · CP17E/i);
   assert.match(html, /Henüz stabilite sonucu yok/i);
 });
 
