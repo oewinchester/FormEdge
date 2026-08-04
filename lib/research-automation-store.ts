@@ -35,6 +35,7 @@ import {
   defaultShadowValidationThresholds,
   evaluateShadowValidation,
 } from "@/lib/shadow-validation";
+import { summarizeAutomationHealth } from "@/lib/research-automation-health";
 
 const AUTOMATION_ACTIVE_KEY = "research-forward-shadow:1x2";
 const FIXTURE_FEED_ACTIVE_KEY = "football-data:fixtures";
@@ -375,8 +376,9 @@ export async function runResearchAutomationCycle(
 
 export async function getResearchAutomationOverview(actor: AdminActor) {
   const db = await getDb();
+  const generatedAt = new Date().toISOString();
   const [runRows, feedRows, observationRows, evidenceRows] = await Promise.all([
-    db.select().from(researchAutomationRuns).orderBy(desc(researchAutomationRuns.startedAt)).limit(40),
+    db.select().from(researchAutomationRuns).orderBy(desc(researchAutomationRuns.startedAt)).limit(120),
     db.select().from(researchFixtureFeedRuns).orderBy(desc(researchFixtureFeedRuns.startedAt)).limit(20),
     db.select().from(forwardShadowObservations).orderBy(desc(forwardShadowObservations.kickoffAt)).limit(1000),
     db.select().from(modelEvidenceRuns)
@@ -438,7 +440,7 @@ export async function getResearchAutomationOverview(actor: AdminActor) {
     invalid: observationRows.filter((row) => row.status === "invalid").length,
   };
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     actor: { email: actor.email, displayName: actor.displayName, role: actor.role },
     source: {
       name: "Football-Data.co.uk fixture feed",
@@ -460,6 +462,7 @@ export async function getResearchAutomationOverview(actor: AdminActor) {
       forwardObserved: totals.settled > 0,
     },
     latestRun: forwardRunRows[0] ? publicAutomationRun(forwardRunRows[0]) : null,
+    health: summarizeAutomationHealth(forwardRunRows, generatedAt),
     latestFeedRun: feedRows[0] ? publicFixtureFeedRun(feedRows[0]) : null,
     leagues,
     recentRuns: forwardRunRows.map(publicAutomationRun),
@@ -473,6 +476,7 @@ export async function getResearchAutomationOverview(actor: AdminActor) {
         recommendationEligible: false,
       },
       latestRun: historicalRunRows[0] ? publicAutomationRun(historicalRunRows[0]) : null,
+      health: summarizeAutomationHealth(historicalRunRows, generatedAt),
       recentRuns: historicalRunRows.map(publicAutomationRun),
     },
   };

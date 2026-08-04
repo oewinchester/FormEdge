@@ -7,7 +7,13 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.6 · Checkpoint 17F · Aşama 7 / Durable GitHub Mirror**
+**v0.7.0-alpha.7 · Checkpoint 17G · Aşama 7 / Research Observatory**
+
+- Forward ve tarihsel worker sağlığını kalıcı D1 kayıtlarından `sağlıklı`, `dikkat`, `gecikmiş`, `çalışıyor` veya `başlamadı` olarak deterministik özetleyen gözlem katmanı
+- Gerçek başarı oranı, ortalama/maksimum süre, ardışık hata ve son başarı/hata zamanlarını örnek veri veya tahmini süre üretmeden hesaplayan saf sağlık motoru
+- Son 120 otomasyon kaydını tarayan; tarihsel koşuları lig, tetikleyici, tamamlanan/sıradaki aşama, süre ve hata koduyla gösteren responsive operasyon geçmişi
+- Her pilot lig için kaynak/kampanya aşamasını kalıcı kampanya durumundan gösteren lig × aşama ilerleme görünümü
+- Retrospektif sonuçları kullanıcı önerisine veya ticari yayın uygunluğuna dönüştürmeyen research-only sınırı
 
 - Her Sites checkpoint commit’ini repo-sınırlı deploy key ile GitHub `main` dalına otomatik ve yalnız fast-forward gönderen versioned post-commit mirror
 - Standart SSH erişimi kapalı ortamlarda GitHub’ın resmî `ssh.github.com:443` kanalını mevcut HTTPS CONNECT tünelinden kullanan güvenli taşıma
@@ -151,7 +157,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.7.0-alpha.3 | CP17C | Gerçek veri üzerinde kalıcı sıralı dataset/backtest kampanyaları, fail-closed shadow readiness, drift ve lig × model karşılaştırması | Tamamlandı |
 | v0.7.0-alpha.4 | CP17D | Saatlik gerçek fikstür/sonuç toplama, değişmez ileri-zaman gözlemleri ve lig bazlı Forward Shadow konsolu | Tamamlandı |
 | v0.7.0-alpha.5 | CP17E | Ayrı saatlik tarihsel kampanya worker’ı, D1 iş ayrımı ve kademeli backtest ilerleme konsolu | Tamamlandı |
-| **v0.7.0-alpha.6** | **CP17F** | **Repo-sınırlı deploy key, fast-forward checkpoint mirror, HTTPS tüneli ve yeniden-deneme durumu** | **Mevcut** |
+| v0.7.0-alpha.6 | CP17F | Repo-sınırlı deploy key, fast-forward checkpoint mirror, HTTPS tüneli ve yeniden-deneme durumu | Tamamlandı |
+| **v0.7.0-alpha.7** | **CP17G** | **D1 tabanlı otomasyon sağlığı, süre/hata geçmişi ve lig × aşama Research Observatory** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 

@@ -210,6 +210,20 @@ type AutomationRun = {
   completedAt: string | null;
 };
 
+type AutomationHealth = {
+  status: "not_started" | "running" | "healthy" | "degraded" | "stale";
+  totalRuns: number;
+  completedRuns: number;
+  failedRuns: number;
+  consecutiveFailures: number;
+  successRate: number | null;
+  averageDurationMs: number | null;
+  maximumDurationMs: number | null;
+  lastStartedAt: string | null;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+};
+
 type AutomationOverview = {
   totals: {
     fixtureFeedRuns: number;
@@ -231,6 +245,7 @@ type AutomationOverview = {
     forwardObserved: boolean;
   };
   latestRun: AutomationRun | null;
+  health: AutomationHealth;
   latestFeedRun: {
     status: "fetching" | "imported" | "unchanged" | "failed";
     sourceRowCount: number;
@@ -271,6 +286,7 @@ type AutomationOverview = {
       recommendationEligible: false;
     };
     latestRun: AutomationRun | null;
+    health: AutomationHealth;
     recentRuns: AutomationRun[];
   };
 };
@@ -490,7 +506,7 @@ export function ShadowValidationConsole({
 
       <section className="admin-main">
         <header className="admin-topbar">
-          <div><a href="/portal"><ArrowLeft size={15} />Panel merkezi</a><span>DUAL RESEARCH AUTOMATION · CP17E</span></div>
+          <div><a href="/portal"><ArrowLeft size={15} />Panel merkezi</a><span>RESEARCH OBSERVATORY · CP17G</span></div>
           <div className="admin-user"><span>{initials(user.displayName)}</span><p><b>{user.displayName}</b><small>{overview?.actor.role ?? "yetki kontrol ediliyor"}</small></p></div>
         </header>
 
@@ -562,6 +578,39 @@ export function ShadowValidationConsole({
           <footer><TimerReset size={14} /><span>Cron: <code>{overview?.automation.historical.policy.cron ?? "47 * * * *"}</code>. Otomatik ve manuel tek-tur işlemleri aynı D1 kilidini paylaşır; tamamlanan aşamalar yeniden başlatmada korunur.</span></footer>
         </section>
 
+        <section className="shadow-observatory" id="observatory">
+          <header>
+            <div><small>RESEARCH OBSERVATORY</small><h2>Otomasyon sağlığı ve çalışma geçmişi</h2><p>Saatlik worker’ların durumu, başarı oranı ve süresi yalnız kalıcı D1 çalışma kayıtlarından hesaplanır. Tahmini süre veya örnek sonuç gösterilmez.</p></div>
+            <span>Son {overview?.automation.historical.recentRuns.length ?? 0} tarihsel kayıt</span>
+          </header>
+          <div className="shadow-health-grid">
+            <HealthCard title="Forward Shadow" cron="Saat :17" health={overview?.automation.health} />
+            <HealthCard title="Tarihsel Backtest" cron="Saat :47" health={overview?.automation.historical.health} />
+            <article className="shadow-pipeline-progress">
+              <header><div><small>LİG × AŞAMA</small><b>Kalıcı kampanya ilerlemesi</b></div><GitBranch size={18} /></header>
+              <div>{(overview?.pilots ?? []).map((pilot) => {
+                const campaign = pilot.activeCampaign ?? pilot.latestCampaign;
+                const progress = campaign ? stageProgress(campaign.currentStage) : Math.min(20, pilot.readySeasonCount * 4);
+                return <div key={pilot.leagueCode}><span><b>{pilot.leagueCode}</b><small>{campaign ? stageLabel(campaign.currentStage) : `${pilot.readySeasonCount}/5 kaynak`}</small></span><div><i style={{ width: `${progress}%` }} /></div><em>{progress}%</em></div>;
+              })}</div>
+            </article>
+          </div>
+          <div className="shadow-run-log admin-table-wrap">
+            <table><thead><tr><th>Başlangıç / tetik</th><th>Lig</th><th>Durum</th><th>Tamamlanan → sıradaki</th><th>Süre</th><th>Hata</th></tr></thead><tbody>
+              {(overview?.automation.historical.recentRuns ?? []).length === 0 && <tr><td colSpan={6}><div className="admin-empty">Henüz kalıcı tarihsel çalışma kaydı yok. İlk tur saat :47’de veya admin tetiklemesiyle oluşur.</div></td></tr>}
+              {(overview?.automation.historical.recentRuns ?? []).slice(0, 20).map((run) => <tr key={run.id}>
+                <td><b>{formatDate(run.startedAt)}</b><small>{run.trigger === "scheduler" ? "Zamanlayıcı" : "Admin"}</small></td>
+                <td><b>{String(run.summary.leagueLabel ?? run.historicalLeagueCode ?? "Kuyruk")}</b><small>{run.historicalLeagueCode ?? (run.summary.idle ? "Tümü güncel" : "—")}</small></td>
+                <td><span className={`automation-run-status ${run.status}`}>{automationStatusLabel(run.status)}</span></td>
+                <td><b>{run.summary.stageCompleted ? stageLabel(run.summary.stageCompleted) : "—"}</b><small>{run.summary.nextStage ? `Sırada: ${stageLabel(run.summary.nextStage)}` : run.summary.done || run.summary.idle ? "Akış tamam" : "Sonraki turda belirlenecek"}</small></td>
+                <td><b>{formatDuration(run.startedAt, run.completedAt)}</b><small>{run.completedAt ? formatDate(run.completedAt) : "Devam ediyor"}</small></td>
+                <td>{run.errorCode ? <><b className="run-error-code">{run.errorCode}</b><small title={run.errorMessage ?? undefined}>{run.errorMessage ?? "Ayrıntı yok"}</small></> : <span className="run-clean"><CheckCircle2 size={12} />Temiz</span>}</td>
+              </tr>)}
+            </tbody></table>
+          </div>
+          <footer><LockKeyhole size={14} /><span>Bu gözlem ekranı operasyon kanıtıdır. Retrospektif başarı, tek başına kullanıcı önerisi veya ticari yayın uygunluğu oluşturmaz.</span></footer>
+        </section>
+
         <section className="admin-count-grid shadow-count-grid">
           <CountCard label="PİLOT LİG" value={overview?.totals.pilots ?? 0} note="allowlist" icon={DatabaseZap} loading={loading} />
           <CountCard label="KAYNAK HAZIR" value={overview?.totals.sourceReady ?? 0} note="5/5 sezon" icon={Database} loading={loading} />
@@ -624,7 +673,7 @@ export function ShadowValidationConsole({
           </tbody></table></div>
         </section>
 
-        <footer className="admin-footer"><span>FormEdge Dual Research Automation · CP17E · research-only</span><a href="/admin/model-lab">Model Lab’e dön <ChevronRight size={13} /></a></footer>
+        <footer className="admin-footer"><span>FormEdge Research Observatory · CP17G · research-only</span><a href="/admin/model-lab">Model Lab’e dön <ChevronRight size={13} /></a></footer>
       </section>
     </main>
   );
@@ -632,6 +681,14 @@ export function ShadowValidationConsole({
 
 function CountCard({ label, value, note, icon: Icon, loading }: { label: string; value: number; note: string; icon: typeof Database; loading: boolean }) {
   return <article><span><Icon size={17} /></span><small>{label}</small><b>{loading ? "—" : value}</b><p>{note}</p></article>;
+}
+
+function HealthCard({ title, cron, health }: { title: string; cron: string; health: AutomationHealth | undefined }) {
+  return <article className="shadow-health-card">
+    <header><div><small>{cron}</small><b>{title}</b></div><span className={health?.status ?? "not_started"}>{healthLabel(health?.status)}</span></header>
+    <div><span><small>Başarı</small><b>{health?.successRate === null || health?.successRate === undefined ? "—" : `%${decimal(health.successRate * 100, 1)}`}</b></span><span><small>Ort. süre</small><b>{formatMilliseconds(health?.averageDurationMs)}</b></span><span><small>Ardışık hata</small><b>{health?.consecutiveFailures ?? 0}</b></span></div>
+    <footer>{health?.lastStartedAt ? `Son başlangıç ${formatDate(health.lastStartedAt)} · ${health.totalRuns} kayıt` : "Henüz kalıcı çalışma kaydı yok."}</footer>
+  </article>;
 }
 
 function ValidationCard({ validation }: { validation: Validation }) {
@@ -674,6 +731,33 @@ function validationStatusLabel(status: ValidationStatus) {
 
 function automationStatusLabel(status: AutomationRun["status"]) {
   return { running: "Çalışıyor", completed: "Tamamlandı", partial: "Kısmi", failed: "Başarısız" }[status];
+}
+
+function healthLabel(status: AutomationHealth["status"] | undefined) {
+  return {
+    not_started: "Başlamadı",
+    running: "Çalışıyor",
+    healthy: "Sağlıklı",
+    degraded: "Dikkat",
+    stale: "Gecikmiş",
+  }[status ?? "not_started"];
+}
+
+function stageProgress(stage: Stage) {
+  return { source: 20, dataset: 40, benchmarks: 60, evidence: 80, shadow: 90, done: 100 }[stage];
+}
+
+function formatDuration(startedAt: string, completedAt: string | null) {
+  if (!completedAt) return "Çalışıyor";
+  return formatMilliseconds(Math.max(0, Date.parse(completedAt) - Date.parse(startedAt)));
+}
+
+function formatMilliseconds(value: number | null | undefined) {
+  if (value === null || value === undefined) return "—";
+  if (value < 60_000) return `${Math.max(1, Math.round(value / 1000))} sn`;
+  const minutes = Math.floor(value / 60_000);
+  const seconds = Math.round((value % 60_000) / 1000);
+  return seconds ? `${minutes} dk ${seconds} sn` : `${minutes} dk`;
 }
 
 function feedStatusLabel(status: "fetching" | "imported" | "unchanged" | "failed") {
