@@ -24,6 +24,7 @@ import {
   ListChecks,
   LoaderCircle,
   LogOut,
+  Radar,
   RefreshCw,
   ServerCog,
   ShieldAlert,
@@ -279,6 +280,7 @@ export function AdminConsole({ user, signOutPath }: Props) {
           <a href="#runs"><Fingerprint size={17} />Snapshot geçmişi</a>
           <a href="/admin/research-feed"><DatabaseZap size={17} />Research Feed</a>
           <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>
+          <a href="/admin/shadow-validation"><Radar size={17} />Shadow Validation</a>
           <a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a>
           <a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a>
           <a href="/admin/context-ops"><CloudSun size={17} />Context Ops</a>

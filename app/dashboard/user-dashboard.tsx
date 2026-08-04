@@ -17,7 +17,6 @@ import {
   CircleGauge,
   Clock3,
   Eye,
-  FileClock,
   Gauge,
   LayoutDashboard,
   LineChart,
@@ -188,7 +187,7 @@ export function UserDashboard({
 
           <aside className="user-right-rail">
             <section className="user-performance-card"><header><div><small>DEĞİŞTİRİLEMEZ GEÇMİŞ</small><h3>Sistem performansı</h3></div><BarChart3 size={18} /></header><div className="user-performance-score"><span><b>{performance.counts.won}</b><small>KAZANAN</small></span><span><b>{performance.counts.lost}</b><small>KAYBEDEN</small></span><span><b>{performance.counts.withdrawn}</b><small>GERİ ÇEKİLEN</small></span></div><p>Oran, değer ve bağlam kanıtı sürümle dondurulur. Kişisel kasa hareketleri ayrı değişmez defterde tutulur.</p><a href="/dashboard/performance">Tüm geçmişi incele<ChevronRight size={14} /></a></section>
-            <section className="user-roadmap-card"><small>ÜRÜN AŞAMASI</small><h3>Phase 07 · CP17B</h3><div><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="active" /></div><ul><li><CheckCircle2 size={13} />Kullanıcı dashboardları</li><li><CheckCircle2 size={13} />Yönetim operasyon panelleri</li><li><CheckCircle2 size={13} />Üyelik, kasa ve bildirim</li><li><CheckCircle2 size={13} />Gerçek araştırma veri akışı</li><li><CheckCircle2 size={13} />Birleşik erişim merkezi · CP17B</li><li><FileClock size={13} />Sıralı backtest otomasyonu · CP17C</li></ul></section>
+            <section className="user-roadmap-card"><small>ÜRÜN AŞAMASI</small><h3>Phase 07 · CP17C</h3><div><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="done" /><i className="active" /></div><ul><li><CheckCircle2 size={13} />Kullanıcı dashboardları</li><li><CheckCircle2 size={13} />Yönetim operasyon panelleri</li><li><CheckCircle2 size={13} />Üyelik, kasa ve bildirim</li><li><CheckCircle2 size={13} />Gerçek araştırma veri akışı</li><li><CheckCircle2 size={13} />Birleşik erişim merkezi · CP17B</li><li><CheckCircle2 size={13} />Sıralı backtest ve stabilite · CP17C</li></ul></section>
             <section className="user-risk-card"><AlertTriangle size={17} /><div><small>RİSK PROFİLİ</small><b>{overview.profile.riskProfile ? riskLabel(overview.profile.riskProfile) : "Kayıt testi bekleniyor"}</b><p>Risk profili yalnız görünüm ve kasa limitlerini etkiler; model olasılıkları değişmez.</p><a href="/dashboard/membership">Üyelik merkezini aç<ChevronRight size={12} /></a></div></section>
           </aside>
         </section>

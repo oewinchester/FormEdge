@@ -17,6 +17,7 @@ import {
   ListChecks,
   LockKeyhole,
   LogOut,
+  Radar,
   ShieldCheck,
   UserRound,
   UsersRound,
@@ -36,6 +37,7 @@ const ADMIN_SURFACES = [
   { href: "/admin", label: "Veri konsolu", note: "Kaynaklar, importlar ve veri sağlığı", icon: Database },
   { href: "/admin/research-feed", label: "Research Feed", note: "Gerçek CSV çekimi ve ham kaynak arşivi", icon: DatabaseZap },
   { href: "/admin/model-lab", label: "Model Lab", note: "Dataset, benchmark ve kanıt matrisi", icon: FlaskConical },
+  { href: "/admin/shadow-validation", label: "Shadow Validation", note: "Gerçek veri kuyruğu, backtest ve zamansal drift", icon: Radar },
   { href: "/admin/predictions", label: "Prediction Ops", note: "İzleme, final ve geri çekme yaşam döngüsü", icon: ListChecks },
   { href: "/admin/value-ops", label: "Value Ops", note: "Oran uzlaşısı, edge ve anomali kapısı", icon: BadgeDollarSign },
   { href: "/admin/context-ops", label: "Context Ops", note: "Kadro, hava, seyahat ve bağlam kanıtı", icon: CloudSun },
@@ -88,7 +90,7 @@ export function AccessPortal({ overview, signOutPath }: { overview: AccessPortal
         </section>
 
         <section className="access-truth-card"><BarChart3 size={19} /><div><b>Gerçek veri ile örnek arayüz ayrımı</b><p>Landing sayfasındaki maçlar yalnız ürün önizlemesidir. Bu merkezden açılan dashboardlar D1’deki gerçek hesap, veri, model ve yayın kayıtlarını kullanır; boş durumlar sahte içerikle doldurulmaz.</p></div></section>
-        <footer className="access-portal-footer"><span>FormEdge unified access · CP17B</span><a href="/">Ana site<ArrowRight size={13} /></a></footer>
+        <footer className="access-portal-footer"><span>FormEdge unified access · CP17C</span><a href="/">Ana site<ArrowRight size={13} /></a></footer>
       </section>
     </main>
   );

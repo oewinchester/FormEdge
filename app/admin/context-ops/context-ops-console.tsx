@@ -17,6 +17,7 @@ import {
   LoaderCircle,
   LogOut,
   MapPinned,
+  Radar,
   RefreshCw,
   Save,
   ShieldAlert,
@@ -129,6 +130,7 @@ export function ContextOpsConsole({ user, signOutPath }: Props) {
           <a href="/portal"><Database size={17} />Panel merkezi</a>
           <a href="/admin"><Database size={17} />Veri konsolu</a>
           <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>
+          <a href="/admin/shadow-validation"><Radar size={17} />Shadow Validation</a>
           <a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a>
           <a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a>
           <a className="active" href="#overview"><CloudSun size={17} />Context Ops</a>

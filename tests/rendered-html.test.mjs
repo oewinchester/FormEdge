@@ -34,6 +34,29 @@ test("renders the signed-out Research Feed protection wall", async () => {
   assert.match(html, /admin%2Fresearch-feed|admin\/research-feed/i);
 });
 
+test("renders the signed-out Shadow Validation protection wall", async () => {
+  const response = await renderRoute("/admin/shadow-validation");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Gölge doğrulama paneli korumalıdır/i);
+  assert.match(html, /RETROSPECTIVE ≠ LIVE SHADOW/i);
+  assert.match(html, /auth\/sign-in/i);
+  assert.match(html, /admin%2Fshadow-validation|admin\/shadow-validation/i);
+});
+
+test("renders the authenticated Shadow Validation control surface without mock results", async () => {
+  const response = await renderRoute("/admin/shadow-validation", {
+    "oai-authenticated-user-email": "owner@example.com",
+    "oai-authenticated-user-full-name": "FormEdge%20Owner",
+    "oai-authenticated-user-full-name-encoding": "percent-encoded-utf-8",
+  });
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Gerçek veriyi sırayla çek/i);
+  assert.match(html, /Bu, canlı shadow sonucu değildir/i);
+  assert.match(html, /Henüz stabilite sonucu yok/i);
+});
+
 test("renders the signed-out Prediction Ops protection wall", async () => {
   const response = await renderRoute("/admin/predictions");
   assert.equal(response.status, 200);
@@ -179,12 +202,12 @@ test("renders the signed-out match analysis protection wall", async () => {
   assert.match(html, /auth\/sign-in/i);
 });
 
-async function renderRoute(pathname) {
+async function renderRoute(pathname, requestHeaders = {}) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${Math.random()}`);
   const { default: worker } = await import(workerUrl.href);
   return worker.fetch(
-    new Request(`http://localhost${pathname}`, { headers: { accept: "text/html" } }),
+    new Request(`http://localhost${pathname}`, { headers: { accept: "text/html", ...requestHeaders } }),
     {
       ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
     },

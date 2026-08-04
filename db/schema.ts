@@ -819,6 +819,88 @@ export const modelEvidenceRuns = sqliteTable(
   ],
 );
 
+export const validationCampaigns = sqliteTable(
+  "validation_campaigns",
+  {
+    id: text("id").primaryKey(),
+    activeKey: text("active_key"),
+    leagueId: text("league_id").notNull().references(() => leagues.id),
+    leagueCode: text("league_code").notNull(),
+    leagueLabel: text("league_label").notNull(),
+    market: text("market", { enum: ["1X2"] }).notNull().default("1X2"),
+    status: text("status", {
+      enum: ["queued", "running", "completed", "failed"],
+    }).notNull().default("queued"),
+    currentStage: text("current_stage", {
+      enum: ["source", "dataset", "benchmarks", "evidence", "shadow", "done"],
+    }).notNull().default("source"),
+    sourceFingerprint: text("source_fingerprint"),
+    sourceStateJson: text("source_state_json").notNull().default("{}"),
+    datasetRunId: text("dataset_run_id").references(() => featureDatasetRuns.id),
+    evidenceRunId: text("evidence_run_id").references(() => modelEvidenceRuns.id),
+    selectedBacktestRunId: text("selected_backtest_run_id").references(() => backtestRuns.id),
+    selectedModelCode: text("selected_model_code"),
+    stageSummaryJson: text("stage_summary_json").notNull().default("{}"),
+    blockersJson: text("blockers_json").notNull().default("[]"),
+    researchOnly: integer("research_only", { mode: "boolean" }).notNull().default(true),
+    recommendationEligible: integer("recommendation_eligible", { mode: "boolean" }).notNull().default(false),
+    createdByEmail: text("created_by_email").notNull(),
+    lastAdvancedByEmail: text("last_advanced_by_email").notNull(),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    startedAt: text("started_at").notNull(),
+    completedAt: text("completed_at"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("validation_campaigns_active_key_unique").on(table.activeKey),
+    index("validation_campaigns_league_time_idx").on(table.leagueId, table.startedAt),
+    index("validation_campaigns_status_stage_idx").on(table.status, table.currentStage),
+    index("validation_campaigns_source_fingerprint_idx").on(table.leagueId, table.sourceFingerprint),
+  ],
+);
+
+export const shadowValidationRuns = sqliteTable(
+  "shadow_validation_runs",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id").notNull().references(() => validationCampaigns.id),
+    datasetRunId: text("dataset_run_id").notNull().references(() => featureDatasetRuns.id),
+    backtestRunId: text("backtest_run_id").notNull().references(() => backtestRuns.id),
+    evidenceRunId: text("evidence_run_id").references(() => modelEvidenceRuns.id),
+    leagueId: text("league_id").notNull().references(() => leagues.id),
+    leagueLabel: text("league_label").notNull(),
+    market: text("market", { enum: ["1X2"] }).notNull().default("1X2"),
+    modelCode: text("model_code").notNull(),
+    status: text("status", {
+      enum: ["invalid", "insufficient", "stable", "unstable"],
+    }).notNull(),
+    releaseEligibility: text("release_eligibility", {
+      enum: ["blocked", "forward_shadow_candidate"],
+    }).notNull().default("blocked"),
+    researchOnly: integer("research_only", { mode: "boolean" }).notNull().default(true),
+    forwardObserved: integer("forward_observed", { mode: "boolean" }).notNull().default(false),
+    sampleCount: integer("sample_count").notNull(),
+    leakageViolationCount: integer("leakage_violation_count").notNull().default(0),
+    averageDataCompleteness: real("average_data_completeness").notNull().default(0),
+    earlyWindowJson: text("early_window_json").notNull(),
+    lateWindowJson: text("late_window_json").notNull(),
+    driftJson: text("drift_json").notNull(),
+    thresholdsJson: text("thresholds_json").notNull(),
+    blockersJson: text("blockers_json").notNull().default("[]"),
+    resultChecksumSha256: text("result_checksum_sha256").notNull(),
+    createdByEmail: text("created_by_email").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("shadow_validation_runs_campaign_unique").on(table.campaignId),
+    uniqueIndex("shadow_validation_runs_checksum_unique").on(table.resultChecksumSha256),
+    index("shadow_validation_runs_league_market_idx").on(table.leagueId, table.market, table.createdAt),
+    index("shadow_validation_runs_status_idx").on(table.status, table.createdAt),
+  ],
+);
+
 export const predictionThreads = sqliteTable(
   "prediction_threads",
   {

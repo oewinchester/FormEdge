@@ -18,6 +18,7 @@ import {
   MailCheck,
   PauseCircle,
   PlayCircle,
+  Radar,
   RefreshCw,
   RotateCcw,
   Send,
@@ -106,7 +107,7 @@ export function MemberOpsConsole({ user, signOutPath }: {
   return <main className="admin-shell member-ops-shell">
     <aside className="admin-sidebar">
       <a className="admin-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a>
-      <nav><a href="/portal"><Database size={17} />Panel merkezi</a><a href="/admin"><Database size={17} />Veri konsolu</a><a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a><a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a><a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a><a href="/admin/context-ops"><CloudSun size={17} />Context Ops</a><a href="/admin/notification-ops"><BellRing size={17} />Notification Ops</a><a className="active" href="/admin/member-ops"><UsersRound size={17} />Member Ops</a></nav>
+      <nav><a href="/portal"><Database size={17} />Panel merkezi</a><a href="/admin"><Database size={17} />Veri konsolu</a><a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a><a href="/admin/shadow-validation"><Radar size={17} />Shadow Validation</a><a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a><a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a><a href="/admin/context-ops"><CloudSun size={17} />Context Ops</a><a href="/admin/notification-ops"><BellRing size={17} />Notification Ops</a><a className="active" href="/admin/member-ops"><UsersRound size={17} />Member Ops</a></nav>
       <div className="admin-sidebar-note member-sidebar-note"><ShieldAlert size={18} /><b>PII sınırı</b><p>Davet tokenları düz metin saklanmaz. E-posta ve ülke yalnız erişim operasyonunda kullanılır; toplu export kapalıdır.</p></div>
       <a className="admin-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a>
     </aside>

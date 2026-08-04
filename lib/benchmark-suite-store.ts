@@ -1,6 +1,12 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { featureDatasetRuns, featureDatasetSamples } from "@/db/schema";
+import {
+  backtestRuns,
+  featureDatasetRuns,
+  featureDatasetSamples,
+  modelDefinitions,
+  modelVersions,
+} from "@/db/schema";
 import type { AdminActor } from "@/lib/admin-data";
 import {
   BENCHMARK_SCHEMA_VERSION,
@@ -10,9 +16,11 @@ import {
 import {
   ModelLabValidationError,
   type BacktestConfig,
+  type BacktestMetrics,
   type BacktestSample,
   type MarketOdds,
   type ProbabilityTriple,
+  type ReleaseDecision,
 } from "@/lib/model-lab";
 import {
   runModelLabExperiment,
@@ -25,6 +33,15 @@ const SUITE_MODEL_CODES: ModelCode[] = [
   "poisson-baseline",
   "dixon-coles-baseline",
 ];
+
+type BenchmarkSuiteRun = {
+  runId: string;
+  modelVersionId: string;
+  modelCode: ModelCode;
+  modelName: string;
+  metrics: BacktestMetrics;
+  releaseDecision: ReleaseDecision;
+};
 
 export async function runBenchmarkSuite(actor: AdminActor, datasetRunId: string) {
   if (typeof datasetRunId !== "string" || !datasetRunId.trim()) {
@@ -54,9 +71,15 @@ export async function runBenchmarkSuite(actor: AdminActor, datasetRunId: string)
     (latest, row) => row.featureCutoffAt > latest ? row.featureCutoffAt : latest,
     rows[0].featureCutoffAt,
   );
-  const runs = [];
+  const persistedRuns = await getPersistedSuiteRuns(dataset);
+  const runs: BenchmarkSuiteRun[] = [];
 
   for (const modelCode of SUITE_MODEL_CODES) {
+    const persisted = persistedRuns.get(modelCode);
+    if (persisted) {
+      runs.push(persisted);
+      continue;
+    }
     const samples = parsed.map(({ row, forecast }) => toBacktestSample(
       row,
       probabilitiesForModel(modelCode, row, forecast),
@@ -108,7 +131,71 @@ export async function runBenchmarkSuite(actor: AdminActor, datasetRunId: string)
     backtestConfig,
     winnerModelCode: ranked[0].modelCode,
     runs,
+    reused: persistedRuns.size === SUITE_MODEL_CODES.length,
+    reusedRunCount: persistedRuns.size,
   };
+}
+
+async function getPersistedSuiteRuns(dataset: typeof featureDatasetRuns.$inferSelect) {
+  const db = await getDb();
+  const rows = await db.select({
+    runId: backtestRuns.id,
+    modelVersionId: backtestRuns.modelVersionId,
+    modelCode: modelDefinitions.code,
+    modelName: modelDefinitions.displayName,
+    featureSchemaVersion: modelVersions.featureSchemaVersion,
+    metricsJson: backtestRuns.metricsJson,
+  }).from(backtestRuns)
+    .innerJoin(modelVersions, eq(backtestRuns.modelVersionId, modelVersions.id))
+    .innerJoin(modelDefinitions, eq(modelVersions.modelDefinitionId, modelDefinitions.id))
+    .where(and(
+      eq(backtestRuns.featureDatasetRunId, dataset.id),
+      eq(backtestRuns.status, "completed"),
+    ))
+    .orderBy(desc(backtestRuns.startedAt));
+  const resolved = new Map<ModelCode, BenchmarkSuiteRun>();
+  for (const row of rows) {
+    if (!isModelCode(row.modelCode) || resolved.has(row.modelCode)) continue;
+    const expectedSchema = row.modelCode === "form-dominance-baseline"
+      ? dataset.featureSchemaVersion
+      : dataset.benchmarkSchemaVersion;
+    if (row.featureSchemaVersion !== expectedSchema) continue;
+    const persisted = parsePersistedRun(row.metricsJson);
+    if (!persisted) continue;
+    resolved.set(row.modelCode, {
+      runId: row.runId,
+      modelVersionId: row.modelVersionId,
+      modelCode: row.modelCode,
+      modelName: row.modelName,
+      metrics: persisted.metrics,
+      releaseDecision: persisted.releaseDecision,
+    });
+  }
+  return resolved;
+}
+
+function parsePersistedRun(value: string | null): { metrics: BacktestMetrics; releaseDecision: ReleaseDecision } | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as {
+      metrics?: BacktestMetrics;
+      releaseDecision?: ReleaseDecision;
+    };
+    if (!parsed.metrics || !parsed.releaseDecision
+      || !Number.isFinite(parsed.metrics.logLoss)
+      || !Number.isFinite(parsed.metrics.brierScore)
+      || !Number.isFinite(parsed.metrics.accuracy)
+      || typeof parsed.releaseDecision.stage !== "string"
+      || !Array.isArray(parsed.releaseDecision.reasons)
+      || !Array.isArray(parsed.releaseDecision.criteria)) return null;
+    return { metrics: parsed.metrics, releaseDecision: parsed.releaseDecision };
+  } catch {
+    return null;
+  }
+}
+
+function isModelCode(value: string): value is ModelCode {
+  return SUITE_MODEL_CODES.includes(value as ModelCode);
 }
 
 function toBacktestSample(

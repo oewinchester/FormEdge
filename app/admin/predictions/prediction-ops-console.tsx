@@ -19,6 +19,7 @@ import {
   LoaderCircle,
   LockKeyhole,
   LogOut,
+  Radar,
   RefreshCw,
   RotateCcw,
   ShieldAlert,
@@ -268,6 +269,7 @@ export function PredictionOpsConsole({ user, signOutPath }: Props) {
           <a href="/portal"><Database size={17} />Panel merkezi</a>
           <a href="/admin"><Database size={17} />Veri konsolu</a>
           <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>
+          <a href="/admin/shadow-validation"><Radar size={17} />Shadow Validation</a>
           <a className="active" href="#overview"><ListChecks size={17} />Prediction Ops</a>
           <a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a>
           <a href="/admin/context-ops"><CloudSun size={17} />Context Ops</a>

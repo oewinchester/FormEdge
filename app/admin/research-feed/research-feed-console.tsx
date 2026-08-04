@@ -23,6 +23,7 @@ import {
   LockKeyhole,
   LogOut,
   Play,
+  Radar,
   RefreshCw,
   ShieldAlert,
   Sigma,
@@ -238,6 +239,7 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
           <a href="/admin"><Database size={17} />Veri konsolu</a>
           <a className="active" href="#overview"><DatabaseZap size={17} />Research Feed</a>
           <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>
+          <a href="/admin/shadow-validation"><Radar size={17} />Shadow Validation</a>
           <a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a>
           <a href="/admin/value-ops"><BadgeDollarSign size={17} />Value Ops</a>
           <a href="/admin/context-ops"><CloudSun size={17} />Context Ops</a>
@@ -315,7 +317,7 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
         </section>
 
         <section className="research-model-handoff">
-          <span><FlaskConical size={20} /></span><div><small>NEXT CONTROLLED STEP</small><h2>D1 dolduğunda değişmez dataset üret.</h2><p>Model Lab’de ligi seç, point-in-time dataset’i dondur, dört temel modeli aynı kronolojik fold’larda karşılaştır ve kanıt matrisini çalıştır.</p></div><a href="/admin/model-lab#datasets">Model Lab’e geç <ChevronRight size={14} /></a>
+          <span><Radar size={20} /></span><div><small>NEXT CONTROLLED STEP</small><h2>Kaynakları kalıcı doğrulama kampanyasına bağla.</h2><p>Shadow Validation eksik sezonları sırayla çeker; point-in-time dataset, dört benchmark, kanıt matrisi ve erken/geç dönem drift ölçümünü kesintiye dayanıklı aşamalarda tamamlar.</p></div><a href="/admin/shadow-validation">Shadow Validation’a geç <ChevronRight size={14} /></a>
         </section>
 
         <section className="research-runs-card" id="runs">

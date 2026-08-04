@@ -7,14 +7,21 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.2 · Checkpoint 17B · Aşama 7 / Unified Access & Panel Hub**
+**v0.7.0-alpha.3 · Checkpoint 17C · Aşama 7 / Sequential Backtest & Shadow Readiness**
 
+- Kaynak sezonu → değişmez dataset → dört benchmark → kanıt matrisi → erken/geç dönem drift akışını çağrı başına tek ağır aşamayla ilerleten, D1’de kaldığı yerden devam eden doğrulama kampanyaları
+- Süper Lig, Premier League, Bundesliga, La Liga ve Serie A için eksik gerçek sezonları aynı allowlist adaptöründen tek tek çeken yönetici kuyruğu; analiz editörü için salt-okunur ayrıntı görünümü
+- Aynı değişmez dataset üzerindeki tamamlanmış dört benchmark koşusunu yeniden kullanan idempotent model karşılaştırması
+- OOS tahminleri erken/geç zaman pencerelerinde isabet, log loss, normalize Brier, ECE, veri tamlığı ve olasılık dağılım kaymasıyla ölçen deterministik stabilite motoru
+- Kamu CSV’sini canlı shadow performansı gibi göstermeyen; ticari kullanım, revizyon zamanı ve gerçek ileri-zaman kayıt kanıtı yoksa yayın uygunluğunu zorunlu `blocked` tutan kalıcı blocker defteri
+- Kampanya aşaması, seçilen model/backtest, kaynak parmak izi, metrik pencereleri, drift eşikleri ve sonuç SHA-256 kimliğini iki yeni D1 tablosunda saklayan denetlenebilir CP17C zinciri
+- Yönetici için tek-aşama ve güvenli sıralı-tamamlama kontrolleri; gerçek veri yokken sonuç kartı uydurmayan responsive Shadow Validation paneli
 - Ana sayfa, bekleme listesi, giriş, kayıt, birleşik panel merkezi, kullanıcı dashboardları ve yönetim konsollarını tek yönlendirme mimarisinde birleştiren erişim akışı
 - ChatGPT SIWC ile çalışan gerçek oturum yolu; hazır olmayan Google, Apple ve e-posta sağlayıcılarını açıkça “Lansmanda” durumunda tutan dürüst giriş ekranı
 - İlk güvenli girişte D1 ürün hesabı/profili oluşturan, kullanıcı rolü ile admin/editör rolünü sunucu tarafında ayıran kalıcı hesap katmanı
 - Üretim ortamında tanımlanan sahip e-postasını idempotent biçimde aktif admin rolüyle eşleyen; kaynak kodda e-posta veya erişim anahtarı tutmayan owner bootstrap
 - Varsayılan ilk-kullanıcı-admin davranışını kapatan, yalnız açık legacy ortam bayrağıyla etkinleşebilen fail-closed yönetim yetkisi
-- Kullanıcı için beş dashboardı ve yetkili owner/editör için sekiz operasyon panelini tek ekranda görünür ve doğrudan erişilebilir sunan responsive Panel Merkezi
+- Kullanıcı için beş dashboardı ve yetkili owner/editör için dokuz operasyon panelini tek ekranda görünür ve doğrudan erişilebilir sunan responsive Panel Merkezi
 - Landing üzerindeki temsili ürün ön izlemesini D1 tabanlı gerçek dashboardlardan açıkça ayıran demo/gerçek veri sınırı
 - Responsive, 3D destekli ürün landing sayfası
 - D1 tabanlı futbol veri çekirdeği ve R2 ham veri arşivi
@@ -120,12 +127,12 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.6.0 | CP15 | Waitlist, onboarding/risk testi, Free–Pro–Expert entitlement ve kartsız 72 saatlik deneme temeli | Tamamlandı |
 | v0.6.1 | CP16 | Fail-closed davet/kapasite operasyonu, şifreli token, rate limit, teslim outbox’ı ve zamanlayıcı sözleşmesi | Tamamlandı |
 | v0.7.0-alpha.1 | CP17A | Allowlist public CSV adaptörü, R2 ham arşiv, D1 provenance, 25 sezonluk araştırma kuyruğu ve backtest bootstrap konsolu | Tamamlandı |
-| **v0.7.0-alpha.2** | **CP17B** | **Birleşik giriş/kayıt akışı, D1 hesap başlangıcı, env-tanımlı owner rolü ve kullanıcı + admin Panel Merkezi** | **Mevcut** |
-| v0.7.0-alpha.3 | CP17C | Gerçek veri üzerinde sıralı dataset/backtest koşuları, shadow validation, drift ve lig × model karşılaştırması | Planlandı |
+| v0.7.0-alpha.2 | CP17B | Birleşik giriş/kayıt akışı, D1 hesap başlangıcı, env-tanımlı owner rolü ve kullanıcı + admin Panel Merkezi | Tamamlandı |
+| **v0.7.0-alpha.3** | **CP17C** | **Gerçek veri üzerinde kalıcı sıralı dataset/backtest kampanyaları, fail-closed shadow readiness, drift ve lig × model karşılaştırması** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 
-Ücretli veya herkese açık beta öncesindeki dış bağımlılık kapıları: 3–5 lisanslı pilot lig kaynağı, public site erişimi, public üretim kimlik sağlayıcısı, e-posta relay’i, zamanlayıcı, veri revizyon zamanları, şirket/ödeme altyapısı ve ülke bazlı hukuk incelemesidir. CP17A gerçek tarihsel maç verisiyle model araştırmasını başlatır; CP17B mevcut özel beta içinde bütün gerçek panelleri tek erişim merkezinde görünür kılar. Kaynak üretim lisanslı veya tarihsel oranlar point-in-time kanıtlı gibi gösterilmez. Kapılar kapanmadan model araştırması ilerleyebilir, kullanıcı daveti ve bahis önerisi yayını ilerleyemez.
+Ücretli veya herkese açık beta öncesindeki dış bağımlılık kapıları: 3–5 lisanslı pilot lig kaynağı, public site erişimi, public üretim kimlik sağlayıcısı, e-posta relay’i, zamanlayıcı, veri revizyon zamanları, şirket/ödeme altyapısı ve ülke bazlı hukuk incelemesidir. CP17A gerçek tarihsel maç verisiyle model araştırmasını başlatır; CP17B bütün gerçek panelleri tek erişim merkezinde görünür kılar; CP17C bu araştırma verisini yeniden başlatılabilir dataset/backtest/stabilite kampanyalarına bağlar. Retrospektif stabilite sonucu canlı shadow sonucu değildir. Kapılar kapanmadan model araştırması ilerleyebilir, kullanıcı daveti ve bahis önerisi yayını ilerleyemez.
 
 ## Model güvenlik kuralları
 
@@ -179,6 +186,10 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 48. Kaynak revizyon zamanı ve ticari yeniden kullanım izni açıkça doğrulanmadığı sürece bu adaptörden gelen her ingestion zorunlu research-only kalır ve recommendation-eligible olamaz.
 49. Her haricî çekim dosya boyutu, içerik şeması, lig kodu, skor–sonuç tutarlılığı ve tekrar fikstür açısından doğrulanmalı; ham dosya SHA-256 ile R2’de, provenance kaydı D1’de saklanmalıdır.
 50. Research Feed sayfa açılışında veya zamanlayıcıyla kendiliğinden haricî veri çekemez; mutasyon yalnız admin eylemiyle başlar, editör salt-okunur kalır ve kullanıcı başına saatlik sınır uygulanır.
+51. CP17C kampanyası her istekte yalnız bir ağır aşama çalıştırır; kaynak, dataset, benchmark, evidence ve stabilite bağlantıları D1’de kalıcı tutulur ve sayfa kapanması zinciri sıfırlayamaz.
+52. Aynı değişmez dataset için güncel dört benchmark koşusu varsa yeni koşu üretilmez; model başına tamamlanmış kayıt idempotent biçimde yeniden kullanılır.
+53. Retrospektif erken/geç dönem stabilitesi, sonuçtan önce kaydedilmiş ileri-zaman shadow performansı sayılamaz; `forwardObserved=false` iken yayın uygunluğu her metrikte `blocked` kalır.
+54. Ticari kullanım, revizyon zamanı veya kanıt koşusu eksikliği metrik kartından gizlenemez; her engel koduyla birlikte değişmez shadow validation sonucunda saklanır.
 
 ## Teknoloji
 
@@ -190,7 +201,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Veri depolama mimarisi
 
-- **D1 ana ilişkisel veritabanıdır:** lig, takım, fikstür, istatistik, oran ve bağlam snapshotları, de-vig değer kanıtı, model kanıtı, tahmin yaşam döngüsü, waitlist, şifreli beta davetleri, kapasite ayarı, hız limiti kovaları, erişim operasyon koşuları, kullanıcı profili, risk testi, üyelik olayları, günlük özellik kullanımı, tercih, izleme listesi, kasa/kupon defteri, performans settlement kayıtları, bildirim outbox’ı ve kanal teslimleri burada tutulur.
+- **D1 ana ilişkisel veritabanıdır:** lig, takım, fikstür, istatistik, oran ve bağlam snapshotları, de-vig değer kanıtı, model kanıtı, doğrulama kampanyaları, shadow stabilite sonuçları, tahmin yaşam döngüsü, waitlist, şifreli beta davetleri, kapasite ayarı, hız limiti kovaları, erişim operasyon koşuları, kullanıcı profili, risk testi, üyelik olayları, günlük özellik kullanımı, tercih, izleme listesi, kasa/kupon defteri, performans settlement kayıtları, bildirim outbox’ı ve kanal teslimleri burada tutulur.
 - **R2 ham ve büyük nesne katmanıdır:** kaynak snapshotları, allowlist üzerinden çekilen değişmez araştırma CSV’leri, kontrollü import dosyaları ve gelecekte üretilecek PDF/CSV dışa aktarımları burada tutulur.
 - MVP için ayrı bir PostgreSQL veya analitik veritabanı gerekmez. Trafik ve tarihsel hacim D1 sorgu sınırlarını anlamlı biçimde aşarsa yalnız raporlama amaçlı bir warehouse eklenir; ürünün doğruluk kaynağı D1 kalır.
 - Tarayıcı depolaması kalıcı ürün verisi için kullanılmaz; yalnız geçici arayüz durumu için kullanılabilir.
@@ -228,6 +239,8 @@ lib/benchmark-models.ts      Elo, Poisson ve iki aşamalı Dixon–Coles çekird
 lib/benchmark-suite-store.ts Aynı dataset üzerinde dört dallı deney orkestrasyonu
 lib/evidence-lab.ts          Ablation, kalibrasyon ve temporal holdout çekirdeği
 lib/evidence-lab-store.ts    Tek-seferlik kanıt koşusu ve lig × pazar matrisi
+lib/shadow-validation.ts     Saf erken/geç dönem kalite, drift ve fail-closed blocker motoru
+lib/shadow-validation-store.ts D1 kampanya kuyruğu, aşama orkestrasyonu ve değişmez stabilite sonuçları
 lib/prediction-lifecycle.ts  Saf durum makinesi, final kapısı ve maddi değişiklik protokolü
 lib/prediction-lifecycle-store.ts D1 tahmin sürümü, olay günlüğü ve operasyon projeksiyonu
 lib/prediction-settlement-store.ts Final yayınları gerçek maç sonucuyla değişmez biçimde bağlayan settlement akışı
