@@ -2,6 +2,10 @@ import { requireAdminActor, toAdminApiError } from "@/lib/admin-data";
 import { ResearchFeedHttpError } from "@/lib/football-data-source-store";
 import { ModelLabValidationError } from "@/lib/model-lab";
 import {
+  ResearchAutomationHttpError,
+  runResearchAutomationCycle,
+} from "@/lib/research-automation-store";
+import {
   ShadowValidationHttpError,
   advanceShadowValidationCampaign,
   getShadowValidationOverview,
@@ -55,7 +59,12 @@ export async function POST(request: Request) {
         result: await advanceShadowValidationCampaign(actor, body.campaignId),
       }, { headers: NO_STORE_HEADERS });
     }
-    return Response.json({ error: "action, start veya advance olmalıdır." }, { status: 400, headers: NO_STORE_HEADERS });
+    if (body.action === "run_automation") {
+      return Response.json({
+        result: await runResearchAutomationCycle(actor, "admin"),
+      }, { headers: NO_STORE_HEADERS });
+    }
+    return Response.json({ error: "action, start, advance veya run_automation olmalıdır." }, { status: 400, headers: NO_STORE_HEADERS });
   } catch (error) {
     return errorResponse(error);
   }
@@ -69,6 +78,9 @@ function errorResponse(error: unknown) {
     const headers: Record<string, string> = { ...NO_STORE_HEADERS };
     if (error.retryAfterSeconds) headers["Retry-After"] = String(error.retryAfterSeconds);
     return Response.json({ error: error.message, code: error.code }, { status: error.status, headers });
+  }
+  if (error instanceof ResearchAutomationHttpError) {
+    return Response.json({ error: error.message, code: error.code }, { status: error.status, headers: NO_STORE_HEADERS });
   }
   if (error instanceof ModelLabValidationError) {
     return Response.json({ error: error.message, violations: error.violations }, { status: 400, headers: NO_STORE_HEADERS });

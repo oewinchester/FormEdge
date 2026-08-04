@@ -16,6 +16,13 @@ export const FOOTBALL_DATA_RESEARCH_SEASONS = [
   { code: "2526", label: "2025-26" },
 ] as const;
 
+export const FOOTBALL_DATA_LIVE_SEASON = { code: "2627", label: "2026-27" } as const;
+
+export const FOOTBALL_DATA_ALLOWED_SEASONS = [
+  ...FOOTBALL_DATA_RESEARCH_SEASONS,
+  FOOTBALL_DATA_LIVE_SEASON,
+] as const;
+
 export const FOOTBALL_DATA_PILOT_LEAGUES = [
   { code: "T1", id: "tr-super-lig", name: "Süper Lig", countryCode: "TR", tier: 1 },
   { code: "E0", id: "eng-premier-league", name: "Premier League", countryCode: "GB", tier: 1 },
@@ -25,7 +32,7 @@ export const FOOTBALL_DATA_PILOT_LEAGUES = [
 ] as const;
 
 export type FootballDataLeagueCode = typeof FOOTBALL_DATA_PILOT_LEAGUES[number]["code"];
-export type FootballDataSeasonCode = typeof FOOTBALL_DATA_RESEARCH_SEASONS[number]["code"];
+export type FootballDataSeasonCode = typeof FOOTBALL_DATA_ALLOWED_SEASONS[number]["code"];
 
 export type FootballDataSourceIssue = {
   row: number | null;
@@ -58,7 +65,7 @@ export function resolveFootballDataSelection(leagueCode: unknown, seasonCode: un
     throw new FootballDataSourceError([issue(null, null, "SELECTION_REQUIRED", "Lig ve sezon seçimi gereklidir.")]);
   }
   const league = FOOTBALL_DATA_PILOT_LEAGUES.find((item) => item.code === leagueCode.trim());
-  const season = FOOTBALL_DATA_RESEARCH_SEASONS.find((item) => item.code === seasonCode.trim());
+  const season = FOOTBALL_DATA_ALLOWED_SEASONS.find((item) => item.code === seasonCode.trim());
   if (!league || !season) {
     throw new FootballDataSourceError([issue(
       null,
@@ -90,7 +97,7 @@ export function parseFootballDataCsv(input: {
     throw new FootballDataSourceError([issue(null, null, "FILE_TOO_LARGE", "Kaynak CSV 3 MB güvenlik sınırını aşıyor.")]);
   }
 
-  const matrix = parseDelimited(input.csv);
+  const matrix = parseFootballDataCsvMatrix(input.csv);
   if (matrix.length < 2) {
     throw new FootballDataSourceError([issue(null, null, "NO_DATA_ROWS", "Kaynak CSV veri satırı içermiyor.")]);
   }
@@ -124,13 +131,17 @@ export function parseFootballDataCsv(input: {
     }
     const homeName = required(row.HomeTeam, rowNumber, "HomeTeam", sourceIssues);
     const awayName = required(row.AwayTeam, rowNumber, "AwayTeam", sourceIssues);
-    if (homeName && awayName && normalizeName(homeName) === normalizeName(awayName)) {
+    if (homeName && awayName && normalizeFootballDataTeamName(homeName) === normalizeFootballDataTeamName(awayName)) {
       sourceIssues.push(issue(rowNumber, "AwayTeam", "SAME_TEAM", "Ev ve deplasman takımı aynı olamaz."));
+    }
+    if (season.code === FOOTBALL_DATA_LIVE_SEASON.code
+      && (!row.FTHG?.trim() || !row.FTAG?.trim() || !row.FTR?.trim())) {
+      continue;
     }
     const homeScore = integer(row.FTHG, rowNumber, "FTHG", sourceIssues);
     const awayScore = integer(row.FTAG, rowNumber, "FTAG", sourceIssues);
     const date = required(row.Date, rowNumber, "Date", sourceIssues);
-    const kickoffAt = parseSourceDate(date, row.Time, rowNumber, sourceIssues);
+    const kickoffAt = parseFootballDataKickoff(date, row.Time, rowNumber, sourceIssues);
     if (!row.Time?.trim()) missingKickoffTimeCount += 1;
     if (!homeName || !awayName || homeScore === null || awayScore === null || !kickoffAt) continue;
 
@@ -140,11 +151,11 @@ export function parseFootballDataCsv(input: {
       continue;
     }
 
-    const homeTeamId = teamId(league.code, homeName);
-    const awayTeamId = teamId(league.code, awayName);
+    const homeTeamId = footballDataTeamId(league.code, homeName);
+    const awayTeamId = footballDataTeamId(league.code, awayName);
     registerTeam(teamsById, homeTeamId, homeName, league.countryCode, rowNumber, sourceIssues);
     registerTeam(teamsById, awayTeamId, awayName, league.countryCode, rowNumber, sourceIssues);
-    const fixtureId = sourceFixtureId(league.code, season.code, date, homeName, awayName);
+    const fixtureId = footballDataFixtureId(league.code, season.code, date, homeName, awayName);
     if (fixtureIds.has(fixtureId)) {
       sourceIssues.push(issue(rowNumber, null, "DUPLICATE_FIXTURE", "Aynı kaynak fikstürü CSV içinde birden fazla kez bulunuyor."));
       continue;
@@ -256,23 +267,23 @@ function registerTeam(
   issues: FootballDataSourceIssue[],
 ) {
   const existing = map.get(id);
-  if (existing && normalizeName(existing.name) !== normalizeName(name)) {
+  if (existing && normalizeFootballDataTeamName(existing.name) !== normalizeFootballDataTeamName(name)) {
     issues.push(issue(row, null, "TEAM_ID_COLLISION", "İki farklı takım aynı deterministik kimliği üretti."));
     return;
   }
   if (!existing) map.set(id, { id, name, shortName: null, countryCode });
 }
 
-function sourceFixtureId(code: string, season: string, date: string, home: string, away: string) {
+export function footballDataFixtureId(code: string, season: string, date: string, home: string, away: string) {
   const dateKey = date.replace(/[^0-9]/g, "");
-  return `fd:${code.toLowerCase()}:${season}:${dateKey}:${stableHash(`${normalizeName(home)}|${normalizeName(away)}`)}`;
+  return `fd:${code.toLowerCase()}:${season}:${dateKey}:${footballDataStableHash(`${normalizeFootballDataTeamName(home)}|${normalizeFootballDataTeamName(away)}`)}`;
 }
 
-function teamId(code: string, name: string) {
-  return `fd:${code.toLowerCase()}:team:${stableHash(normalizeName(name))}`;
+export function footballDataTeamId(code: string, name: string) {
+  return `fd:${code.toLowerCase()}:team:${footballDataStableHash(normalizeFootballDataTeamName(name))}`;
 }
 
-function stableHash(value: string) {
+export function footballDataStableHash(value: string) {
   let hash = 0x811c9dc5;
   for (let index = 0; index < value.length; index += 1) {
     hash ^= value.charCodeAt(index);
@@ -281,12 +292,12 @@ function stableHash(value: string) {
   return (hash >>> 0).toString(36).padStart(7, "0");
 }
 
-function normalizeName(value: string) {
+export function normalizeFootballDataTeamName(value: string) {
   return value.trim().toLocaleLowerCase("en-US").normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function parseSourceDate(
+export function parseFootballDataKickoff(
   dateValue: string,
   timeValue: string | undefined,
   row: number,
@@ -345,7 +356,7 @@ function validIso(value: string, field: string) {
   return parsed.toISOString();
 }
 
-function parseDelimited(csv: string) {
+export function parseFootballDataCsvMatrix(csv: string) {
   const rows: string[][] = [[]];
   let value = "";
   let quoted = false;

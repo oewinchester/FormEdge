@@ -39,7 +39,7 @@ test("renders the signed-out Shadow Validation protection wall", async () => {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /Gölge doğrulama paneli korumalıdır/i);
-  assert.match(html, /RETROSPECTIVE ≠ LIVE SHADOW/i);
+  assert.match(html, /FORWARD CAPTURE · FAIL CLOSED/i);
   assert.match(html, /auth\/sign-in/i);
   assert.match(html, /admin%2Fshadow-validation|admin\/shadow-validation/i);
 });
@@ -52,8 +52,10 @@ test("renders the authenticated Shadow Validation control surface without mock r
   });
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /Gerçek veriyi sırayla çek/i);
-  assert.match(html, /Bu, canlı shadow sonucu değildir/i);
+  assert.match(html, /Geçmişte doğrula, maç başlamadan kilitle/i);
+  assert.match(html, /İleri-zaman toplama aktif/i);
+  assert.match(html, /Saatlik araştırma otomasyonu/i);
+  assert.match(html, /Şimdi bir tur çalıştır/i);
   assert.match(html, /Henüz stabilite sonucu yok/i);
 });
 

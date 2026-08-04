@@ -10,8 +10,8 @@ import { ShadowValidationConsole } from "./shadow-validation-console";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Shadow Validation — FormEdge",
-  description: "FormEdge gerçek araştırma verisi, kronolojik backtest ve erken/geç dönem stabilite kontrolü.",
+  title: "Forward Shadow Validation — FormEdge",
+  description: "FormEdge gerçek araştırma verisi, kronolojik backtest ve sonuçtan önce kilitlenen ileri-zaman performans gözlemleri.",
 };
 
 export default async function ShadowValidationPage() {
@@ -22,12 +22,12 @@ export default async function ShadowValidationPage() {
       <main className="admin-auth-shell shadow-auth-shell">
         <section className="admin-auth-card">
           <span className="admin-auth-icon"><LockKeyhole size={24} /></span>
-          <small>FORMEDGE · RESEARCH SHADOW</small>
+          <small>FORMEDGE · FORWARD SHADOW</small>
           <h1>Gölge doğrulama paneli korumalıdır.</h1>
           <p>Gerçek sezon çekimleri, değişmez datasetler ve zamansal drift sonuçları yalnızca yetkili yönetici veya analiz editörleri tarafından görüntülenebilir.</p>
           <a className="admin-primary-link" href={formEdgeSignInPath("/admin/shadow-validation")}><ShieldCheck size={17} />Giriş ekranını aç</a>
           <a className="admin-back-link" href="/portal"><ArrowLeft size={15} />Panel merkezine dön</a>
-          <span className="model-auth-mark"><Radar size={13} />RETROSPECTIVE ≠ LIVE SHADOW</span>
+          <span className="model-auth-mark"><Radar size={13} />FORWARD CAPTURE · FAIL CLOSED</span>
         </section>
       </main>
     );

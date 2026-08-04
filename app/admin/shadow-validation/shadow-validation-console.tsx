@@ -161,6 +161,7 @@ type Overview = {
   pilots: Pilot[];
   campaigns: Campaign[];
   validations: Validation[];
+  automation: AutomationOverview;
 };
 
 type ActionResult = {
@@ -169,6 +170,78 @@ type ActionResult = {
   stageCompleted?: Stage;
   done?: boolean;
   reused: boolean;
+};
+
+type AutomationRun = {
+  id: string;
+  trigger: "admin" | "scheduler";
+  status: "running" | "completed" | "partial" | "failed";
+  liveLeagueCode: string | null;
+  liveResultStatus: string | null;
+  candidateCount: number;
+  predictionsCreated: number;
+  predictionsReused: number;
+  predictionsFailed: number;
+  observationsCaptured: number;
+  observationsSettled: number;
+  observationsPending: number;
+  errorCode: string | null;
+  errorMessage: string | null;
+  startedAt: string;
+  completedAt: string | null;
+};
+
+type AutomationOverview = {
+  totals: {
+    fixtureFeedRuns: number;
+    automationRuns: number;
+    pending: number;
+    settled: number;
+    void: number;
+    invalid: number;
+  };
+  policy: {
+    cron: string;
+    cadence: "hourly";
+    maximumPredictionsPerCycle: number;
+    minimumForwardSamplesPerLeague: number;
+    currentSeason: string;
+    researchOnly: true;
+    recommendationEligible: false;
+    forwardObserved: boolean;
+  };
+  latestRun: AutomationRun | null;
+  latestFeedRun: {
+    status: "fetching" | "imported" | "unchanged" | "failed";
+    sourceRowCount: number;
+    pilotRowCount: number;
+    leagueCount: number;
+    oddsSnapshotCount: number;
+    errorCode: string | null;
+    errorMessage: string | null;
+    startedAt: string;
+    completedAt: string | null;
+  } | null;
+  leagues: Array<{
+    leagueCode: string;
+    leagueId: string;
+    leagueLabel: string;
+    countryCode: string;
+    pending: number;
+    settled: number;
+    void: number;
+    invalid: number;
+    target: number;
+    progress: number;
+    evidenceStatus: string;
+    validation: {
+      status: ValidationStatus;
+      earlyWindow: WindowMetrics;
+      lateWindow: WindowMetrics;
+      blockers: Blocker[];
+    };
+  }>;
+  recentRuns: AutomationRun[];
 };
 
 const STAGES: Array<{ key: Exclude<Stage, "done">; index: string; label: string; note: string }> = [
@@ -190,6 +263,7 @@ export function ShadowValidationConsole({
   const [loading, setLoading] = useState(true);
   const [actingCampaignId, setActingCampaignId] = useState<string | null>(null);
   const [queueLeagueCode, setQueueLeagueCode] = useState<string | null>(null);
+  const [automationRunning, setAutomationRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -245,6 +319,35 @@ export function ShadowValidationConsole({
       setError(reason instanceof Error ? reason.message : "Kampanya başlatılamadı.");
     } finally {
       setActingCampaignId(null);
+    }
+  };
+
+  const runAutomation = async () => {
+    setAutomationRunning(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/admin/shadow-validation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ action: "run_automation" }),
+      });
+      const payload = await response.json() as {
+        result?: { run: AutomationRun | null; reused: boolean };
+        error?: string;
+      };
+      if (!response.ok || !payload.result?.run) {
+        throw new Error(payload.error ?? "Araştırma otomasyon turu tamamlanamadı.");
+      }
+      const run = payload.result.run;
+      setNotice(payload.result.reused
+        ? "Çalışan araştırma otomasyon turu yeniden kullanıldı."
+        : `Otomasyon ${automationStatusLabel(run.status)} · ${run.observationsCaptured} yeni gözlem · ${run.observationsSettled} sonuçlandı.`);
+      await loadOverview();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Araştırma otomasyon turu tamamlanamadı.");
+    } finally {
+      setAutomationRunning(false);
     }
   };
 
@@ -318,30 +421,56 @@ export function ShadowValidationConsole({
           <a href="/admin/notification-ops"><BellRing size={17} />Notification Ops</a>
           <a href="/admin/member-ops"><UsersRound size={17} />Member Ops</a>
         </nav>
-        <div className="admin-sidebar-note shadow-sidebar-note"><LockKeyhole size={18} /><b>Yayın kapısı kapalı</b><p>Retrospektif kamu CSV’si stabilite araştırması üretir; gerçek ileri-zaman shadow performansı veya bahis önerisi üretmez.</p></div>
+        <div className="admin-sidebar-note shadow-sidebar-note"><LockKeyhole size={18} /><b>Yayın kapısı kapalı</b><p>Gerçek ileri-zaman gözlemleri artık toplanır; kaynak hakları ve yeterli örnek doğrulanmadan hiçbir kayıt bahis önerisine dönüşmez.</p></div>
         <a className="admin-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a>
       </aside>
 
       <section className="admin-main">
         <header className="admin-topbar">
-          <div><a href="/portal"><ArrowLeft size={15} />Panel merkezi</a><span>RESEARCH VALIDATION · CP17C</span></div>
+          <div><a href="/portal"><ArrowLeft size={15} />Panel merkezi</a><span>FORWARD SHADOW · CP17D</span></div>
           <div className="admin-user"><span>{initials(user.displayName)}</span><p><b>{user.displayName}</b><small>{overview?.actor.role ?? "yetki kontrol ediliyor"}</small></p></div>
         </header>
 
         <section className="admin-intro shadow-intro" id="overview">
-          <div><small>DATASET → BACKTEST → TEMPORAL DRIFT</small><h1>Gerçek veriyi sırayla çek, modeli geçmişte dürüstçe zorla.</h1><p>Her kampanya beş sezonu tek tek arşivler, zaman-noktalı dataset’i dondurur, dört modeli aynı OOS pencerelerde karşılaştırır ve lideri erken/geç dönem stabilitesinde ölçer.</p></div>
+          <div><small>DATASET → BACKTEST → FORWARD OBSERVATION</small><h1>Geçmişte doğrula, maç başlamadan kilitle, sonuçtan sonra ölç.</h1><p>Retrospektif kampanyalar beş sezonu kronolojik test eder; ayrı ileri-zaman worker’ı yaklaşan maçları sonuç bilinmeden kaydeder ve tamamlanan sonuçlarla kalıcı shadow performansı üretir.</p></div>
           <button type="button" onClick={() => void loadOverview()} disabled={loading}><RefreshCw size={16} className={loading ? "spin" : ""} />Yenile</button>
         </section>
 
         <section className="shadow-truth-strip">
           <ShieldAlert size={20} />
-          <div><b>Bu, canlı shadow sonucu değildir.</b><p>Football-Data.co.uk dosyalarının ticari yeniden kullanım ve revizyon/yakalama zamanı doğrulanmadı. Sonuçlar yalnız araştırma stabilitesi olarak saklanır; kullanıcı önerisine veya release gate yükseltmesine bağlanmaz.</p></div>
+          <div><b>İleri-zaman toplama aktif; ticari yayın hâlâ kapalı.</b><p>Football-Data.co.uk dosyalarının ticari yeniden kullanım ve upstream revizyon/yakalama zamanı doğrulanmadı. Yeni gözlemler maçtan önce değişmez kaydedilir; yeterli lig örneği ve hak doğrulaması olmadan release gate yükselmez.</p></div>
           <span>FAIL-CLOSED</span>
         </section>
 
         {error && <div className="admin-message error"><ShieldAlert size={17} /><span>{error}</span></div>}
         {notice && <div className="admin-message success"><CheckCircle2 size={17} /><span>{notice}</span></div>}
         {overview?.actor.role === "editor" && <div className="shadow-editor-lock"><LockKeyhole size={17} /><div><b>Analiz editörü salt-okunur modda.</b><p>Kaynak çekimi ve kampanya ilerletme yalnız admin rolüne açık; bütün kayıt ve blocker ayrıntılarını görüntüleyebilirsin.</p></div></div>}
+
+        <section className="shadow-automation-card" id="forward-shadow">
+          <header>
+            <div><small>REAL FORWARD OBSERVATION</small><h2>Saatlik araştırma otomasyonu</h2><p>Fikstürü alır, canlı sezon sonuçlarını sırayla günceller, en fazla {overview?.automation.policy.maximumPredictionsPerCycle ?? 6} yaklaşan maçı sonuçtan önce kilitler.</p></div>
+            <button type="button" onClick={() => void runAutomation()} disabled={!isAdmin || automationRunning}>
+              {automationRunning ? <LoaderCircle className="spin" size={15} /> : <Play size={14} />}
+              {automationRunning ? "Otomasyon çalışıyor" : "Şimdi bir tur çalıştır"}
+            </button>
+          </header>
+          <div className="shadow-automation-summary">
+            <article><small>SON TUR</small><b>{overview?.automation.latestRun ? automationStatusLabel(overview.automation.latestRun.status) : "Henüz yok"}</b><p>{overview?.automation.latestRun ? `${formatDate(overview.automation.latestRun.startedAt)} · ${overview.automation.latestRun.trigger === "scheduler" ? "zamanlayıcı" : "admin"}` : "İlk tur manuel veya saatlik cron ile başlar."}</p></article>
+            <article><small>FİKSTÜR SNAPSHOT</small><b>{overview?.automation.latestFeedRun ? feedStatusLabel(overview.automation.latestFeedRun.status) : "Bekliyor"}</b><p>{overview?.automation.latestFeedRun ? `${overview.automation.latestFeedRun.pilotRowCount} pilot maç · ${overview.automation.latestFeedRun.oddsSnapshotCount} araştırma oranı` : "Gerçek kaynak dışında örnek satır üretilmez."}</p></article>
+            <article><small>SONUÇ BEKLEYEN</small><b>{overview?.automation.totals.pending ?? 0}</b><p>Maçtan önce kilitlenmiş 1-X-2 gözlemi</p></article>
+            <article><small>SONUÇLANAN</small><b>{overview?.automation.totals.settled ?? 0}</b><p>Lig başına hedef {overview?.automation.policy.minimumForwardSamplesPerLeague ?? 40}</p></article>
+            <article><small>ZAMANLAMA</small><b>Saat :17</b><p>Her saat · ETag/checksum korumalı</p></article>
+          </div>
+          {overview?.automation.latestRun?.status === "partial" && <div className="shadow-automation-warning"><AlertTriangle size={14} /><span><b>Son tur kısmi tamamlandı.</b> Fikstür veya canlı sonuç kaynağı geçici olarak alınamadı; kaydedilmiş aşamalar korunur ve sonraki saat yeniden denenir.</span></div>}
+          <div className="shadow-forward-grid">
+            {(overview?.automation.leagues ?? []).map((league) => <article key={league.leagueCode}>
+              <header><span>{league.countryCode}</span><div><small>{league.leagueCode} · 1X2</small><b>{league.leagueLabel}</b></div><em>{league.settled}/{league.target}</em></header>
+              <div className="shadow-progress-track"><span style={{ width: `${Math.round(league.progress * 100)}%` }} /></div>
+              <footer><span>{league.pending} bekliyor</span><span>{league.settled} sonuçlandı</span><span>{league.validation.status === "stable" ? "stabil" : "kapı kapalı"}</span></footer>
+            </article>)}
+          </div>
+          <footer><TimerReset size={14} /><span>Cron: <code>{overview?.automation.policy.cron ?? "17 * * * *"}</code>. İlk tahmin sürümü fixture başına tek forward gözlem olarak korunur; sonraki sürümler ilk kaydı değiştirmez.</span></footer>
+        </section>
 
         <section className="admin-count-grid shadow-count-grid">
           <CountCard label="PİLOT LİG" value={overview?.totals.pilots ?? 0} note="allowlist" icon={DatabaseZap} loading={loading} />
@@ -405,7 +534,7 @@ export function ShadowValidationConsole({
           </tbody></table></div>
         </section>
 
-        <footer className="admin-footer"><span>FormEdge Shadow Validation · CP17C · research-only</span><a href="/admin/model-lab">Model Lab’e dön <ChevronRight size={13} /></a></footer>
+        <footer className="admin-footer"><span>FormEdge Forward Shadow · CP17D · research-only</span><a href="/admin/model-lab">Model Lab’e dön <ChevronRight size={13} /></a></footer>
       </section>
     </main>
   );
@@ -451,6 +580,14 @@ function campaignStatusLabel(status: CampaignStatus) {
 
 function validationStatusLabel(status: ValidationStatus) {
   return { invalid: "Geçersiz", insufficient: "Yetersiz", stable: "Stabil sinyal", unstable: "Stabil değil" }[status];
+}
+
+function automationStatusLabel(status: AutomationRun["status"]) {
+  return { running: "Çalışıyor", completed: "Tamamlandı", partial: "Kısmi", failed: "Başarısız" }[status];
+}
+
+function feedStatusLabel(status: "fetching" | "imported" | "unchanged" | "failed") {
+  return { fetching: "Alınıyor", imported: "İçe aktarıldı", unchanged: "Değişmedi", failed: "Başarısız" }[status] ?? status;
 }
 
 function modelLabel(code: string | null | undefined) {

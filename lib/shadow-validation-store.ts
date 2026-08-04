@@ -24,6 +24,7 @@ import {
 } from "@/lib/football-data-source-store";
 import { ModelLabValidationError } from "@/lib/model-lab";
 import { createPointInTimeDataset } from "@/lib/point-in-time-dataset-store";
+import { getResearchAutomationOverview } from "@/lib/research-automation-store";
 import {
   SHADOW_VALIDATION_SCHEMA_VERSION,
   defaultShadowValidationThresholds,
@@ -47,10 +48,11 @@ export class ShadowValidationHttpError extends Error {
 
 export async function getShadowValidationOverview(actor: AdminActor) {
   const db = await getDb();
-  const [campaignRows, validationRows, sourceStates] = await Promise.all([
+  const [campaignRows, validationRows, sourceStates, automation] = await Promise.all([
     db.select().from(validationCampaigns).orderBy(desc(validationCampaigns.startedAt)).limit(60),
     db.select().from(shadowValidationRuns).orderBy(desc(shadowValidationRuns.createdAt)).limit(60),
     Promise.all(FOOTBALL_DATA_PILOT_LEAGUES.map((league) => getLeagueSourceState(league.code))),
+    getResearchAutomationOverview(actor),
   ]);
   const validationByCampaign = new Map(validationRows.map((row) => [row.campaignId, publicValidation(row)]));
   const campaigns = campaignRows.map((row) => ({
@@ -95,6 +97,7 @@ export async function getShadowValidationOverview(actor: AdminActor) {
     pilots,
     campaigns,
     validations: validationRows.map(publicValidation),
+    automation,
   };
 }
 
