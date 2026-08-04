@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  delivery-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Install locked dependencies
+        run: npm run install:ci
+      - name: Verify migration chain
+        run: npm run verify:migrations
+      - name: Scan tracked source for secrets
+        run: npm run verify:secrets
+      - name: Report launch readiness without secret values
+        run: npm run readiness
+      - name: Lint
+        run: npm run lint
+      - name: Build and validate Sites artifact
+        run: npm run build
+      - name: Run complete test suite against the built artifact
+        run: npm run test:built

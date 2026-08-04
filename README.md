@@ -7,7 +7,16 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.8 · Checkpoint 17H · Aşama 7 / Research Operations Gate**
+**v0.7.0-alpha.9 · Checkpoint 17I · Aşama 7 / Delivery Integrity & CI Baseline**
+
+- GitHub push ve pull request’lerinde migration bütünlüğü, yüksek güvenli secret taraması, hazırlık özeti, lint, build, artifact doğrulaması ve bütün testleri zorunlu sırada çalıştıran CI kapısı
+- JavaScript/TypeScript için haftalık ve değişiklik bazlı CodeQL analizi; npm ve GitHub Actions bağımlılıklarını kontrollü gruplarla izleyen Dependabot politikası
+- HTML, API ve görsel optimizasyon yanıtlarına CSP, HSTS, clickjacking, MIME sniffing, referrer ve izin politikalarını tek Worker katmanında uygulayan üretim güvenlik başlıkları
+- Drizzle journal, SQL migration ve schema snapshot zincirini sıra, eksik/fazla dosya, JSON geçerliliği ve SHA-256 parmak iziyle fail-closed doğrulayan migration denetimi
+- Public beta, owner, davet, scheduler ve bildirim yapılandırmasını yalnız boolean durum/blocker kodlarıyla raporlayan; gizli değerleri hiçbir çıktıya taşımayan launch-readiness sözleşmesi
+- CI’nin render testlerini yalnız doğrulanmış üretim artifact’i oluştuktan sonra çalıştırmasını zorunlu kılan açık build → test sıralaması
+
+Önceki checkpoint: **v0.7.0-alpha.8 · Checkpoint 17H · Research Operations Gate**
 
 - Forward ve tarihsel worker sağlığını tek fail-closed araştırma operasyon kapısında birleştiren deterministik değerlendirme
 - Worker başlamadı, gecikti veya son turda hata/kısmi sonuç ürettiğinde açık blocker kodları ve operatör görünümü
@@ -163,7 +172,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.7.0-alpha.5 | CP17E | Ayrı saatlik tarihsel kampanya worker’ı, D1 iş ayrımı ve kademeli backtest ilerleme konsolu | Tamamlandı |
 | v0.7.0-alpha.6 | CP17F | Repo-sınırlı deploy key, fast-forward checkpoint mirror, HTTPS tüneli ve yeniden-deneme durumu | Tamamlandı |
 | v0.7.0-alpha.7 | CP17G | D1 tabanlı otomasyon sağlığı, süre/hata geçmişi ve lig × aşama Research Observatory | Tamamlandı |
-| **v0.7.0-alpha.8** | **CP17H** | **Forward + tarihsel worker için birleşik fail-closed Research Operations Gate ve açık blocker kodları** | **Mevcut** |
+| v0.7.0-alpha.8 | CP17H | Forward + tarihsel worker için birleşik fail-closed Research Operations Gate ve açık blocker kodları | Tamamlandı |
+| **v0.7.0-alpha.9** | **CP17I** | **CI, CodeQL, Dependabot, üretim güvenlik başlıkları, migration/secret doğrulaması ve secret-safe launch readiness** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 

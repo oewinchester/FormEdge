@@ -6,6 +6,7 @@ import {
   runResearchAutomationCycle,
 } from "../lib/research-automation-store";
 import { runHistoricalValidationAutomationCycle } from "../lib/shadow-validation-store";
+import { applySecurityHeaders } from "../lib/security-headers";
 
 interface Env {
   ASSETS: Fetcher;
@@ -41,16 +42,18 @@ const worker = {
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
-      return handleImageOptimization(request, {
+      const response = await handleImageOptimization(request, {
         fetchAsset: (path) => env.ASSETS.fetch(new Request(new URL(path, request.url))),
         transformImage: async (body, { width, format, quality }) => {
           const result = await env.IMAGES.input(body).transform(width > 0 ? { width } : {}).output({ format, quality });
           return result.response();
         },
       }, allowedWidths);
+      return applySecurityHeaders(response, url);
     }
 
-    return handler.fetch(request, env, ctx);
+    const response = await handler.fetch(request, env, ctx);
+    return applySecurityHeaders(response, url);
   },
   async scheduled(controller: ScheduledController, _env: Env, ctx: ExecutionContext): Promise<void> {
     const task = controller.cron === "47 * * * *"
