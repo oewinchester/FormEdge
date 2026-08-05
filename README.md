@@ -7,7 +7,16 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.9 · Checkpoint 17I · Aşama 7 / Delivery Integrity & CI Baseline**
+**v0.7.0-alpha.10 · Checkpoint 17J · Aşama 2 / Data Lineage Explorer Foundation**
+
+- Her yeni tahmin sürümüyle aynı D1 batch işleminde yazılan, SHA-256 kimlikli ve değişmez `prediction-lineage-v1` manifesti
+- Hedef fikstür, benchmark geçmişi, istatistik, oran, kadro ve bağlam kayıtlarını kaynak ingestion run’larına bağlayan normalize provenance sözleşmesi
+- Ham R2 snapshotı → normalize D1 kaydı → point-in-time feature → model sürümü → yayın kararı zincirini beş aşamada denetleyen korumalı Data Lineage gezgini
+- Eksik manifest, run, ham snapshot, capture zamanı, lisans, feature cutoff, model veya yayın kararını açık blocker kodlarıyla fail-closed tutan saf denetim motoru
+- Ham payload’ı istemciye taşımayan; yalnız kaynak kimliği, checksum ve karar kanıtı gösteren veri minimizasyonu sınırı
+- Lineage zinciri tamamlansa bile öneri uygunluğunu açmayan zorunlu `research-only` ve `RECOMMENDATION: OFF` politikası
+
+Önceki checkpoint: **v0.7.0-alpha.9 · Checkpoint 17I · Delivery Integrity & CI Baseline**
 
 - GitHub push ve pull request’lerinde migration bütünlüğü, yüksek güvenli secret taraması, hazırlık özeti, lint, build, artifact doğrulaması ve bütün testleri zorunlu sırada çalıştıran CI kapısı
 - JavaScript/TypeScript için haftalık ve değişiklik bazlı CodeQL analizi; npm ve GitHub Actions bağımlılıklarını kontrollü gruplarla izleyen Dependabot politikası
@@ -173,7 +182,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.7.0-alpha.6 | CP17F | Repo-sınırlı deploy key, fast-forward checkpoint mirror, HTTPS tüneli ve yeniden-deneme durumu | Tamamlandı |
 | v0.7.0-alpha.7 | CP17G | D1 tabanlı otomasyon sağlığı, süre/hata geçmişi ve lig × aşama Research Observatory | Tamamlandı |
 | v0.7.0-alpha.8 | CP17H | Forward + tarihsel worker için birleşik fail-closed Research Operations Gate ve açık blocker kodları | Tamamlandı |
-| **v0.7.0-alpha.9** | **CP17I** | **CI, CodeQL, Dependabot, üretim güvenlik başlıkları, migration/secret doğrulaması ve secret-safe launch readiness** | **Mevcut** |
+| v0.7.0-alpha.9 | CP17I | CI, CodeQL, Dependabot, üretim güvenlik başlıkları, migration/secret doğrulaması ve secret-safe launch readiness | Tamamlandı |
+| **v0.7.0-alpha.10** | **CP17J** | **Değişmez prediction lineage manifesti, kaynak/run/R2/feature/model/yayın zinciri ve fail-closed Data Lineage gezgini** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 
@@ -240,6 +250,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 57. Fikstür akışındaki oranlar tahmini değiştiremez; upstream capture zamanı doğrulanmadığı için yalnız research snapshot olarak kalır ve recommendation-eligible olamaz.
 58. Bir lig için en az 40 sonuçlanmış gerçek ileri-zaman gözlemi, iki 20’lik zaman penceresi ve bütün kalite/drift kapıları tamamlanmadan forward stabilite adayı üretilemez.
 59. Tarihsel worker her saat `:47` için tek kampanya aşaması ilerletir; `:17` forward worker’ıyla kilit paylaşmaz, bütün tur ve hata sonuçlarını iş türüyle D1’e yazar ve retrospektif sonucu hiçbir zaman forward gözlem gibi işaretleyemez.
+60. Tahmin lineage manifestindeki kaynak/run/R2/feature/model/yayın bağlarından biri eksik veya doğrulanamazsa zincir fail-closed bloklanır; tam lineage kaydı tek başına kullanıcı önerisi ya da ticari yayın uygunluğu üretemez.
 
 ## Teknoloji
 

@@ -127,6 +127,13 @@
       "when": 1785837409370,
       "tag": "0017_last_meteorite",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1785945460921,
+      "tag": "0018_useful_silverclaw",
+      "breakpoints": true
     }
   ]
 }

@@ -19,6 +19,7 @@ import {
   modelVersions,
   oddsSnapshots,
   predictionEvents,
+  predictionLineageRecords,
   predictionThreads,
   predictionVersions,
   releaseGates,
@@ -55,6 +56,11 @@ import {
   type TeamContextInput,
 } from "@/lib/context-engine";
 import { enqueuePredictionNotificationEvent } from "@/lib/notification-store";
+import {
+  buildPredictionLineageManifest,
+  canonicalLineageJson,
+  type LineageSourceReference,
+} from "@/lib/data-lineage";
 
 const INITIAL_WINDOW_HOURS = 72;
 const MINIMUM_TIME_TO_KICKOFF_MINUTES = 30;
@@ -205,6 +211,7 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
     homeTeamId: fixtures.homeTeamId,
     awayTeamId: fixtures.awayTeamId,
     status: fixtures.status,
+    ingestionRunId: fixtures.ingestionRunId,
   }).from(fixtures)
     .innerJoin(leagues, eq(fixtures.leagueId, leagues.id))
     .where(eq(fixtures.id, fixtureId.trim()))
@@ -230,6 +237,7 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
       status: fixtures.status,
       homeScore: fixtures.homeScore,
       awayScore: fixtures.awayScore,
+      ingestionRunId: fixtures.ingestionRunId,
     }).from(fixtures).where(eq(fixtures.leagueId, target.leagueId)),
     db.select({
       fixtureId: teamMatchStats.fixtureId,
@@ -242,6 +250,7 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
       penaltyAreaEntries: teamMatchStats.penaltyAreaEntries,
       ppda: teamMatchStats.ppda,
       bigChancesAllowed: teamMatchStats.bigChancesAllowed,
+      ingestionRunId: teamMatchStats.ingestionRunId,
     }).from(teamMatchStats)
       .innerJoin(fixtures, eq(teamMatchStats.fixtureId, fixtures.id))
       .where(eq(fixtures.leagueId, target.leagueId)),
@@ -253,6 +262,7 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
       selection: oddsSnapshots.selection,
       decimalOdds: oddsSnapshots.decimalOdds,
       capturedAt: oddsSnapshots.capturedAt,
+      ingestionRunId: oddsSnapshots.ingestionRunId,
     }).from(oddsSnapshots)
       .innerJoin(fixtures, eq(oddsSnapshots.fixtureId, fixtures.id))
       .where(eq(fixtures.leagueId, target.leagueId)),
@@ -322,6 +332,7 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
     ? (await db.select().from(predictionVersions)
       .where(eq(predictionVersions.id, thread.currentVersionId)).limit(1))[0] ?? null
     : null;
+  const threadId = thread?.id ?? crypto.randomUUID();
   const valueOddsFingerprint = await predictionIdentity(oddsRows
     .filter((quote) => (
       quote.fixtureId === target.id
@@ -355,7 +366,132 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
     researchOnly,
     fixtureStatus: target.status,
   });
+  const historyFixtureIds = new Set([
+    ...forecast.featurePayload.provenance.homeHistoryFixtureIds,
+    ...forecast.featurePayload.provenance.awayHistoryFixtureIds,
+    ...forecast.featurePayload.provenance.h2hFixtureIds,
+  ]);
+  const predictionAtMs = Date.parse(forecast.predictionAt);
+  const benchmarkFixtureRows = fixtureRows.filter((row) => (
+    row.status === "finished"
+    && Number.isInteger(row.homeScore)
+    && Number.isInteger(row.awayScore)
+    && (row.homeScore ?? -1) >= 0
+    && (row.awayScore ?? -1) >= 0
+    && row.homeTeamId !== row.awayTeamId
+    && Date.parse(row.kickoffAt) + RESULT_AVAILABILITY_HOURS * 3_600_000 <= predictionAtMs
+  ));
+  const selectedOddsRows = (() => {
+    if (!forecast.odds) return [];
+    const selectedByOutcome = new Map<string, (typeof oddsRows)[number]>();
+    for (const row of oddsRows) {
+      const outcome = row.selection.toUpperCase();
+      if (
+        row.fixtureId !== target.id
+        || row.bookmaker !== forecast.odds.bookmaker
+        || Date.parse(row.capturedAt) !== Date.parse(forecast.odds.capturedAt)
+        || row.market.toUpperCase() !== "1X2"
+        || !(["1", "X", "2"] as string[]).includes(outcome)
+        || !Number.isFinite(row.decimalOdds)
+        || row.decimalOdds <= 1
+      ) continue;
+      const current = selectedByOutcome.get(outcome);
+      if (!current || row.id.localeCompare(current.id) > 0) selectedByOutcome.set(outcome, row);
+    }
+    return ["1", "X", "2"].flatMap((outcome) => {
+      const row = selectedByOutcome.get(outcome);
+      return row ? [row] : [];
+    });
+  })();
+  const selectedLineupRows = lineupRows.filter((row) => lineup.snapshotIds.includes(row.id));
+  const selectedContextRow = context.snapshotId
+    ? contextRows.find((row) => row.id === context.snapshotId) ?? null
+    : null;
+  const sourceReferences: LineageSourceReference[] = [
+    {
+      purpose: "target_fixture",
+      entityType: "fixture",
+      entityId: target.id,
+      ingestionRunId: target.ingestionRunId,
+    },
+    ...benchmarkFixtureRows.map((row): LineageSourceReference => ({
+      purpose: "benchmark_fixture",
+      entityType: "fixture",
+      entityId: row.id,
+      ingestionRunId: row.ingestionRunId,
+    })),
+    ...statRows
+      .filter((row) => historyFixtureIds.has(row.fixtureId))
+      .map((row): LineageSourceReference => ({
+        purpose: "historical_stat",
+        entityType: "team_match_stat",
+        entityId: `${row.fixtureId}|${row.teamId}`,
+        ingestionRunId: row.ingestionRunId,
+      })),
+    ...selectedOddsRows.map((row): LineageSourceReference => ({
+      purpose: "market_odds",
+      entityType: "odds_snapshot",
+      entityId: row.id,
+      ingestionRunId: row.ingestionRunId,
+    })),
+    ...selectedLineupRows.map((row): LineageSourceReference => ({
+      purpose: "lineup",
+      entityType: "lineup_snapshot",
+      entityId: row.id,
+      ingestionRunId: row.ingestionRunId,
+    })),
+    ...(selectedContextRow ? [{
+      purpose: "fixture_context" as const,
+      entityType: "fixture_context_snapshot" as const,
+      entityId: selectedContextRow.id,
+      ingestionRunId: selectedContextRow.ingestionRunId,
+    }] : []),
+  ];
+  const buildLineageRecordValues = async (
+    predictionVersionId: string,
+  ): Promise<typeof predictionLineageRecords.$inferInsert> => {
+    const lineage = await buildPredictionLineageManifest({
+      predictionVersionId,
+      threadId,
+      fixtureId: target.id,
+      predictionAt: forecast.predictionAt,
+      featureCutoffAt: forecast.featureCutoffAt,
+      featureFingerprint: forecast.featureFingerprint,
+      modelCode: "form-dominance-baseline",
+      modelVersionId: modelRows[0]?.id ?? null,
+      normalized: {
+        targetFixtureId: target.id,
+        homeHistoryFixtureIds: forecast.featurePayload.provenance.homeHistoryFixtureIds,
+        awayHistoryFixtureIds: forecast.featurePayload.provenance.awayHistoryFixtureIds,
+        h2hFixtureIds: forecast.featurePayload.provenance.h2hFixtureIds,
+        benchmarkHistoryFingerprint: forecast.featurePayload.provenance.benchmarkHistoryFingerprint,
+        selectedOddsSnapshotIds: selectedOddsRows.map((row) => row.id),
+        lineupSnapshotIds: lineup.snapshotIds,
+        contextSnapshotId: context.snapshotId,
+      },
+      sourceReferences,
+    });
+    return {
+      id: crypto.randomUUID(),
+      predictionVersionId,
+      threadId,
+      fixtureId: target.id,
+      schemaVersion: lineage.manifest.schemaVersion,
+      featureFingerprint: forecast.featureFingerprint,
+      featureCutoffAt: forecast.featureCutoffAt,
+      modelVersionId: modelRows[0]?.id ?? null,
+      manifestJson: canonicalLineageJson(lineage.manifest),
+      manifestChecksumSha256: lineage.checksumSha256,
+      blockerCodesJson: canonicalLineageJson(lineage.manifest.blockerCodes),
+      researchOnly: true,
+      recommendationEligible: false,
+      createdByEmail: actor.email,
+    };
+  };
   if (previousVersion?.versionFingerprint === versionFingerprint) {
+    const lineageValues = await buildLineageRecordValues(previousVersion.id);
+    await db.insert(predictionLineageRecords).values(lineageValues)
+      .onConflictDoNothing({ target: predictionLineageRecords.predictionVersionId });
     const valueAssessment = await ensureValueAssessmentForVersion(actor, previousVersion.id);
     await syncThreadValueEligibility(
       thread as typeof predictionThreads.$inferSelect,
@@ -371,7 +507,6 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
     };
   }
 
-  const threadId = thread?.id ?? crypto.randomUUID();
   const versionId = crypto.randomUUID();
   const versionNumber = (thread?.versionCount ?? 0) + 1;
   const eventSequence = (thread?.eventCount ?? 0) + 1;
@@ -443,6 +578,7 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
     payloadJson,
     createdByEmail: actor.email,
   };
+  const lineageValues = await buildLineageRecordValues(versionId);
 
   if (!thread) {
     const status = transitionPredictionStatus(null, "watchlisted");
@@ -466,6 +602,7 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
         updatedAt: nowIso,
       }),
       db.insert(predictionVersions).values(versionValues),
+      db.insert(predictionLineageRecords).values(lineageValues),
       db.insert(predictionEvents).values({
         id: crypto.randomUUID(),
         threadId,
@@ -567,6 +704,7 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
     });
     await db.batch([
       db.insert(predictionVersions).values(versionValues),
+      db.insert(predictionLineageRecords).values(lineageValues),
       versionEvent,
       withdrawalEvent,
       threadUpdate,
@@ -576,6 +714,7 @@ export async function createPredictionVersion(actor: AdminActor, fixtureId: stri
   } else {
     await db.batch([
       db.insert(predictionVersions).values(versionValues),
+      db.insert(predictionLineageRecords).values(lineageValues),
       versionEvent,
       threadUpdate,
       auditInsert,

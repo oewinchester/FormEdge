@@ -1066,6 +1066,34 @@ export const predictionVersions = sqliteTable(
   ],
 );
 
+export const predictionLineageRecords = sqliteTable(
+  "prediction_lineage_records",
+  {
+    id: text("id").primaryKey(),
+    predictionVersionId: text("prediction_version_id").notNull().references(() => predictionVersions.id),
+    threadId: text("thread_id").notNull().references(() => predictionThreads.id),
+    fixtureId: text("fixture_id").notNull().references(() => fixtures.id),
+    schemaVersion: text("schema_version").notNull(),
+    featureFingerprint: text("feature_fingerprint").notNull(),
+    featureCutoffAt: text("feature_cutoff_at").notNull(),
+    modelVersionId: text("model_version_id").references(() => modelVersions.id),
+    manifestJson: text("manifest_json").notNull(),
+    manifestChecksumSha256: text("manifest_checksum_sha256").notNull(),
+    blockerCodesJson: text("blocker_codes_json").notNull().default("[]"),
+    researchOnly: integer("research_only", { mode: "boolean" }).notNull().default(true),
+    recommendationEligible: integer("recommendation_eligible", { mode: "boolean" }).notNull().default(false),
+    createdByEmail: text("created_by_email").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("prediction_lineage_records_version_unique").on(table.predictionVersionId),
+    uniqueIndex("prediction_lineage_records_checksum_unique").on(table.manifestChecksumSha256),
+    index("prediction_lineage_records_thread_idx").on(table.threadId, table.createdAt),
+    index("prediction_lineage_records_fixture_idx").on(table.fixtureId, table.createdAt),
+    index("prediction_lineage_records_model_idx").on(table.modelVersionId),
+  ],
+);
+
 export const forwardShadowObservations = sqliteTable(
   "forward_shadow_observations",
   {

@@ -268,6 +268,7 @@ export function PredictionOpsConsole({ user, signOutPath }: Props) {
         <nav>
           <a href="/portal"><Database size={17} />Panel merkezi</a>
           <a href="/admin"><Database size={17} />Veri konsolu</a>
+          <a href="/admin/data-lineage"><GitBranch size={17} />Data Lineage</a>
           <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>
           <a href="/admin/shadow-validation"><Radar size={17} />Shadow Validation</a>
           <a className="active" href="#overview"><ListChecks size={17} />Prediction Ops</a>
