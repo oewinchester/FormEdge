@@ -134,6 +134,13 @@
       "when": 1785945460921,
       "tag": "0018_useful_silverclaw",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1785948226903,
+      "tag": "0019_lush_radioactive_man",
+      "breakpoints": true
     }
   ]
 }

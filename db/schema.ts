@@ -1094,6 +1094,43 @@ export const predictionLineageRecords = sqliteTable(
   ],
 );
 
+export const leagueOnboardingAssessments = sqliteTable(
+  "league_onboarding_assessments",
+  {
+    id: text("id").primaryKey(),
+    leagueId: text("league_id").notNull().references(() => leagues.id),
+    sourceId: text("source_id").notNull().references(() => dataSources.id),
+    schemaVersion: text("schema_version").notNull(),
+    evidenceFingerprintSha256: text("evidence_fingerprint_sha256").notNull(),
+    score: integer("score").notNull(),
+    grade: text("grade", { enum: ["A", "B", "C", "D"] }).notNull(),
+    state: text("state", { enum: ["blocked", "review", "ready_for_research"] }).notNull(),
+    licenseScore: integer("license_score").notNull(),
+    historyDepthScore: integer("history_depth_score").notNull(),
+    identityMappingScore: integer("identity_mapping_score").notNull(),
+    advancedDataScore: integer("advanced_data_score").notNull(),
+    lineupCoverageScore: integer("lineup_coverage_score").notNull(),
+    oddsTimestampScore: integer("odds_timestamp_score").notNull(),
+    sourceSlaScore: integer("source_sla_score").notNull(),
+    blockerCount: integer("blocker_count").notNull().default(0),
+    warningCount: integer("warning_count").notNull().default(0),
+    blockerCodesJson: text("blocker_codes_json").notNull().default("[]"),
+    warningCodesJson: text("warning_codes_json").notNull().default("[]"),
+    manifestJson: text("manifest_json").notNull(),
+    researchOnly: integer("research_only", { mode: "boolean" }).notNull().default(true),
+    recommendationEligible: integer("recommendation_eligible", { mode: "boolean" }).notNull().default(false),
+    evaluatedByEmail: text("evaluated_by_email").notNull(),
+    evaluatedAt: text("evaluated_at").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("league_onboarding_assessments_evidence_unique").on(table.evidenceFingerprintSha256),
+    index("league_onboarding_assessments_league_time_idx").on(table.leagueId, table.evaluatedAt),
+    index("league_onboarding_assessments_source_time_idx").on(table.sourceId, table.evaluatedAt),
+    index("league_onboarding_assessments_state_score_idx").on(table.state, table.score),
+  ],
+);
+
 export const forwardShadowObservations = sqliteTable(
   "forward_shadow_observations",
   {

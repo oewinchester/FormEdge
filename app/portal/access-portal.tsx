@@ -12,6 +12,7 @@ import {
   Database,
   DatabaseZap,
   FlaskConical,
+  Gauge,
   GitBranch,
   LayoutDashboard,
   LineChart,
@@ -37,6 +38,7 @@ const USER_SURFACES = [
 const ADMIN_SURFACES = [
   { href: "/admin", label: "Veri konsolu", note: "Kaynaklar, importlar ve veri sağlığı", icon: Database },
   { href: "/admin/research-feed", label: "Research Feed", note: "Gerçek CSV çekimi ve ham kaynak arşivi", icon: DatabaseZap },
+  { href: "/admin/league-onboarding", label: "Lig Onboarding", note: "Kanıtlı, fail-closed lig ve kaynak kalite puanı", icon: Gauge },
   { href: "/admin/data-lineage", label: "Data Lineage", note: "Kaynaktan yayın kararına değişmez kanıt zinciri", icon: GitBranch },
   { href: "/admin/model-lab", label: "Model Lab", note: "Dataset, benchmark ve kanıt matrisi", icon: FlaskConical },
   { href: "/admin/shadow-validation", label: "Shadow Validation", note: "Gerçek veri kuyruğu, backtest ve zamansal drift", icon: Radar },

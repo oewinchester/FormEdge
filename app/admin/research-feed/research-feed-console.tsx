@@ -17,6 +17,7 @@ import {
   FileClock,
   FileWarning,
   FlaskConical,
+  Gauge,
   History,
   ListChecks,
   LoaderCircle,
@@ -238,6 +239,7 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
           <a href="/portal"><Database size={17} />Panel merkezi</a>
           <a href="/admin"><Database size={17} />Veri konsolu</a>
           <a className="active" href="#overview"><DatabaseZap size={17} />Research Feed</a>
+          <a href="/admin/league-onboarding"><Gauge size={17} />Lig Onboarding</a>
           <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>
           <a href="/admin/shadow-validation"><Radar size={17} />Shadow Validation</a>
           <a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a>

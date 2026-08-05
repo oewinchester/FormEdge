@@ -7,7 +7,15 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.10 · Checkpoint 17J · Aşama 2 / Data Lineage Explorer Foundation**
+**v0.7.0-alpha.11 · Checkpoint 17K · Aşama 2 / League Onboarding Quality Score**
+
+- Her lig–kaynak çiftini lisans `%20`, geçmiş derinliği `%20`, kimlik eşleme `%15`, gelişmiş veri `%15`, kadro `%10`, kickoff öncesi oran bütünlüğü `%10` ve kaynak SLA `%10` ağırlıklarıyla değerlendiren deterministik `league-onboarding-quality-v1` sözleşmesi
+- Lisans, minimum 40 bitmiş maç, kimlik eşleme, gelişmiş veri, oran zamanı veya SLA kanıtı eşikleri sağlanmadığında açık blocker kodlarıyla fail-closed kalan araştırma hazırlık kapısı
+- Saatlik kanıt penceresini SHA-256 parmak iziyle değişmez D1 assessment kaydına dönüştüren, aynı kanıtı yeniden yazmayan ve her yeni snapshot’ı audit log’a bağlayan kalıcı değerlendirme defteri
+- Canlı kanıt ile son kaydedilmiş snapshot arasındaki bayatlığı, yedi bileşenin puan/ağırlıklarını ve bütün blocker/uyarı kodlarını gösteren korumalı responsive Lig Onboarding konsolu
+- `ready_for_research` ve 100/100 sonuçlarında dahi `researchOnly=true`, `recommendationEligible=false` ve `scoreCanOpenRecommendationGate=false` sınırlarını zorunlu tutan analiz-only politika
+
+Önceki checkpoint: **v0.7.0-alpha.10 · Checkpoint 17J · Data Lineage Explorer Foundation**
 
 - Her yeni tahmin sürümüyle aynı D1 batch işleminde yazılan, SHA-256 kimlikli ve değişmez `prediction-lineage-v1` manifesti
 - Hedef fikstür, benchmark geçmişi, istatistik, oran, kadro ve bağlam kayıtlarını kaynak ingestion run’larına bağlayan normalize provenance sözleşmesi
@@ -343,6 +351,8 @@ lib/football-data-source.ts      Allowlist URL üretimi ve saf Football-Data CSV
 lib/football-data-source-store.ts Haricî çekim, R2 ham arşiv, D1 provenance ve research-only import orkestrasyonu
 lib/football-data-fixture-feed.ts Yaklaşan fikstür ve araştırma 1X2 snapshotlarını normalize eden saf allowlist adaptörü
 lib/research-automation-store.ts Saatlik fikstür/sonuç toplama, tahmin kilitleme, settlement ve forward-shadow projeksiyonu
+lib/league-onboarding-quality.ts Saf lig–kaynak onboarding puanı, eşikler ve fail-closed blocker sözleşmesi
+lib/league-onboarding-store.ts Canlı kalite kanıtı, değişmez D1 snapshot’ı ve yönetim projeksiyonu
 lib/user-account-store.ts        Ürün profili ve kullanıcı tercihleri için idempotent hesap başlangıcı
 lib/admin-data.ts            Veri alımı, kalite ve yönetici yetkilendirmesi
 tests/                       Veri ve model güvenlik testleri

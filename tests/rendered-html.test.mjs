@@ -102,6 +102,16 @@ test("renders the signed-out Data Lineage protection wall", async () => {
   assert.match(html, /admin%2Fdata-lineage|admin\/data-lineage/i);
 });
 
+test("renders the signed-out League Onboarding protection wall", async () => {
+  const response = await renderRoute("/admin/league-onboarding");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Lig onboarding kalite yüzeyi korumalıdır/i);
+  assert.match(html, /ANALYSIS ONLY · FAIL CLOSED/i);
+  assert.match(html, /auth\/sign-in/i);
+  assert.match(html, /admin%2Fleague-onboarding|admin\/league-onboarding/i);
+});
+
 test("renders the signed-out Notification Ops protection wall", async () => {
   const response = await renderRoute("/admin/notification-ops");
   assert.equal(response.status, 200);
