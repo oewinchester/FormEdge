@@ -26,6 +26,7 @@ import {
   SPORTMONKS_PLAN_LEAGUES,
   buildSportMonksWindowUrl,
   parseSportMonksFixtures,
+  sportMonksAuthorizationHeader,
   sportMonksPageUrl,
 } from "@/lib/sportmonks-live";
 import {
@@ -843,7 +844,11 @@ async function fetchFixtureProviderWithFallback(candidates: FixtureProviderCandi
     } catch (error) {
       const code = error instanceof ResearchAutomationHttpError ? error.code : "UPSTREAM_FAILURE";
       failures.push(`${provider.kind}:${code}`);
-      console.warn("fixture-provider-fallback", JSON.stringify({ provider: provider.kind, code }));
+      console.warn("fixture-provider-fallback", JSON.stringify({
+        provider: provider.kind,
+        code,
+        detail: error instanceof Error ? error.message.slice(0, 180) : "Bilinmeyen sağlayıcı hatası",
+      }));
     }
   }
   throw new ResearchAutomationHttpError(
@@ -858,7 +863,9 @@ async function fetchFixtureProvider(provider: FixtureProviderCandidate) {
     Accept: provider.jsonProvider ? "application/json" : "text/csv,text/plain;q=0.9,*/*;q=0.1",
     "Cache-Control": "no-cache",
   };
-  if (provider.kind === "sportmonks" && provider.token) headers.Authorization = `Bearer ${provider.token}`;
+  if (provider.kind === "sportmonks" && provider.token) {
+    headers.Authorization = sportMonksAuthorizationHeader(provider.token);
+  }
   if (provider.kind === "api-football" && provider.token) headers["x-apisports-key"] = provider.token;
   if (provider.kind === "football-data-org" && provider.token) headers["X-Auth-Token"] = provider.token;
 

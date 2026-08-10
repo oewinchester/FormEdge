@@ -6,6 +6,7 @@ import {
   SPORTMONKS_PLAN_LEAGUES,
   buildSportMonksWindowUrl,
   parseSportMonksFixtures,
+  sportMonksAuthorizationHeader,
   sportMonksPageUrl,
 } from "../lib/sportmonks-live.ts";
 
@@ -44,7 +45,7 @@ const payload = JSON.stringify({
 });
 
 test("SportMonks plan coverage is the exact 30-league subscription", () => {
-  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v1");
+  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v2");
   assert.equal(SPORTMONKS_PLAN_LEAGUES.length, 30);
   assert.equal(new Set(SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId)).size, 30);
   assert.deepEqual(
@@ -58,9 +59,17 @@ test("SportMonks URL keeps the token out of logs and enforces the page budget", 
   assert.match(url, /fixtures\/between\/2026-08-09\/2026-08-13/);
   assert.match(url, /fixtureLeagues%3A8%2C9%2C72/);
   assert.match(url, /include=participants%3Bscores%3Bstate/);
+  assert.match(url, /order=asc/);
+  assert.doesNotMatch(url, /order=starting_at/);
+  assert.doesNotMatch(url, /timezone=/);
   assert.doesNotMatch(url, /api_token/i);
   assert.equal(SPORTMONKS_MAX_PAGES_PER_CYCLE, 3);
   assert.match(sportMonksPageUrl(url, 2), /page=2/);
+});
+
+test("SportMonks uses the documented raw Authorization token without Bearer prefix", () => {
+  assert.equal(sportMonksAuthorizationHeader("  secret-token  "), "secret-token");
+  assert.throws(() => sportMonksAuthorizationHeader("   "), /token is required/);
 });
 
 test("SportMonks fixtures become deterministic research-only envelopes", () => {

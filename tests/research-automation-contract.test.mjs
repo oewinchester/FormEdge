@@ -25,10 +25,12 @@ test("forward and historical research automation use separate hourly fail-closed
   assert.match(store, /buildApiFootballWindowUrls\((nowIso|referenceAt)\)/);
   assert.match(store, /buildSportMonksWindowUrl\(nowIso\)/);
   assert.match(store, /SPORTMONKS_API_TOKEN/);
-  assert.match(store, /Authorization = `Bearer \$\{provider\.token\}`/);
+  assert.match(store, /Authorization = sportMonksAuthorizationHeader\(provider\.token\)/);
+  assert.doesNotMatch(store, /Bearer \$\{provider\.token\}/);
   assert.match(store, /fetchFixtureProviderWithFallback/);
   assert.match(store, /ALL_FIXTURE_PROVIDERS_FAILED/);
   assert.match(store, /fixture-provider-fallback/);
+  assert.match(store, /detail: error instanceof Error/);
   assert.match(store, /fixture-feed-completed/);
   assert.match(store, /x-apisports-key/);
   assert.match(store, /API_FOOTBALL_API_KEY/);

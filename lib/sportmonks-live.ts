@@ -2,7 +2,7 @@ import type { DataQualityIssue } from "./data-quality.ts";
 import type { AdminImportEnvelope, NormalizedFootballPayload } from "./import-contract.ts";
 import { footballDataFixtureId, footballDataTeamId } from "./football-data-source.ts";
 
-export const SPORTMONKS_ADAPTER_VERSION = "sportmonks-v3-fixtures-v1" as const;
+export const SPORTMONKS_ADAPTER_VERSION = "sportmonks-v3-fixtures-v2" as const;
 export const SPORTMONKS_BASE_URL = "https://api.sportmonks.com/v3/football/fixtures" as const;
 export const SPORTMONKS_MAX_BYTES = 8_000_000;
 export const SPORTMONKS_MAX_PAGES_PER_CYCLE = 3;
@@ -73,11 +73,16 @@ export function buildSportMonksWindowUrl(referenceAt: string) {
   const query = new URLSearchParams({
     include: "participants;scores;state",
     filters: `fixtureLeagues:${SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId).join(",")}`,
-    order: "starting_at",
+    order: "asc",
     per_page: "50",
-    timezone: "UTC",
   });
   return `${SPORTMONKS_BASE_URL}/between/${start}/${end}?${query.toString()}`;
+}
+
+export function sportMonksAuthorizationHeader(token: string) {
+  const value = token.trim();
+  if (!value) throw new Error("SportMonks API token is required.");
+  return value;
 }
 
 export function sportMonksPageUrl(baseUrl: string, page: number) {
