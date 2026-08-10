@@ -33,7 +33,7 @@ import {
   WalletCards,
   XCircle,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UserDashboardOverview } from "@/lib/user-dashboard-store";
 
 type MatchFilter = "all" | "watchlist" | "final" | "value" | "saved";
@@ -53,6 +53,7 @@ export function UserDashboard({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const autoRefreshAttempted = useRef(false);
 
   const refresh = async () => {
     setLoading(true);
@@ -93,7 +94,7 @@ export function UserDashboard({
     }
   };
 
-  const refreshLiveSlate = async () => {
+  const refreshLiveSlate = useCallback(async () => {
     setRefreshingSlate(true);
     setError(null);
     setNotice(null);
@@ -114,7 +115,15 @@ export function UserDashboard({
     } finally {
       setRefreshingSlate(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const sourceNeedsData = overview.todaySlate.source.status === "failed"
+      || overview.todaySlate.source.importedFixtureCount === 0;
+    if (!overview.membership.productAccess || !sourceNeedsData || autoRefreshAttempted.current) return;
+    autoRefreshAttempted.current = true;
+    void refreshLiveSlate();
+  }, [overview.membership.productAccess, overview.todaySlate.source.importedFixtureCount, overview.todaySlate.source.status, refreshLiveSlate]);
 
   const setAnalysisView = async (view: "quick" | "detailed") => {
     if (view === overview.preferences.defaultAnalysisView) return;

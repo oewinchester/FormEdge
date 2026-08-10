@@ -61,5 +61,7 @@ test("dashboard exposes research fixtures without weakening recommendation gates
   assert.match(route, /runResearchAutomationCycle\(actor, "admin"\)/);
   assert.match(dashboard, /Bugünün maç merkezi/);
   assert.match(dashboard, /source\.importedFixtureCount/);
+  assert.match(dashboard, /autoRefreshAttempted/);
+  assert.match(dashboard, /void refreshLiveSlate\(\)/);
   assert.match(dashboard, /Bahis önerisi değil/);
 });
