@@ -161,6 +161,27 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
   const busy = activeKey !== null;
   const canPull = overview?.actor.role === "admin";
 
+  const runLiveImport = async () => {
+    if (!canPull || busy) return;
+    setActiveKey("live-api");
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/admin/shadow-validation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ action: "run_automation" }),
+      });
+      const payload = await response.json() as { result?: { run?: { status?: string } }; error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Canlı API verisi alınamadı.");
+      setNotice(`Canlı API turu ${payload.result?.run?.status === "completed" ? "tamamlandı" : "işlendi"}. Bugünün maçları ve son 40 günlük sonuç penceresi D1'e aktarıldı.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Canlı API verisi alınamadı.");
+    } finally {
+      setActiveKey(null);
+    }
+  };
+
   const requestPull = async (item: QueueItem) => {
     const response = await fetch("/api/admin/research-feed", {
       method: "POST",
@@ -261,8 +282,8 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
         </header>
 
         <section className="admin-intro research-feed-intro" id="overview">
-          <div><small>PUBLIC CSV · CONTROLLED ACQUISITION</small><h1>Geçmiş maçı çek. Ham kaynağı kilitle. Backtest’i yavaş yavaş büyüt.</h1><p>Football-Data CSV’leri sabit izin listesinden alınır; dosyanın SHA-256 kimliği R2’de, normalize maç ve şut verileri D1’de tutulur.</p></div>
-          <button type="button" onClick={() => void loadOverview()} disabled={loading || busy}><RefreshCw size={16} className={loading ? "spin" : ""} />Yenile</button>
+          <div><small>LIVE API + LEGACY CSV · CONTROLLED ACQUISITION</small><h1>Bugünün fikstürünü ve yakın geçmişi canlı API’den al.</h1><p>Aktif canlı akış 12 ücretsiz organizasyonu, bugünden sonraki 72 saati ve API sınırına uygun son 40 günlük sonuç penceresini çeker. Aşağıdaki 25 sezonluk CSV kuyruğu ayrı, eski arşiv kaynağıdır.</p></div>
+          <div className="research-source-actions"><button type="button" onClick={() => void runLiveImport()} disabled={!canPull || busy}><Play size={16} />{activeKey === "live-api" ? "Canlı veri alınıyor" : "Canlı veriyi şimdi çek"}</button><button type="button" onClick={() => void loadOverview()} disabled={loading || busy}><RefreshCw size={16} className={loading ? "spin" : ""} />Yenile</button></div>
         </section>
 
         {error && <div className="admin-message error"><ShieldAlert size={17} /><span>{error}</span></div>}
@@ -273,6 +294,11 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
           <ShieldAlert size={18} />
           <div><b>Kaynak araştırmaya açık; ticari kullanım kararı açık değil.</b><p>Kesin capture zamanı olmayan oran sütunları ham CSV’de korunur fakat oddsSnapshots ve değer hesabına yazılmaz. Kaynak revizyon zamanı doğrulanana kadar hiçbir kayıt öneri üretmez.</p></div>
           <span>LEGAL: REVIEW</span>
+        </section>
+
+        <section className="research-source-card">
+          <div><span><Radar size={20} /></span><div><small>ACTIVE SOURCE · FOOTBALL-DATA.ORG V4</small><h2>12 organizasyon · 5 güvenli zaman penceresi</h2><p>API’nin istek başına en fazla 10 günlük dönem sınırı korunur; birleşik yanıt kimlik üzerinden tekilleştirilir ve research-only olarak arşivlenir.</p></div></div>
+          <div className="research-source-actions"><button type="button" onClick={() => void runLiveImport()} disabled={!canPull || busy}><CloudDownload size={14} />Canlı API turunu çalıştır</button><a href="/dashboard">Bugünün maçlarını aç <ChevronRight size={13} /></a></div>
         </section>
 
         <section className="admin-count-grid research-count-grid">
@@ -288,7 +314,7 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
           <div className="research-source-actions">
             <a href={overview?.source.dataUrl ?? "https://www.football-data.co.uk/data.php"} target="_blank" rel="noreferrer">Veri açıklaması <ExternalLink size={13} /></a>
             <a href={overview?.source.notesUrl ?? "https://www.football-data.co.uk/notes.txt"} target="_blank" rel="noreferrer">Kolon notları <ExternalLink size={13} /></a>
-            <button type="button" onClick={() => void runQueue(overview?.bootstrapQueue ?? [])} disabled={!canPull || busy || loading}><Play size={14} />Eksik pilot paketi sırayla çek</button>
+            <button type="button" onClick={() => void runQueue(overview?.bootstrapQueue ?? [])} disabled={!canPull || busy || loading}><Play size={14} />Eski CSV arşiv kuyruğunu dene</button>
           </div>
           {!canPull && <p className="research-editor-lock"><LockKeyhole size={13} />Editör rolü akışı görüntüleyebilir; haricî kaynak çekimini yalnız yönetici başlatabilir.</p>}
         </section>

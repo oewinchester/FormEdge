@@ -22,6 +22,7 @@ import {
   FOOTBALL_DATA_ORG_ADAPTER_VERSION,
   FOOTBALL_DATA_ORG_MAX_BYTES,
   buildFootballDataOrgMatchesUrl,
+  buildFootballDataOrgWindowUrls,
   parseFootballDataOrgMatches,
 } from "@/lib/football-data-org-live";
 import {
@@ -91,7 +92,8 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
     eq(researchFixtureFeedRuns.status, "fetching"),
     lt(researchFixtureFeedRuns.startedAt, new Date(now.getTime() - 30 * 60_000).toISOString()),
   ));
-  const runId = `fdfix:${Math.floor(now.getTime() / FEED_WINDOW_MS)}`;
+  const providerKey = liveApiToken ? "fdorg-v2" : "fdcsv";
+  const runId = `fdfix:${providerKey}:${Math.floor(now.getTime() / FEED_WINDOW_MS)}`;
   const inserted = await db.insert(researchFixtureFeedRuns).values({
     id: runId,
     activeKey: FIXTURE_FEED_ACTIVE_KEY,
@@ -133,16 +135,59 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
       "Cache-Control": "no-cache",
     };
     if (liveApiToken) headers["X-Auth-Token"] = liveApiToken;
-    if (previous?.upstreamEtag) headers["If-None-Match"] = previous.upstreamEtag;
-    const response = await fetch(upstreamUrl, {
-      headers,
-      redirect: "follow",
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-    responseStatus = response.status;
-    responseContentType = response.headers.get("content-type");
-    upstreamEtag = response.headers.get("etag");
-    upstreamLastModified = response.headers.get("last-modified");
+    if (!liveApiToken && previous?.upstreamEtag) headers["If-None-Match"] = previous.upstreamEtag;
+    let response!: Response;
+    let responseBuffer: ArrayBuffer;
+    if (liveApiToken) {
+      const matches = new Map<string, unknown>();
+      let aggregateBytes = 0;
+      for (const windowUrl of buildFootballDataOrgWindowUrls(nowIso)) {
+        response = await fetch(windowUrl, {
+          headers,
+          redirect: "follow",
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        });
+        responseStatus = response.status;
+        responseContentType = response.headers.get("content-type");
+        if (!response.ok || response.status !== 200) {
+          throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_HTTP_ERROR", `Canlı fikstür API'si HTTP ${response.status} yanıtı verdi.`);
+        }
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        aggregateBytes += bytes.byteLength;
+        if (aggregateBytes > maximumBytes) {
+          throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Birleşik canlı fikstür yanıtı 5 MB güvenlik sınırını aşıyor.");
+        }
+        const payload = JSON.parse(new TextDecoder("utf-8").decode(bytes)) as { matches?: unknown };
+        if (!Array.isArray(payload.matches)) {
+          throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_INVALID_JSON", "Canlı fikstür API yanıtında maç listesi bulunamadı.");
+        }
+        for (const item of payload.matches) {
+          const match = item as { id?: unknown; utcDate?: unknown; homeTeam?: { name?: unknown }; awayTeam?: { name?: unknown } };
+          const key = String(match.id ?? `${match.utcDate}|${match.homeTeam?.name}|${match.awayTeam?.name}`);
+          matches.set(key, item);
+        }
+      }
+      responseBuffer = new TextEncoder().encode(JSON.stringify({ matches: [...matches.values()] })).buffer as ArrayBuffer;
+      responseContentType = "application/json; charset=utf-8";
+    } else {
+      response = await fetch(upstreamUrl, {
+        headers,
+        redirect: "follow",
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      responseStatus = response.status;
+      responseContentType = response.headers.get("content-type");
+      upstreamEtag = response.headers.get("etag");
+      upstreamLastModified = response.headers.get("last-modified");
+      if (!response.ok && response.status !== 304) {
+        throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_HTTP_ERROR", `Fikstür kaynağı HTTP ${response.status} yanıtı verdi.`);
+      }
+      const declaredBytes = Number(response.headers.get("content-length") ?? "0");
+      if (declaredBytes > maximumBytes) {
+        throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Fikstür CSV 5 MB güvenlik sınırını aşıyor.");
+      }
+      responseBuffer = await response.arrayBuffer();
+    }
     if (response.status === 304 && previous) {
       await completeUnchangedFixtureFeed(runId, previous, {
         httpStatus: response.status,
@@ -152,14 +197,6 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
       });
       return { run: await loadPublicFixtureFeedRun(runId), reused: true };
     }
-    if (!response.ok || response.status !== 200) {
-      throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_HTTP_ERROR", `Fikstür kaynağı HTTP ${response.status} yanıtı verdi.`);
-    }
-    const declaredBytes = Number(response.headers.get("content-length") ?? "0");
-    if (declaredBytes > maximumBytes) {
-      throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Fikstür CSV 5 MB güvenlik sınırını aşıyor.");
-    }
-    const responseBuffer = await response.arrayBuffer();
     const bytes = new Uint8Array(responseBuffer);
     contentBytes = bytes.byteLength;
     if (contentBytes > maximumBytes) {
@@ -195,7 +232,7 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
     const ingestionRunIds: string[] = [];
     for (const envelope of parsed.envelopes) {
       const imported = await importFootballSnapshot(actor, envelope, {
-        importFormat: "csv",
+        importFormat: liveApiToken ? "json" : "csv",
         externalIssues: parsed.qualityIssues,
         forceResearchOnlyReason: "Fikstür kaynağının ticari yeniden kullanım ve yayın kapıları doğrulanmadığı için kullanıcı önerisi üretilemez.",
       });
@@ -293,8 +330,15 @@ export async function runResearchAutomationCycle(
       errors.push(errorSummary("fixture_feed", error));
     }
 
-    liveLeagueCode = await selectNextLiveLeagueCode();
-    if (liveLeagueCode) {
+    const runtime = await getResearchAutomationRuntime();
+    const liveApiActive = Boolean(runtime.FOOTBALL_DATA_ORG_API_TOKEN?.trim());
+    if (liveApiActive) {
+      liveLeagueCode = "football-data-org";
+      liveResultStatus = "covered_by_live_api";
+    } else {
+      liveLeagueCode = await selectNextLiveLeagueCode();
+    }
+    if (!liveApiActive && liveLeagueCode) {
       try {
         const live = await pullFootballDataSeason(actor, {
           leagueCode: liveLeagueCode,

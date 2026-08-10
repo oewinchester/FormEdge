@@ -1,21 +1,30 @@
 import type { DataQualityIssue } from "./data-quality.ts";
 import type { AdminImportEnvelope, NormalizedFootballPayload } from "./import-contract.ts";
 import {
-  FOOTBALL_DATA_PILOT_LEAGUES,
   footballDataFixtureId,
   footballDataTeamId,
 } from "./football-data-source.ts";
 
-export const FOOTBALL_DATA_ORG_ADAPTER_VERSION = "football-data-org-v4-matches-v1" as const;
+export const FOOTBALL_DATA_ORG_ADAPTER_VERSION = "football-data-org-v4-matches-v2" as const;
 export const FOOTBALL_DATA_ORG_BASE_URL = "https://api.football-data.org/v4/matches" as const;
 export const FOOTBALL_DATA_ORG_MAX_BYTES = 5_000_000;
 
-const API_TO_PILOT = new Map([
-  ["PL", "E0"],
-  ["BL1", "D1"],
-  ["PD", "SP1"],
-  ["SA", "I1"],
-] as const);
+export const FOOTBALL_DATA_ORG_FREE_COMPETITIONS = [
+  { apiCode: "CL", code: "UCL", id: "uefa-champions-league", countryCode: "EU", name: "UEFA Champions League", tier: 1 },
+  { apiCode: "PPL", code: "PPL", id: "pt-primeira-liga", countryCode: "PT", name: "Primeira Liga", tier: 1 },
+  { apiCode: "PL", code: "E0", id: "eng-premier-league", countryCode: "GB", name: "Premier League", tier: 1 },
+  { apiCode: "DED", code: "DED", id: "nl-eredivisie", countryCode: "NL", name: "Eredivisie", tier: 1 },
+  { apiCode: "BL1", code: "D1", id: "de-bundesliga", countryCode: "DE", name: "Bundesliga", tier: 1 },
+  { apiCode: "FL1", code: "FL1", id: "fr-ligue-1", countryCode: "FR", name: "Ligue 1", tier: 1 },
+  { apiCode: "SA", code: "I1", id: "it-serie-a", countryCode: "IT", name: "Serie A", tier: 1 },
+  { apiCode: "PD", code: "SP1", id: "es-la-liga", countryCode: "ES", name: "La Liga", tier: 1 },
+  { apiCode: "ELC", code: "ELC", id: "eng-championship", countryCode: "GB", name: "Championship", tier: 2 },
+  { apiCode: "BSA", code: "BSA", id: "br-serie-a", countryCode: "BR", name: "Campeonato Brasileiro Serie A", tier: 1 },
+  { apiCode: "WC", code: "WC", id: "fifa-world-cup", countryCode: "WW", name: "FIFA World Cup", tier: 1 },
+  { apiCode: "EC", code: "EC", id: "uefa-european-championship", countryCode: "EU", name: "European Championship", tier: 1 },
+] as const;
+
+const API_TO_LEAGUE = new Map(FOOTBALL_DATA_ORG_FREE_COMPETITIONS.map((league) => [league.apiCode, league]));
 
 type ApiMatch = {
   id?: unknown;
@@ -34,8 +43,29 @@ export function buildFootballDataOrgMatchesUrl(referenceAt: string) {
   const local = new Date(now.getTime() + 3 * 60 * 60_000);
   const dateFrom = local.toISOString().slice(0, 10);
   const dateTo = new Date(Date.parse(`${dateFrom}T00:00:00.000Z`) + 3 * 86_400_000).toISOString().slice(0, 10);
-  const query = new URLSearchParams({ competitions: "PL,BL1,PD,SA", dateFrom, dateTo });
+  const query = new URLSearchParams({ competitions: FOOTBALL_DATA_ORG_FREE_COMPETITIONS.map((item) => item.apiCode).join(","), dateFrom, dateTo });
   return `${FOOTBALL_DATA_ORG_BASE_URL}?${query.toString()}`;
+}
+
+export function buildFootballDataOrgWindowUrls(referenceAt: string) {
+  const now = new Date(referenceAt);
+  if (Number.isNaN(now.getTime())) throw new Error("A valid live feed reference time is required.");
+  const local = new Date(now.getTime() + 3 * 60 * 60_000);
+  const today = Date.parse(`${local.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  const day = 86_400_000;
+  const competitions = FOOTBALL_DATA_ORG_FREE_COMPETITIONS.map((item) => item.apiCode).join(",");
+  const windows = [
+    [today - 40 * day, today - 30 * day],
+    [today - 30 * day, today - 20 * day],
+    [today - 20 * day, today - 10 * day],
+    [today - 10 * day, today],
+    [today, today + 3 * day],
+  ];
+  return windows.map(([from, to]) => {
+    const dateFrom = new Date(from).toISOString().slice(0, 10);
+    const dateTo = new Date(to).toISOString().slice(0, 10);
+    return `${FOOTBALL_DATA_ORG_BASE_URL}?${new URLSearchParams({ competitions, dateFrom, dateTo }).toString()}`;
+  });
 }
 
 export function parseFootballDataOrgMatches(input: {
@@ -46,10 +76,9 @@ export function parseFootballDataOrgMatches(input: {
   const capturedAt = new Date(input.capturedAt).toISOString();
   const parsed = JSON.parse(input.json) as { matches?: unknown };
   if (!Array.isArray(parsed.matches)) throw new Error("football-data.org response does not contain a matches array.");
-  if (parsed.matches.length > 500) throw new Error("football-data.org response exceeds the 500-match safety limit.");
-  const leagueByCode = new Map(FOOTBALL_DATA_PILOT_LEAGUES.map((league) => [league.code, league]));
+  if (parsed.matches.length > 3_000) throw new Error("football-data.org response exceeds the 3,000-match safety limit.");
   const grouped = new Map<string, {
-    league: typeof FOOTBALL_DATA_PILOT_LEAGUES[number];
+    league: typeof FOOTBALL_DATA_ORG_FREE_COMPETITIONS[number];
     season: string;
     teams: Map<string, NormalizedFootballPayload["teams"][number]>;
     fixtures: NormalizedFootballPayload["fixtures"];
@@ -57,8 +86,7 @@ export function parseFootballDataOrgMatches(input: {
   let ignoredCount = 0;
   for (const raw of parsed.matches as ApiMatch[]) {
     const apiCode = textValue(raw.competition?.code);
-    const pilotCode = apiCode ? API_TO_PILOT.get(apiCode as never) : undefined;
-    const league = pilotCode ? leagueByCode.get(pilotCode) : undefined;
+    const league = apiCode ? API_TO_LEAGUE.get(apiCode as typeof FOOTBALL_DATA_ORG_FREE_COMPETITIONS[number]["apiCode"]) : undefined;
     const homeName = textValue(raw.homeTeam?.name);
     const awayName = textValue(raw.awayTeam?.name);
     const kickoffAt = textValue(raw.utcDate);

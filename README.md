@@ -7,7 +7,14 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.14 · Checkpoint 17N · Owner Access & Live Runtime Wiring**
+**v0.7.0-alpha.15 · Checkpoint 17O · Live Competition Coverage & Rolling History**
+
+- football-data.org ücretsiz pakette sunulan 12 organizasyonun tamamını kapsayan; PPL dahil o gün gerçekten oynanan maçları dar dört-lig filtresinde kaybetmeyen canlı fikstür adaptörü
+- API'nin en fazla 10 günlük sorgu sınırını koruyan dört tarihsel + bir yaklaşan pencereyle son 40 günlük sonuçları ve önümüzdeki 72 saati tekilleştirerek D1/R2 katmanına alan veri turu
+- Modern API aktifken aynı veriyi eski Football-Data.co.uk sezon çekimiyle tekrar istemeyen ve başarılı canlı turu sahte `partial` durumuna düşürmeyen otomasyon düzeltmesi
+- Research Feed üzerinde modern canlı veri turunu doğrudan başlatan; 25 sezonluk eski CSV arşiv kuyruğunu ayrı ve açık biçimde etiketleyen yönetici akışı
+
+Önceki checkpoint: **v0.7.0-alpha.14 · Checkpoint 17N · Owner Access & Live Runtime Wiring**
 
 - Sites çalışma zamanı secret’ını doğrudan Cloudflare env bağından okuyan; zamanlayıcı ve manuel yenilemede aynı güncel API sağlayıcısını kullanan canlı veri bağlantısı
 - Tanımlı platform sahibini hangi üye ekranından giriş yaparsa yapsın D1’de aktif `admin` rolüne eşleyen idempotent owner senkronizasyonu
@@ -19,7 +26,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 - İstanbul günü ve takip eden 48 saati kapsayan; gerçek fikstür, kaynak tazeliği, model olasılıkları ve yayın durumunu tek ekranda gösteren kullanıcı maç merkezi
 - Research-only model yönünü görünür kılarken doğrulanmış öneriyi ayrı tutan; model/yayın/değer blocker kodlarını açıkça gösteren fail-closed kartlar
 - Yönetici yetkili “Veriyi şimdi yenile” eylemiyle fikstür çekimi, tahmin sürümleme ve dashboard yenilemeyi tek idempotent turda çalıştıran operasyon akışı
-- `FOOTBALL_DATA_ORG_API_TOKEN` yalnız sunucu ortamında tanımlandığında dört ücretsiz büyük lig için güncel v4 fikstür API’sini; aksi halde mevcut CSV akışını kullanan çift kaynak adaptörü
+- `FOOTBALL_DATA_ORG_API_TOKEN` yalnız sunucu ortamında tanımlandığında 12 ücretsiz organizasyon için güncel v4 fikstür API’sini; aksi halde mevcut CSV akışını kullanan çift kaynak adaptörü
 - Canlı API oran sağlamadığında ve yeniden kullanım/yayın kanıtı eksikken `researchOnly=true` sınırını koruyan; bahis talimatı veya sahte öneri üretmeyen güvenlik politikası
 
 Önceki checkpoint: **v0.7.0-alpha.12 · Checkpoint 17L · Versioned Model Cards**
