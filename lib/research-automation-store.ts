@@ -22,9 +22,9 @@ import {
 import {
   SPORTMONKS_ADAPTER_VERSION,
   SPORTMONKS_MAX_BYTES,
-  SPORTMONKS_MAX_PAGES_PER_CYCLE,
+  SPORTMONKS_MAX_PAGES_PER_DATE,
   SPORTMONKS_PLAN_LEAGUES,
-  buildSportMonksWindowUrl,
+  buildSportMonksDateUrls,
   parseSportMonksFixtures,
   sportMonksAuthorizationHeader,
   sportMonksPageUrl,
@@ -786,6 +786,7 @@ type FixtureProviderCandidate = {
   key: string;
   token: string | null;
   upstreamUrl: string;
+  upstreamUrls?: string[];
   adapterVersion: string;
   maximumBytes: number;
   jsonProvider: boolean;
@@ -799,9 +800,10 @@ function buildFixtureProviderCandidates(input: {
   const candidates: FixtureProviderCandidate[] = [];
   if (input.sportMonksToken) candidates.push({
     kind: "sportmonks",
-    key: "sportmonks-v3",
+    key: "sportmonks-v4",
     token: input.sportMonksToken,
-    upstreamUrl: buildSportMonksWindowUrl(nowIso),
+    upstreamUrl: buildSportMonksDateUrls(nowIso)[0],
+    upstreamUrls: buildSportMonksDateUrls(nowIso),
     adapterVersion: SPORTMONKS_ADAPTER_VERSION,
     maximumBytes: SPORTMONKS_MAX_BYTES,
     jsonProvider: true,
@@ -871,44 +873,74 @@ async function fetchFixtureProvider(provider: FixtureProviderCandidate) {
 
   if (provider.kind === "sportmonks") {
     const fixtures = new Map<string, unknown>();
+    const dailyCounts: Array<{ date: string; fixtures: number; pages: number }> = [];
     let aggregateBytes = 0;
     let response!: Response;
-    for (let page = 1; page <= SPORTMONKS_MAX_PAGES_PER_CYCLE; page += 1) {
-      response = await fetch(sportMonksPageUrl(provider.upstreamUrl, page), {
-        headers,
-        redirect: "follow",
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    for (const dateUrl of provider.upstreamUrls ?? [provider.upstreamUrl]) {
+      const countBeforeDate = fixtures.size;
+      let pagesFetched = 0;
+      for (let page = 1; page <= SPORTMONKS_MAX_PAGES_PER_DATE; page += 1) {
+        response = await fetch(sportMonksPageUrl(dateUrl, page), {
+          headers,
+          redirect: "follow",
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        });
+        if (!response.ok || response.status !== 200) {
+          throw new ResearchAutomationHttpError(502, "SPORTMONKS_HTTP_ERROR", `SportMonks HTTP ${response.status} yanıtı verdi.`);
+        }
+        const chunk = new Uint8Array(await response.arrayBuffer());
+        aggregateBytes += chunk.byteLength;
+        if (aggregateBytes > provider.maximumBytes) {
+          throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Birleşik SportMonks yanıtı 8 MB güvenlik sınırını aşıyor.");
+        }
+        const payload = JSON.parse(new TextDecoder("utf-8").decode(chunk)) as {
+          data?: unknown;
+          pagination?: { has_more?: unknown; current_page?: unknown; count?: unknown };
+          message?: unknown;
+        };
+        pagesFetched = page;
+        if (!Array.isArray(payload.data)) {
+          throw new ResearchAutomationHttpError(502, "SPORTMONKS_INVALID_JSON", "SportMonks yanıtında fikstür listesi bulunamadı.");
+        }
+        for (const item of payload.data) {
+          const fixture = item as { id?: unknown; starting_at?: unknown; name?: unknown };
+          fixtures.set(String(fixture.id ?? `${fixture.starting_at}|${fixture.name}`), item);
+        }
+        const hasMore = payload.pagination?.has_more === true;
+        if (!hasMore) break;
+        if (page === SPORTMONKS_MAX_PAGES_PER_DATE) {
+          throw new ResearchAutomationHttpError(502, "SPORTMONKS_PAGE_BUDGET_EXCEEDED", "SportMonks günlük fikstürleri sekiz sayfalık güvenli çağrı bütçesini aştı.");
+        }
+      }
+      dailyCounts.push({
+        date: new URL(dateUrl).pathname.split("/").at(-1) ?? "unknown",
+        fixtures: fixtures.size - countBeforeDate,
+        pages: pagesFetched,
       });
-      if (!response.ok || response.status !== 200) {
-        throw new ResearchAutomationHttpError(502, "SPORTMONKS_HTTP_ERROR", `SportMonks HTTP ${response.status} yanıtı verdi.`);
-      }
-      const chunk = new Uint8Array(await response.arrayBuffer());
-      aggregateBytes += chunk.byteLength;
-      if (aggregateBytes > provider.maximumBytes) {
-        throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Birleşik SportMonks yanıtı 8 MB güvenlik sınırını aşıyor.");
-      }
-      const payload = JSON.parse(new TextDecoder("utf-8").decode(chunk)) as {
-        data?: unknown;
-        pagination?: { has_more?: unknown };
-        message?: unknown;
-      };
-      if (!Array.isArray(payload.data)) {
-        throw new ResearchAutomationHttpError(502, "SPORTMONKS_INVALID_JSON", "SportMonks yanıtında fikstür listesi bulunamadı.");
-      }
-      for (const item of payload.data) {
-        const fixture = item as { id?: unknown; starting_at?: unknown; name?: unknown };
-        fixtures.set(String(fixture.id ?? `${fixture.starting_at}|${fixture.name}`), item);
-      }
-      const hasMore = payload.pagination?.has_more === true;
-      if (!hasMore) break;
-      if (page === SPORTMONKS_MAX_PAGES_PER_CYCLE) {
-        throw new ResearchAutomationHttpError(502, "SPORTMONKS_PAGE_BUDGET_EXCEEDED", "SportMonks fikstürleri üç sayfalık güvenli çağrı bütçesini aştı.");
-      }
     }
     if (fixtures.size === 0) {
       throw new ResearchAutomationHttpError(502, "SPORTMONKS_EMPTY_WINDOW", "SportMonks seçili tarih aralığında sıfır fikstür döndürdü; yedek kaynak deneniyor.");
     }
     const responseBuffer = new TextEncoder().encode(JSON.stringify({ data: [...fixtures.values()] })).buffer as ArrayBuffer;
+    const parsed = parseSportMonksFixtures({
+      json: new TextDecoder("utf-8").decode(responseBuffer),
+      capturedAt: new Date().toISOString(),
+      upstreamUrl: provider.upstreamUrl,
+    });
+    console.info("sportmonks-fetch-summary", JSON.stringify({
+      dailyCounts,
+      rawFixtureCount: fixtures.size,
+      importedFixtureCount: parsed.pilotRowCount,
+      leagueCount: parsed.envelopes.length,
+      ignoredFixtureCount: parsed.ignoredCount,
+    }));
+    if (parsed.pilotRowCount === 0) {
+      throw new ResearchAutomationHttpError(
+        502,
+        "SPORTMONKS_UNMAPPABLE_FIXTURES",
+        `SportMonks ${fixtures.size} ham fikstür döndürdü ancak seçili 30 lig için işlenebilir maç bulunamadı; yedek kaynak deneniyor.`,
+      );
+    }
     return {
       provider,
       response,

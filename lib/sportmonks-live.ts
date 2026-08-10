@@ -2,10 +2,10 @@ import type { DataQualityIssue } from "./data-quality.ts";
 import type { AdminImportEnvelope, NormalizedFootballPayload } from "./import-contract.ts";
 import { footballDataFixtureId, footballDataTeamId } from "./football-data-source.ts";
 
-export const SPORTMONKS_ADAPTER_VERSION = "sportmonks-v3-fixtures-v3" as const;
+export const SPORTMONKS_ADAPTER_VERSION = "sportmonks-v3-fixtures-v4" as const;
 export const SPORTMONKS_BASE_URL = "https://api.sportmonks.com/v3/football/fixtures" as const;
 export const SPORTMONKS_MAX_BYTES = 8_000_000;
-export const SPORTMONKS_MAX_PAGES_PER_CYCLE = 3;
+export const SPORTMONKS_MAX_PAGES_PER_DATE = 8;
 
 type LeagueMeta = {
   sportmonksId: number;
@@ -62,20 +62,21 @@ type SportMonksFixture = {
   scores?: Array<{ description?: unknown; score?: { goals?: unknown; participant?: unknown } }>;
 };
 
-export function buildSportMonksWindowUrl(referenceAt: string) {
+export function buildSportMonksDateUrls(referenceAt: string) {
   const now = new Date(referenceAt);
   if (Number.isNaN(now.getTime())) throw new Error("A valid SportMonks reference time is required.");
   const istanbul = new Date(now.getTime() + 3 * 60 * 60_000);
   const today = Date.parse(`${istanbul.toISOString().slice(0, 10)}T00:00:00.000Z`);
   const day = 86_400_000;
-  const start = new Date(today - day).toISOString().slice(0, 10);
-  const end = new Date(today + 3 * day).toISOString().slice(0, 10);
-  const query = new URLSearchParams({
-    include: "participants;scores;state",
-    order: "asc",
-    per_page: "50",
+  return [0, 1, 2, 3].map((offset) => {
+    const date = new Date(today + offset * day).toISOString().slice(0, 10);
+    const query = new URLSearchParams({
+      include: "participants;scores;state",
+      order: "asc",
+      per_page: "50",
+    });
+    return `${SPORTMONKS_BASE_URL}/date/${date}?${query.toString()}`;
   });
-  return `${SPORTMONKS_BASE_URL}/between/${start}/${end}?${query.toString()}`;
 }
 
 export function sportMonksAuthorizationHeader(token: string) {

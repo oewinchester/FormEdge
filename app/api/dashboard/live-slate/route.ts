@@ -1,6 +1,7 @@
 import { requireAdminActor, toAdminApiError } from "@/lib/admin-data";
 import { ResearchFeedHttpError } from "@/lib/football-data-source-store";
 import {
+  pullResearchFixtureFeed,
   ResearchAutomationHttpError,
   runResearchAutomationCycle,
 } from "@/lib/research-automation-store";
@@ -17,9 +18,12 @@ export async function POST() {
         headers: NO_STORE_HEADERS,
       });
     }
+    const fixtureFeed = await pullResearchFixtureFeed(actor);
+    const automation = await runResearchAutomationCycle(actor, "admin");
     return Response.json({
       ok: true,
-      result: await runResearchAutomationCycle(actor, "admin"),
+      fixtureFeed,
+      automation,
     }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     if (error instanceof ResearchAutomationHttpError || error instanceof ResearchFeedHttpError) {

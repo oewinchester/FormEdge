@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   SPORTMONKS_ADAPTER_VERSION,
-  SPORTMONKS_MAX_PAGES_PER_CYCLE,
+  SPORTMONKS_MAX_PAGES_PER_DATE,
   SPORTMONKS_PLAN_LEAGUES,
-  buildSportMonksWindowUrl,
+  buildSportMonksDateUrls,
   parseSportMonksFixtures,
   sportMonksAuthorizationHeader,
   sportMonksPageUrl,
@@ -45,7 +45,7 @@ const payload = JSON.stringify({
 });
 
 test("SportMonks plan coverage is the exact 30-league subscription", () => {
-  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v3");
+  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v4");
   assert.equal(SPORTMONKS_PLAN_LEAGUES.length, 30);
   assert.equal(new Set(SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId)).size, 30);
   assert.deepEqual(
@@ -54,16 +54,19 @@ test("SportMonks plan coverage is the exact 30-league subscription", () => {
   );
 });
 
-test("SportMonks URL keeps the token out of logs and enforces the page budget", () => {
-  const url = buildSportMonksWindowUrl("2026-08-10T12:00:00.000Z");
-  assert.match(url, /fixtures\/between\/2026-08-09\/2026-08-13/);
+test("SportMonks daily URLs keep the token out of logs and enforce pagination", () => {
+  const urls = buildSportMonksDateUrls("2026-08-10T12:00:00.000Z");
+  assert.equal(urls.length, 4);
+  assert.match(urls[0], /fixtures\/date\/2026-08-10/);
+  assert.match(urls[3], /fixtures\/date\/2026-08-13/);
+  const url = urls[0];
   assert.doesNotMatch(url, /fixtureLeagues/);
   assert.match(url, /include=participants%3Bscores%3Bstate/);
   assert.match(url, /order=asc/);
   assert.doesNotMatch(url, /order=starting_at/);
   assert.doesNotMatch(url, /timezone=/);
   assert.doesNotMatch(url, /api_token/i);
-  assert.equal(SPORTMONKS_MAX_PAGES_PER_CYCLE, 3);
+  assert.equal(SPORTMONKS_MAX_PAGES_PER_DATE, 8);
   assert.match(sportMonksPageUrl(url, 2), /page=2/);
 });
 
@@ -73,7 +76,7 @@ test("SportMonks uses the documented raw Authorization token without Bearer pref
 });
 
 test("SportMonks fixtures become deterministic research-only envelopes", () => {
-  const upstreamUrl = buildSportMonksWindowUrl("2026-08-10T12:00:00.000Z");
+  const upstreamUrl = buildSportMonksDateUrls("2026-08-10T12:00:00.000Z")[0];
   const result = parseSportMonksFixtures({ json: payload, capturedAt: "2026-08-10T12:00:00.000Z", upstreamUrl });
   assert.equal(result.envelopes.length, 2);
   assert.equal(result.pilotRowCount, 2);

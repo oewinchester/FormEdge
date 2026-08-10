@@ -23,9 +23,11 @@ test("forward and historical research automation use separate hourly fail-closed
   assert.match(store, /getResearchAutomationRuntime\(\)/);
   assert.match(store, /buildFootballDataOrgWindowUrls\((nowIso|referenceAt)\)/);
   assert.match(store, /buildApiFootballWindowUrls\((nowIso|referenceAt)\)/);
-  assert.match(store, /buildSportMonksWindowUrl\(nowIso\)/);
+  assert.match(store, /buildSportMonksDateUrls\(nowIso\)/);
   assert.match(store, /SPORTMONKS_API_TOKEN/);
   assert.match(store, /Authorization = sportMonksAuthorizationHeader\(provider\.token\)/);
+  assert.match(store, /SPORTMONKS_UNMAPPABLE_FIXTURES/);
+  assert.match(store, /sportmonks-fetch-summary/);
   assert.doesNotMatch(store, /Bearer \$\{provider\.token\}/);
   assert.match(store, /fetchFixtureProviderWithFallback/);
   assert.match(store, /ALL_FIXTURE_PROVIDERS_FAILED/);
