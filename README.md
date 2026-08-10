@@ -7,7 +7,15 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.12 · Checkpoint 17L · Aşama 3 / Versioned Model Cards**
+**v0.7.0-alpha.13 · Checkpoint 17M · Bugünün Maç Merkezi**
+
+- İstanbul günü ve takip eden 48 saati kapsayan; gerçek fikstür, kaynak tazeliği, model olasılıkları ve yayın durumunu tek ekranda gösteren kullanıcı maç merkezi
+- Research-only model yönünü görünür kılarken doğrulanmış öneriyi ayrı tutan; model/yayın/değer blocker kodlarını açıkça gösteren fail-closed kartlar
+- Yönetici yetkili “Veriyi şimdi yenile” eylemiyle fikstür çekimi, tahmin sürümleme ve dashboard yenilemeyi tek idempotent turda çalıştıran operasyon akışı
+- `FOOTBALL_DATA_ORG_API_TOKEN` yalnız sunucu ortamında tanımlandığında dört ücretsiz büyük lig için güncel v4 fikstür API’sini; aksi halde mevcut CSV akışını kullanan çift kaynak adaptörü
+- Canlı API oran sağlamadığında ve yeniden kullanım/yayın kanıtı eksikken `researchOnly=true` sınırını koruyan; bahis talimatı veya sahte öneri üretmeyen güvenlik politikası
+
+Önceki checkpoint: **v0.7.0-alpha.12 · Checkpoint 17L · Versioned Model Cards**
 
 - Her model sürümünü konfigürasyon SHA-256 kimliği, feature şeması, tarihsel dataset, walk-forward backtest, zamansal holdout/kalibrasyon ve release gate kaydıyla birleştiren deterministik `model-version-card-v1` sözleşmesi
 - Eksik veya uyuşmayan dataset/backtest/evidence/gate bağlarını, leakage ihlalini ve geçersiz OOS metriğini açık blocker kodlarıyla fail-closed tutan kart denetimi
@@ -201,7 +209,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.7.0-alpha.9 | CP17I | CI, CodeQL, Dependabot, üretim güvenlik başlıkları, migration/secret doğrulaması ve secret-safe launch readiness | Tamamlandı |
 | v0.7.0-alpha.10 | CP17J | Değişmez prediction lineage manifesti, kaynak/run/R2/feature/model/yayın zinciri ve fail-closed Data Lineage gezgini | Tamamlandı |
 | v0.7.0-alpha.11 | CP17K | Fail-closed lig–kaynak onboarding kalite puanı, değişmez snapshot ve korumalı kalite konsolu | Tamamlandı |
-| **v0.7.0-alpha.12** | **CP17L** | **Sürüm bazlı değişmez model kartları, OOS/holdout/release kanıtı ve belge-only yönetişim konsolu** | **Mevcut** |
+| v0.7.0-alpha.12 | CP17L | Sürüm bazlı değişmez model kartları, OOS/holdout/release kanıtı ve belge-only yönetişim konsolu | Tamamlandı |
+| **v0.7.0-alpha.13** | **CP17M** | **Bugünün gerçek fikstürleri, kaynak tazeliği, araştırma model yönü ve fail-closed öneri ayrımı** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 

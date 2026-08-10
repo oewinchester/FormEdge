@@ -48,6 +48,7 @@ export function UserDashboard({
   const [overview, setOverview] = useState(initialOverview);
   const [filter, setFilter] = useState<MatchFilter>("all");
   const [loading, setLoading] = useState(false);
+  const [refreshingSlate, setRefreshingSlate] = useState(false);
   const [workingThread, setWorkingThread] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -89,6 +90,29 @@ export function UserDashboard({
       setError(reason instanceof Error ? reason.message : "İzleme tercihi kaydedilemedi.");
     } finally {
       setWorkingThread(null);
+    }
+  };
+
+  const refreshLiveSlate = async () => {
+    setRefreshingSlate(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/dashboard/live-slate", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Fikstür akışı yenilenemedi.");
+      const overviewResponse = await fetch("/api/dashboard/overview", { headers: { Accept: "application/json" } });
+      const nextOverview = await overviewResponse.json() as UserDashboardOverview & { error?: string };
+      if (!overviewResponse.ok) throw new Error(nextOverview.error ?? "Yeni fikstürler yüklenemedi.");
+      setOverview(nextOverview);
+      setNotice("Fikstür akışı ve araştırma analizleri yenilendi.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Fikstür akışı yenilenemedi.");
+    } finally {
+      setRefreshingSlate(false);
     }
   };
 
@@ -163,6 +187,30 @@ export function UserDashboard({
           <article><span><BookmarkCheck size={18} /></span><small>KAYDETTİKLERİM</small><b>{overview.counts.saved}</b><p>Hesabınıza bağlı</p></article>
           <article><span><BadgeDollarSign size={18} /></span><small>DEĞER FIRSATI</small><b>{overview.counts.valueOpportunities}</b><p>{overview.counts.marketAnomalies} piyasa anomalisi</p></article>
           <article><span><CircleGauge size={18} /></span><small>DOĞRULANMIŞ İSABET</small><b>{performance.hitRate === null ? "—" : `%${Math.round(performance.hitRate * 100)}`}</b><p>{performance.decided} sonuçlanmış final</p></article>
+        </section>
+
+        <section className="user-live-slate" id="today">
+          <header>
+            <div><small>İSTANBUL SAATİ · BUGÜN + 48 SAAT</small><h2>Bugünün maç merkezi</h2><p>Gerçek fikstürler görünür; araştırma yönü ile yayımlanabilir öneri birbirine karıştırılmaz.</p></div>
+            <button type="button" onClick={() => void refreshLiveSlate()} disabled={refreshingSlate || !overview.membership.productAccess}><RefreshCw size={15} className={refreshingSlate ? "spin" : ""} />{refreshingSlate ? "Kaynak yenileniyor" : "Veriyi şimdi yenile"}</button>
+          </header>
+          <div className={`user-live-source ${overview.todaySlate.source.freshness}`}>
+            <span><Activity size={15} /></span>
+            <div><b>{freshnessLabel(overview.todaySlate.source.freshness)}</b><small>{overview.todaySlate.source.capturedAt ? `Son çekim ${formatDate(overview.todaySlate.source.capturedAt)}` : "Henüz başarılı kaynak çekimi yok"} · {overview.todaySlate.source.note}</small></div>
+            <em>{overview.todaySlate.counts.today} bugün · {overview.todaySlate.counts.analyzed} analiz</em>
+          </div>
+          <div className="user-live-match-grid">
+            {overview.todaySlate.matches.length === 0 && <div className="user-live-empty"><CalendarDays size={22} /><div><b>Bu pencerede içeri alınmış güncel maç yok.</b><p>“Veriyi şimdi yenile” ile ücretsiz kaynağı tekrar kontrol edin. Kaynak güncel maç sağlamıyorsa panel boşluğu gizlemez; canlı API bağlantısı gerekecektir.</p></div></div>}
+            {overview.todaySlate.matches.map((match) => <article className="user-live-match" key={match.fixtureId}>
+              <header><span>{dayLabel(match.day)}</span><small>{match.leagueLabel} · {formatDate(match.kickoffAt)}</small></header>
+              <div className="user-live-teams"><b>{match.homeTeamName}</b><i>—</i><b>{match.awayTeamName}</b></div>
+              {match.analysis ? <>
+                <div className="user-probabilities">{(["1", "X", "2"] as const).map((outcome) => { const value = probabilityFor(match.analysis!.probabilities, outcome); return <span className={match.analysis!.predictedOutcome === outcome ? "leader" : ""} key={outcome}><small>{outcome}</small><b>%{Math.round(value * 100)}</b><i style={{ width: `${value * 100}%` }} /></span>; })}</div>
+                <footer><div><small>{match.recommendation ? "DOĞRULANMIŞ ÖNERİ" : "ARAŞTIRMA MODEL YÖNÜ"}</small><b>{match.recommendation?.outcome ?? match.analysis.predictedOutcome}</b></div><span className={match.recommendation ? "eligible" : "research"}>{match.recommendation ? "Yayın kapıları geçti" : "Bahis önerisi değil"}</span></footer>
+              </> : <div className="user-live-pending"><Clock3 size={15} /><span><b>Model analizi bekleniyor</b><small>Fikstür alındı; ilk sürüm henüz üretilmedi.</small></span></div>}
+              {!match.recommendation && <p className="user-live-blockers"><LockKeyhole size={12} />{blockerSummary(match.blockers)}</p>}
+            </article>)}
+          </div>
         </section>
 
         <section className="user-content-grid">
@@ -242,6 +290,26 @@ function lineupLabel(value: "none" | "probable" | "confirmed") {
 
 function riskLabel(value: "cautious" | "balanced" | "bold") {
   return value === "cautious" ? "Temkinli" : value === "balanced" ? "Dengeli" : "Cesur";
+}
+
+function freshnessLabel(value: UserDashboardOverview["todaySlate"]["source"]["freshness"]) {
+  return value === "fresh" ? "Kaynak taze" : value === "aging" ? "Kaynak yaşlanıyor" : value === "stale" ? "Kaynak eski" : value === "failed" ? "Son çekim başarısız" : "Kaynak bekleniyor";
+}
+
+function dayLabel(value: UserDashboardOverview["todaySlate"]["matches"][number]["day"]) {
+  return value === "today" ? "BUGÜN" : value === "tomorrow" ? "YARIN" : "SONRAKİ";
+}
+
+function blockerSummary(values: string[]) {
+  if (!values.length) return "Yayın ve değer kanıtı tamamlanmadı.";
+  const labels: Record<string, string> = {
+    MODEL_ANALYSIS_PENDING: "Model analizi bekleniyor",
+    RESEARCH_ONLY: "Araştırma verisi",
+    RELEASE_GATE_CLOSED: "Sürüm kapısı kapalı",
+    DATA_COMPLETENESS_BELOW_THRESHOLD: "Veri bütünlüğü yetersiz",
+    LINEUP_NOT_CONFIRMED: "Kadrolar kesin değil",
+  };
+  return values.slice(0, 2).map((value) => labels[value] ?? value.replaceAll("_", " ").toLocaleLowerCase("tr-TR")).join(" · ");
 }
 
 function formatDate(value: string) {

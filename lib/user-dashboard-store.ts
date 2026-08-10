@@ -6,17 +6,22 @@ import {
   eq,
   inArray,
   isNull,
+  gte,
+  lte,
   lt,
 } from "drizzle-orm";
 import type { ChatGPTUser } from "@/app/chatgpt-auth";
 import { getDb } from "@/db";
 import {
   fixtures,
+  ingestionRuns,
+  leagues,
   predictionEvents,
   predictionSettlements,
   predictionThreads,
   predictionValueAssessments,
   predictionVersions,
+  researchFixtureFeedRuns,
   teamMatchStats,
   teams,
   userNotifications,
@@ -31,6 +36,11 @@ import {
 import { ensureUserProductAccount } from "@/lib/user-account-store";
 import { summarizePerformance, type SettlementStatus } from "@/lib/user-performance";
 import { toPublicValueAssessment } from "@/lib/value-assessment-store";
+import {
+  assessLiveSlateFreshness,
+  getIstanbulSlateWindow,
+  slateDayLabel,
+} from "@/lib/today-slate";
 
 export type DashboardPreferenceInput = {
   defaultAnalysisView?: "quick" | "detailed";
@@ -41,8 +51,9 @@ export type DashboardPreferenceInput = {
 export async function getUserDashboardOverview(user: ChatGPTUser) {
   const account = await ensureUserProductAccount(user);
   const db = await getDb();
-  const [matches, history, unreadRows, membershipCenter] = await Promise.all([
+  const [matches, todaySlate, history, unreadRows, membershipCenter] = await Promise.all([
     loadVisiblePredictionCards(user.email),
+    loadTodayResearchSlate(),
     loadPublishedPerformanceRecords(),
     db.select({ total: count() }).from(userNotifications).where(and(
       eq(userNotifications.userEmail, user.email),
@@ -85,17 +96,124 @@ export async function getUserDashboardOverview(user: ChatGPTUser) {
       notificationsUnread: Number(unreadRows[0]?.total ?? 0),
     },
     matches: visibleMatches.slice(0, 24),
+    todaySlate: membershipCenter.membership.productAccess ? todaySlate : { ...todaySlate, matches: [] },
     latestHistory: accessibleHistory.slice(0, 6),
     performance,
     availability: {
       publishableAnalysisCount: visibleMatches.length,
       researchRecordsHidden: true,
+      researchSlateVisible: true,
       valueEngineStatus: "active_cp12" as const,
       bankrollStatus: "active_cp13" as const,
       couponStatus: "active_cp13" as const,
       notificationStatus: "active_cp14" as const,
       membershipStatus: "active_cp15" as const,
       publicIdentityStatus: "external_provider_gate" as const,
+    },
+  };
+}
+
+async function loadTodayResearchSlate() {
+  const db = await getDb();
+  const generatedAt = new Date().toISOString();
+  const window = getIstanbulSlateWindow(generatedAt);
+  const [fixtureRows, feedRows] = await Promise.all([
+    db.select({
+      fixture: fixtures,
+      leagueLabel: leagues.name,
+      ingestionCapturedAt: ingestionRuns.capturedAt,
+    }).from(fixtures)
+      .innerJoin(leagues, eq(fixtures.leagueId, leagues.id))
+      .innerJoin(ingestionRuns, eq(fixtures.ingestionRunId, ingestionRuns.id))
+      .where(and(
+        gte(fixtures.kickoffAt, window.startIso),
+        lte(fixtures.kickoffAt, window.endIso),
+        inArray(fixtures.status, ["scheduled", "live"]),
+      ))
+      .orderBy(asc(fixtures.kickoffAt))
+      .limit(160),
+    db.select().from(researchFixtureFeedRuns)
+      .orderBy(desc(researchFixtureFeedRuns.startedAt)).limit(1),
+  ]);
+  const fixtureIds = fixtureRows.map((row) => row.fixture.id);
+  const teamIds = [...new Set(fixtureRows.flatMap((row) => [row.fixture.homeTeamId, row.fixture.awayTeamId]))];
+  const [teamRows, threadRows] = await Promise.all([
+    teamIds.length
+      ? db.select({ id: teams.id, name: teams.name }).from(teams).where(inArray(teams.id, teamIds))
+      : Promise.resolve([]),
+    fixtureIds.length
+      ? db.select().from(predictionThreads).where(inArray(predictionThreads.fixtureId, fixtureIds))
+      : Promise.resolve([]),
+  ]);
+  const versionIds = threadRows.flatMap((thread) => thread.currentVersionId ? [thread.currentVersionId] : []);
+  const versionRows = versionIds.length
+    ? await db.select().from(predictionVersions).where(inArray(predictionVersions.id, versionIds))
+    : [];
+  const teamById = new Map(teamRows.map((team) => [team.id, team.name]));
+  const threadByFixture = new Map(threadRows.map((thread) => [thread.fixtureId, thread]));
+  const versionById = new Map(versionRows.map((version) => [version.id, version]));
+  const latestFeed = feedRows[0] ?? null;
+  const freshness = assessLiveSlateFreshness({
+    generatedAt,
+    capturedAt: latestFeed?.completedAt ?? latestFeed?.startedAt ?? null,
+    status: latestFeed?.status ?? "never_run",
+  });
+  const matches = fixtureRows.map(({ fixture, leagueLabel, ingestionCapturedAt }) => {
+    const thread = threadByFixture.get(fixture.id) ?? null;
+    const version = thread?.currentVersionId ? versionById.get(thread.currentVersionId) ?? null : null;
+    const recommendationEligible = Boolean(
+      thread
+      && version
+      && !thread.researchOnly
+      && thread.recommendationEligible
+      && !version.researchOnly
+      && version.recommendationEligible
+      && version.recommendationOutcome,
+    );
+    return {
+      fixtureId: fixture.id,
+      kickoffAt: fixture.kickoffAt,
+      day: slateDayLabel(fixture.kickoffAt, window),
+      fixtureStatus: fixture.status,
+      leagueLabel,
+      homeTeamName: teamById.get(fixture.homeTeamId) ?? fixture.homeTeamId,
+      awayTeamName: teamById.get(fixture.awayTeamId) ?? fixture.awayTeamId,
+      capturedAt: ingestionCapturedAt,
+      analysis: version ? toAnalysisVersion(version) : null,
+      recommendation: recommendationEligible ? {
+        outcome: version!.recommendationOutcome!,
+        eligible: true as const,
+      } : null,
+      researchOnly: !recommendationEligible,
+      blockers: version ? parseJson<string[]>(version.blockerCodesJson, []) : ["MODEL_ANALYSIS_PENDING"],
+    };
+  });
+  return {
+    generatedAt,
+    timezone: "Europe/Istanbul" as const,
+    window: { startAt: window.startIso, todayEndsAt: window.todayEndIso, endAt: window.endIso },
+    source: {
+      name: latestFeed?.adapterVersion?.startsWith("football-data-org-") ? "football-data.org v4" : "Football-Data.co.uk fixture feed",
+      status: latestFeed?.status ?? "never_run",
+      capturedAt: freshness.capturedAt,
+      freshness: freshness.level,
+      ageMinutes: freshness.ageMinutes,
+      errorCode: latestFeed?.errorCode ?? null,
+      note: latestFeed?.adapterVersion?.startsWith("football-data-org-")
+        ? "Kimlik doğrulamalı fikstür API'si; oran sağlamaz ve öneri kapıları ayrıca uygulanır."
+        : "Ücretsiz CSV akışı haftalık/takvimli güncellenir; canlı skor servisi değildir.",
+    },
+    counts: {
+      today: matches.filter((match) => match.day === "today").length,
+      upcoming: matches.filter((match) => match.day !== "today").length,
+      analyzed: matches.filter((match) => match.analysis !== null).length,
+      recommendations: matches.filter((match) => match.recommendation !== null).length,
+    },
+    matches,
+    policy: {
+      researchRecordsShownWithLabel: true,
+      recommendationGatePreserved: true,
+      noAutomaticBetInstruction: true,
     },
   };
 }

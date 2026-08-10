@@ -19,6 +19,12 @@ import {
   parseFootballDataFixtureFeed,
 } from "@/lib/football-data-fixture-feed";
 import {
+  FOOTBALL_DATA_ORG_ADAPTER_VERSION,
+  FOOTBALL_DATA_ORG_MAX_BYTES,
+  buildFootballDataOrgMatchesUrl,
+  parseFootballDataOrgMatches,
+} from "@/lib/football-data-org-live";
+import {
   FOOTBALL_DATA_LIVE_SEASON,
   FOOTBALL_DATA_PILOT_LEAGUES,
   FootballDataSourceError,
@@ -69,6 +75,10 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
   const db = await getDb();
   const now = new Date();
   const nowIso = now.toISOString();
+  const liveApiToken = process.env.FOOTBALL_DATA_ORG_API_TOKEN?.trim() || null;
+  const upstreamUrl = liveApiToken ? buildFootballDataOrgMatchesUrl(nowIso) : FOOTBALL_DATA_FIXTURE_FEED_URL;
+  const adapterVersion = liveApiToken ? FOOTBALL_DATA_ORG_ADAPTER_VERSION : FOOTBALL_DATA_FIXTURE_FEED_ADAPTER_VERSION;
+  const maximumBytes = liveApiToken ? FOOTBALL_DATA_ORG_MAX_BYTES : FOOTBALL_DATA_FIXTURE_FEED_MAX_BYTES;
   await db.update(researchFixtureFeedRuns).set({
     activeKey: null,
     status: "failed",
@@ -84,8 +94,8 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
   const inserted = await db.insert(researchFixtureFeedRuns).values({
     id: runId,
     activeKey: FIXTURE_FEED_ACTIVE_KEY,
-    adapterVersion: FOOTBALL_DATA_FIXTURE_FEED_ADAPTER_VERSION,
-    upstreamUrl: FOOTBALL_DATA_FIXTURE_FEED_URL,
+    adapterVersion,
+    upstreamUrl,
     status: "fetching",
     requestedByEmail: actor.email,
     startedAt: nowIso,
@@ -104,7 +114,7 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
 
   const [previous] = await db.select().from(researchFixtureFeedRuns)
     .where(and(
-      eq(researchFixtureFeedRuns.upstreamUrl, FOOTBALL_DATA_FIXTURE_FEED_URL),
+      eq(researchFixtureFeedRuns.upstreamUrl, upstreamUrl),
       eq(researchFixtureFeedRuns.status, "imported"),
     ))
     .orderBy(desc(researchFixtureFeedRuns.startedAt)).limit(1);
@@ -118,11 +128,12 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
 
   try {
     const headers: Record<string, string> = {
-      Accept: "text/csv,text/plain;q=0.9,*/*;q=0.1",
+      Accept: liveApiToken ? "application/json" : "text/csv,text/plain;q=0.9,*/*;q=0.1",
       "Cache-Control": "no-cache",
     };
+    if (liveApiToken) headers["X-Auth-Token"] = liveApiToken;
     if (previous?.upstreamEtag) headers["If-None-Match"] = previous.upstreamEtag;
-    const response = await fetch(FOOTBALL_DATA_FIXTURE_FEED_URL, {
+    const response = await fetch(upstreamUrl, {
       headers,
       redirect: "follow",
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -144,13 +155,13 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
       throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_HTTP_ERROR", `Fikstür kaynağı HTTP ${response.status} yanıtı verdi.`);
     }
     const declaredBytes = Number(response.headers.get("content-length") ?? "0");
-    if (declaredBytes > FOOTBALL_DATA_FIXTURE_FEED_MAX_BYTES) {
+    if (declaredBytes > maximumBytes) {
       throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Fikstür CSV 5 MB güvenlik sınırını aşıyor.");
     }
     const responseBuffer = await response.arrayBuffer();
     const bytes = new Uint8Array(responseBuffer);
     contentBytes = bytes.byteLength;
-    if (contentBytes > FOOTBALL_DATA_FIXTURE_FEED_MAX_BYTES) {
+    if (contentBytes > maximumBytes) {
       throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Fikstür CSV 5 MB güvenlik sınırını aşıyor.");
     }
     rawChecksumSha256 = await sha256(responseBuffer);
@@ -166,16 +177,16 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
       return { run: await loadPublicFixtureFeedRun(runId), reused: true };
     }
 
-    const parsed = parseFootballDataFixtureFeed({
-      csv: new TextDecoder("utf-8").decode(bytes),
-      capturedAt: nowIso,
-    });
-    rawSnapshotKey = `research/football-data/fixtures/${rawChecksumSha256}.csv`;
+    const rawText = new TextDecoder("utf-8").decode(bytes);
+    const parsed = liveApiToken
+      ? parseFootballDataOrgMatches({ json: rawText, capturedAt: nowIso, upstreamUrl })
+      : parseFootballDataFixtureFeed({ csv: rawText, capturedAt: nowIso });
+    rawSnapshotKey = `research/football-data/fixtures/${rawChecksumSha256}.${liveApiToken ? "json" : "csv"}`;
     await (await getBucket()).put(rawSnapshotKey, bytes, {
       httpMetadata: { contentType: responseContentType || "text/csv; charset=utf-8" },
       customMetadata: {
-        source: "football-data.co.uk",
-        adapterVersion: FOOTBALL_DATA_FIXTURE_FEED_ADAPTER_VERSION,
+        source: liveApiToken ? "football-data.org" : "football-data.co.uk",
+        adapterVersion,
         fetchedAt: nowIso,
         checksumSha256: rawChecksumSha256,
       },
@@ -185,7 +196,7 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
       const imported = await importFootballSnapshot(actor, envelope, {
         importFormat: "csv",
         externalIssues: parsed.qualityIssues,
-        forceResearchOnlyReason: "Fikstür ve oran revizyon zamanı ile ticari yeniden kullanım hakkı doğrulanmadığı için kullanıcı önerisi üretilemez.",
+        forceResearchOnlyReason: "Fikstür kaynağının ticari yeniden kullanım ve yayın kapıları doğrulanmadığı için kullanıcı önerisi üretilemez.",
       });
       ingestionRunIds.push(imported.runId);
     }
@@ -448,9 +459,9 @@ export async function getResearchAutomationOverview(actor: AdminActor) {
     generatedAt,
     actor: { email: actor.email, displayName: actor.displayName, role: actor.role },
     source: {
-      name: "Football-Data.co.uk fixture feed",
-      url: FOOTBALL_DATA_FIXTURE_FEED_URL,
-      adapterVersion: FOOTBALL_DATA_FIXTURE_FEED_ADAPTER_VERSION,
+      name: feedRows[0]?.adapterVersion === FOOTBALL_DATA_ORG_ADAPTER_VERSION ? "football-data.org v4 matches" : "Football-Data.co.uk fixture feed",
+      url: feedRows[0]?.upstreamUrl ?? FOOTBALL_DATA_FIXTURE_FEED_URL,
+      adapterVersion: feedRows[0]?.adapterVersion ?? FOOTBALL_DATA_FIXTURE_FEED_ADAPTER_VERSION,
       commercialReuseVerified: false,
       revisionTimingVerified: false,
       marketCaptureTimingVerified: false,
