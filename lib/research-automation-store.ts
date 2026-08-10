@@ -20,6 +20,15 @@ import {
   parseApiFootballFixtures,
 } from "@/lib/api-football-live";
 import {
+  SPORTMONKS_ADAPTER_VERSION,
+  SPORTMONKS_MAX_BYTES,
+  SPORTMONKS_MAX_PAGES_PER_CYCLE,
+  SPORTMONKS_PLAN_LEAGUES,
+  buildSportMonksWindowUrl,
+  parseSportMonksFixtures,
+  sportMonksPageUrl,
+} from "@/lib/sportmonks-live";
+import {
   FOOTBALL_DATA_FIXTURE_FEED_ADAPTER_VERSION,
   FOOTBALL_DATA_FIXTURE_FEED_MAX_BYTES,
   FOOTBALL_DATA_FIXTURE_FEED_URL,
@@ -84,18 +93,16 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
   const now = new Date();
   const nowIso = now.toISOString();
   const runtime = await getResearchAutomationRuntime();
+  const sportMonksToken = runtime.SPORTMONKS_API_TOKEN?.trim() || null;
   const apiFootballKey = runtime.API_FOOTBALL_API_KEY?.trim() || null;
   const liveApiToken = runtime.FOOTBALL_DATA_ORG_API_TOKEN?.trim() || null;
-  const jsonProvider = Boolean(apiFootballKey || liveApiToken);
-  const upstreamUrl = apiFootballKey
-    ? buildApiFootballWindowUrls(nowIso)[1]
-    : liveApiToken ? buildFootballDataOrgMatchesUrl(nowIso) : FOOTBALL_DATA_FIXTURE_FEED_URL;
-  const adapterVersion = apiFootballKey
-    ? API_FOOTBALL_ADAPTER_VERSION
-    : liveApiToken ? FOOTBALL_DATA_ORG_ADAPTER_VERSION : FOOTBALL_DATA_FIXTURE_FEED_ADAPTER_VERSION;
-  const maximumBytes = apiFootballKey
-    ? API_FOOTBALL_MAX_BYTES
-    : liveApiToken ? FOOTBALL_DATA_ORG_MAX_BYTES : FOOTBALL_DATA_FIXTURE_FEED_MAX_BYTES;
+  const providerCandidates = buildFixtureProviderCandidates({ sportMonksToken, apiFootballKey, liveApiToken }, nowIso);
+  const primaryProvider = providerCandidates[0];
+  let selectedProvider = primaryProvider;
+  let jsonProvider = primaryProvider.jsonProvider;
+  let upstreamUrl = primaryProvider.upstreamUrl;
+  let adapterVersion = primaryProvider.adapterVersion;
+  let maximumBytes = primaryProvider.maximumBytes;
   await db.update(researchFixtureFeedRuns).set({
     activeKey: null,
     status: "failed",
@@ -107,7 +114,7 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
     eq(researchFixtureFeedRuns.status, "fetching"),
     lt(researchFixtureFeedRuns.startedAt, new Date(now.getTime() - 30 * 60_000).toISOString()),
   ));
-  const providerKey = apiFootballKey ? "api-football-v1" : liveApiToken ? "fdorg-v2" : "fdcsv";
+  const providerKey = primaryProvider.key;
   const runId = `fdfix:${providerKey}:${Math.floor(now.getTime() / FEED_WINDOW_MS)}`;
   const inserted = await db.insert(researchFixtureFeedRuns).values({
     id: runId,
@@ -130,12 +137,6 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
     throw new ResearchAutomationHttpError(409, "FIXTURE_FEED_CONFLICT", "Fikstür akışı aynı anda başka bir işlem tarafından alınıyor.");
   }
 
-  const [previous] = await db.select().from(researchFixtureFeedRuns)
-    .where(and(
-      eq(researchFixtureFeedRuns.upstreamUrl, upstreamUrl),
-      eq(researchFixtureFeedRuns.status, "imported"),
-    ))
-    .orderBy(desc(researchFixtureFeedRuns.startedAt)).limit(1);
   let responseStatus: number | null = null;
   let responseContentType: string | null = null;
   let upstreamEtag: string | null = null;
@@ -145,94 +146,25 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
   let contentBytes = 0;
 
   try {
-    const headers: Record<string, string> = {
-      Accept: jsonProvider ? "application/json" : "text/csv,text/plain;q=0.9,*/*;q=0.1",
-      "Cache-Control": "no-cache",
-    };
-    if (apiFootballKey) headers["x-apisports-key"] = apiFootballKey;
-    if (liveApiToken) headers["X-Auth-Token"] = liveApiToken;
-    if (!jsonProvider && previous?.upstreamEtag) headers["If-None-Match"] = previous.upstreamEtag;
-    let response!: Response;
-    let responseBuffer: ArrayBuffer;
-    if (apiFootballKey) {
-      const fixtures = new Map<string, unknown>();
-      let aggregateBytes = 0;
-      for (const windowUrl of buildApiFootballWindowUrls(nowIso)) {
-        response = await fetch(windowUrl, { headers, redirect: "follow", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-        responseStatus = response.status;
-        responseContentType = response.headers.get("content-type");
-        if (!response.ok || response.status !== 200) {
-          throw new ResearchAutomationHttpError(502, "API_FOOTBALL_HTTP_ERROR", `API-Football HTTP ${response.status} yanıtı verdi.`);
-        }
-        const chunk = new Uint8Array(await response.arrayBuffer());
-        aggregateBytes += chunk.byteLength;
-        if (aggregateBytes > maximumBytes) {
-          throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Birleşik API-Football yanıtı 8 MB güvenlik sınırını aşıyor.");
-        }
-        const payload = JSON.parse(new TextDecoder("utf-8").decode(chunk)) as { response?: unknown; errors?: unknown };
-        const providerError = apiFootballProviderError(payload.errors);
-        if (providerError) throw new ResearchAutomationHttpError(502, "API_FOOTBALL_PROVIDER_ERROR", providerError);
-        if (!Array.isArray(payload.response)) {
-          throw new ResearchAutomationHttpError(502, "API_FOOTBALL_INVALID_JSON", "API-Football yanıtında fikstür listesi bulunamadı.");
-        }
-        for (const item of payload.response) {
-          const fixture = item as { fixture?: { id?: unknown; date?: unknown }; teams?: { home?: { name?: unknown }; away?: { name?: unknown } } };
-          const key = String(fixture.fixture?.id ?? `${fixture.fixture?.date}|${fixture.teams?.home?.name}|${fixture.teams?.away?.name}`);
-          fixtures.set(key, item);
-        }
-      }
-      responseBuffer = new TextEncoder().encode(JSON.stringify({ response: [...fixtures.values()], errors: [] })).buffer as ArrayBuffer;
-      responseContentType = "application/json; charset=utf-8";
-    } else if (liveApiToken) {
-      const matches = new Map<string, unknown>();
-      let aggregateBytes = 0;
-      for (const windowUrl of buildFootballDataOrgWindowUrls(nowIso)) {
-        response = await fetch(windowUrl, {
-          headers,
-          redirect: "follow",
-          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        });
-        responseStatus = response.status;
-        responseContentType = response.headers.get("content-type");
-        if (!response.ok || response.status !== 200) {
-          throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_HTTP_ERROR", `Canlı fikstür API'si HTTP ${response.status} yanıtı verdi.`);
-        }
-        const bytes = new Uint8Array(await response.arrayBuffer());
-        aggregateBytes += bytes.byteLength;
-        if (aggregateBytes > maximumBytes) {
-          throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Birleşik canlı fikstür yanıtı 5 MB güvenlik sınırını aşıyor.");
-        }
-        const payload = JSON.parse(new TextDecoder("utf-8").decode(bytes)) as { matches?: unknown };
-        if (!Array.isArray(payload.matches)) {
-          throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_INVALID_JSON", "Canlı fikstür API yanıtında maç listesi bulunamadı.");
-        }
-        for (const item of payload.matches) {
-          const match = item as { id?: unknown; utcDate?: unknown; homeTeam?: { name?: unknown }; awayTeam?: { name?: unknown } };
-          const key = String(match.id ?? `${match.utcDate}|${match.homeTeam?.name}|${match.awayTeam?.name}`);
-          matches.set(key, item);
-        }
-      }
-      responseBuffer = new TextEncoder().encode(JSON.stringify({ matches: [...matches.values()] })).buffer as ArrayBuffer;
-      responseContentType = "application/json; charset=utf-8";
-    } else {
-      response = await fetch(upstreamUrl, {
-        headers,
-        redirect: "follow",
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      });
-      responseStatus = response.status;
-      responseContentType = response.headers.get("content-type");
-      upstreamEtag = response.headers.get("etag");
-      upstreamLastModified = response.headers.get("last-modified");
-      if (!response.ok && response.status !== 304) {
-        throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_HTTP_ERROR", `Fikstür kaynağı HTTP ${response.status} yanıtı verdi.`);
-      }
-      const declaredBytes = Number(response.headers.get("content-length") ?? "0");
-      if (declaredBytes > maximumBytes) {
-        throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Fikstür CSV 5 MB güvenlik sınırını aşıyor.");
-      }
-      responseBuffer = await response.arrayBuffer();
-    }
+    const fetched = await fetchFixtureProviderWithFallback(providerCandidates);
+    selectedProvider = fetched.provider;
+    jsonProvider = selectedProvider.jsonProvider;
+    upstreamUrl = selectedProvider.upstreamUrl;
+    adapterVersion = selectedProvider.adapterVersion;
+    maximumBytes = selectedProvider.maximumBytes;
+    const { response, responseBuffer } = fetched;
+    responseStatus = response.status;
+    responseContentType = fetched.responseContentType;
+    upstreamEtag = fetched.upstreamEtag;
+    upstreamLastModified = fetched.upstreamLastModified;
+    await db.update(researchFixtureFeedRuns).set({ adapterVersion, upstreamUrl })
+      .where(eq(researchFixtureFeedRuns.id, runId));
+    const [previous] = await db.select().from(researchFixtureFeedRuns)
+      .where(and(
+        eq(researchFixtureFeedRuns.upstreamUrl, upstreamUrl),
+        eq(researchFixtureFeedRuns.status, "imported"),
+      ))
+      .orderBy(desc(researchFixtureFeedRuns.startedAt)).limit(1);
     if (response.status === 304 && previous) {
       await completeUnchangedFixtureFeed(runId, previous, {
         httpStatus: response.status,
@@ -261,15 +193,17 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
     }
 
     const rawText = new TextDecoder("utf-8").decode(bytes);
-    const parsed = apiFootballKey
+    const parsed = selectedProvider.kind === "sportmonks"
+      ? parseSportMonksFixtures({ json: rawText, capturedAt: nowIso, upstreamUrl })
+      : selectedProvider.kind === "api-football"
       ? parseApiFootballFixtures({ json: rawText, capturedAt: nowIso, upstreamUrl })
-      : liveApiToken ? parseFootballDataOrgMatches({ json: rawText, capturedAt: nowIso, upstreamUrl })
+      : selectedProvider.kind === "football-data-org" ? parseFootballDataOrgMatches({ json: rawText, capturedAt: nowIso, upstreamUrl })
         : parseFootballDataFixtureFeed({ csv: rawText, capturedAt: nowIso });
     rawSnapshotKey = `research/football-data/fixtures/${rawChecksumSha256}.${jsonProvider ? "json" : "csv"}`;
     await (await getBucket()).put(rawSnapshotKey, bytes, {
       httpMetadata: { contentType: responseContentType || "text/csv; charset=utf-8" },
       customMetadata: {
-        source: apiFootballKey ? "api-football" : liveApiToken ? "football-data.org" : "football-data.co.uk",
+        source: selectedProvider.kind,
         adapterVersion,
         fetchedAt: nowIso,
         checksumSha256: rawChecksumSha256,
@@ -377,8 +311,9 @@ export async function runResearchAutomationCycle(
     }
 
     const runtime = await getResearchAutomationRuntime();
-    const liveProvider = runtime.API_FOOTBALL_API_KEY?.trim()
-      ? "api-football"
+    const liveProvider = runtime.SPORTMONKS_API_TOKEN?.trim()
+      ? "sportmonks"
+      : runtime.API_FOOTBALL_API_KEY?.trim() ? "api-football"
       : runtime.FOOTBALL_DATA_ORG_API_TOKEN?.trim() ? "football-data-org" : null;
     const liveApiActive = Boolean(liveProvider);
     if (liveApiActive) {
@@ -497,7 +432,10 @@ export async function getResearchAutomationOverview(actor: AdminActor) {
   const historicalRunRows = runRows.filter((row) => row.jobKind === "historical_validation");
   const latestEvidenceByLeague = new Map<string, typeof evidenceRows[number]>();
   for (const row of evidenceRows) if (!latestEvidenceByLeague.has(row.leagueId)) latestEvidenceByLeague.set(row.leagueId, row);
-  const leagues = FOOTBALL_DATA_PILOT_LEAGUES.map((league) => {
+  const monitoredLeagues = feedRows[0]?.adapterVersion === SPORTMONKS_ADAPTER_VERSION
+    ? SPORTMONKS_PLAN_LEAGUES
+    : FOOTBALL_DATA_PILOT_LEAGUES;
+  const leagues = monitoredLeagues.map((league) => {
     const rows = observationRows.filter((row) => row.leagueId === league.id);
     const settled = rows.filter((row) => row.status === "settled" && row.actualOutcome && row.resultKnownAt);
     const evidence = latestEvidenceByLeague.get(league.id);
@@ -553,7 +491,9 @@ export async function getResearchAutomationOverview(actor: AdminActor) {
     generatedAt,
     actor: { email: actor.email, displayName: actor.displayName, role: actor.role },
     source: {
-      name: feedRows[0]?.adapterVersion === API_FOOTBALL_ADAPTER_VERSION
+      name: feedRows[0]?.adapterVersion === SPORTMONKS_ADAPTER_VERSION
+        ? "SportMonks Football API v3"
+        : feedRows[0]?.adapterVersion === API_FOOTBALL_ADAPTER_VERSION
         ? "API-Football v3 fixtures"
         : feedRows[0]?.adapterVersion === FOOTBALL_DATA_ORG_ADAPTER_VERSION ? "football-data.org v4 matches" : "Football-Data.co.uk fixture feed",
       url: feedRows[0]?.upstreamUrl ?? FOOTBALL_DATA_FIXTURE_FEED_URL,
@@ -831,6 +771,223 @@ function normalizeAutomationError(error: unknown, fallbackCode: string, fallback
   return new ResearchAutomationHttpError(502, fallbackCode, fallbackMessage);
 }
 
+type FixtureProviderKind = "sportmonks" | "api-football" | "football-data-org" | "football-data.co.uk";
+type FixtureProviderCandidate = {
+  kind: FixtureProviderKind;
+  key: string;
+  token: string | null;
+  upstreamUrl: string;
+  adapterVersion: string;
+  maximumBytes: number;
+  jsonProvider: boolean;
+};
+
+function buildFixtureProviderCandidates(input: {
+  sportMonksToken: string | null;
+  apiFootballKey: string | null;
+  liveApiToken: string | null;
+}, nowIso: string): FixtureProviderCandidate[] {
+  const candidates: FixtureProviderCandidate[] = [];
+  if (input.sportMonksToken) candidates.push({
+    kind: "sportmonks",
+    key: "sportmonks-v1",
+    token: input.sportMonksToken,
+    upstreamUrl: buildSportMonksWindowUrl(nowIso),
+    adapterVersion: SPORTMONKS_ADAPTER_VERSION,
+    maximumBytes: SPORTMONKS_MAX_BYTES,
+    jsonProvider: true,
+  });
+  if (input.apiFootballKey) candidates.push({
+    kind: "api-football",
+    key: "api-football-v1",
+    token: input.apiFootballKey,
+    upstreamUrl: buildApiFootballWindowUrls(nowIso)[1],
+    adapterVersion: API_FOOTBALL_ADAPTER_VERSION,
+    maximumBytes: API_FOOTBALL_MAX_BYTES,
+    jsonProvider: true,
+  });
+  if (input.liveApiToken) candidates.push({
+    kind: "football-data-org",
+    key: "fdorg-v2",
+    token: input.liveApiToken,
+    upstreamUrl: buildFootballDataOrgMatchesUrl(nowIso),
+    adapterVersion: FOOTBALL_DATA_ORG_ADAPTER_VERSION,
+    maximumBytes: FOOTBALL_DATA_ORG_MAX_BYTES,
+    jsonProvider: true,
+  });
+  candidates.push({
+    kind: "football-data.co.uk",
+    key: "fdcsv",
+    token: null,
+    upstreamUrl: FOOTBALL_DATA_FIXTURE_FEED_URL,
+    adapterVersion: FOOTBALL_DATA_FIXTURE_FEED_ADAPTER_VERSION,
+    maximumBytes: FOOTBALL_DATA_FIXTURE_FEED_MAX_BYTES,
+    jsonProvider: false,
+  });
+  return candidates;
+}
+
+async function fetchFixtureProviderWithFallback(candidates: FixtureProviderCandidate[]) {
+  const failures: string[] = [];
+  for (const provider of candidates) {
+    try {
+      return await fetchFixtureProvider(provider);
+    } catch (error) {
+      const code = error instanceof ResearchAutomationHttpError ? error.code : "UPSTREAM_FAILURE";
+      failures.push(`${provider.kind}:${code}`);
+    }
+  }
+  throw new ResearchAutomationHttpError(
+    502,
+    "ALL_FIXTURE_PROVIDERS_FAILED",
+    `Tüm fikstür sağlayıcıları başarısız oldu (${failures.join(", ")}).`,
+  );
+}
+
+async function fetchFixtureProvider(provider: FixtureProviderCandidate) {
+  const headers: Record<string, string> = {
+    Accept: provider.jsonProvider ? "application/json" : "text/csv,text/plain;q=0.9,*/*;q=0.1",
+    "Cache-Control": "no-cache",
+  };
+  if (provider.kind === "sportmonks" && provider.token) headers.Authorization = `Bearer ${provider.token}`;
+  if (provider.kind === "api-football" && provider.token) headers["x-apisports-key"] = provider.token;
+  if (provider.kind === "football-data-org" && provider.token) headers["X-Auth-Token"] = provider.token;
+
+  if (provider.kind === "sportmonks") {
+    const fixtures = new Map<string, unknown>();
+    let aggregateBytes = 0;
+    let response!: Response;
+    for (let page = 1; page <= SPORTMONKS_MAX_PAGES_PER_CYCLE; page += 1) {
+      response = await fetch(sportMonksPageUrl(provider.upstreamUrl, page), {
+        headers,
+        redirect: "follow",
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      if (!response.ok || response.status !== 200) {
+        throw new ResearchAutomationHttpError(502, "SPORTMONKS_HTTP_ERROR", `SportMonks HTTP ${response.status} yanıtı verdi.`);
+      }
+      const chunk = new Uint8Array(await response.arrayBuffer());
+      aggregateBytes += chunk.byteLength;
+      if (aggregateBytes > provider.maximumBytes) {
+        throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Birleşik SportMonks yanıtı 8 MB güvenlik sınırını aşıyor.");
+      }
+      const payload = JSON.parse(new TextDecoder("utf-8").decode(chunk)) as {
+        data?: unknown;
+        pagination?: { has_more?: unknown };
+        message?: unknown;
+      };
+      if (!Array.isArray(payload.data)) {
+        throw new ResearchAutomationHttpError(502, "SPORTMONKS_INVALID_JSON", "SportMonks yanıtında fikstür listesi bulunamadı.");
+      }
+      for (const item of payload.data) {
+        const fixture = item as { id?: unknown; starting_at?: unknown; name?: unknown };
+        fixtures.set(String(fixture.id ?? `${fixture.starting_at}|${fixture.name}`), item);
+      }
+      const hasMore = payload.pagination?.has_more === true;
+      if (!hasMore) break;
+      if (page === SPORTMONKS_MAX_PAGES_PER_CYCLE) {
+        throw new ResearchAutomationHttpError(502, "SPORTMONKS_PAGE_BUDGET_EXCEEDED", "SportMonks fikstürleri üç sayfalık güvenli çağrı bütçesini aştı.");
+      }
+    }
+    const responseBuffer = new TextEncoder().encode(JSON.stringify({ data: [...fixtures.values()] })).buffer as ArrayBuffer;
+    return {
+      provider,
+      response,
+      responseBuffer,
+      responseContentType: "application/json; charset=utf-8",
+      upstreamEtag: null,
+      upstreamLastModified: null,
+    };
+  }
+
+  if (provider.kind === "api-football") {
+    const fixtures = new Map<string, unknown>();
+    let aggregateBytes = 0;
+    let response!: Response;
+    const referenceAt = new Date().toISOString();
+    for (const windowUrl of buildApiFootballWindowUrls(referenceAt)) {
+      response = await fetch(windowUrl, { headers, redirect: "follow", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      if (!response.ok || response.status !== 200) {
+        throw new ResearchAutomationHttpError(502, "API_FOOTBALL_HTTP_ERROR", `API-Football HTTP ${response.status} yanıtı verdi.`);
+      }
+      const chunk = new Uint8Array(await response.arrayBuffer());
+      aggregateBytes += chunk.byteLength;
+      if (aggregateBytes > provider.maximumBytes) {
+        throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Birleşik API-Football yanıtı 8 MB güvenlik sınırını aşıyor.");
+      }
+      const payload = JSON.parse(new TextDecoder("utf-8").decode(chunk)) as { response?: unknown; errors?: unknown };
+      const providerError = apiFootballProviderError(payload.errors);
+      if (providerError) throw new ResearchAutomationHttpError(502, "API_FOOTBALL_PROVIDER_ERROR", providerError);
+      if (!Array.isArray(payload.response)) {
+        throw new ResearchAutomationHttpError(502, "API_FOOTBALL_INVALID_JSON", "API-Football yanıtında fikstür listesi bulunamadı.");
+      }
+      for (const item of payload.response) {
+        const fixture = item as { fixture?: { id?: unknown; date?: unknown }; teams?: { home?: { name?: unknown }; away?: { name?: unknown } } };
+        fixtures.set(String(fixture.fixture?.id ?? `${fixture.fixture?.date}|${fixture.teams?.home?.name}|${fixture.teams?.away?.name}`), item);
+      }
+    }
+    return {
+      provider,
+      response,
+      responseBuffer: new TextEncoder().encode(JSON.stringify({ response: [...fixtures.values()], errors: [] })).buffer as ArrayBuffer,
+      responseContentType: "application/json; charset=utf-8",
+      upstreamEtag: null,
+      upstreamLastModified: null,
+    };
+  }
+
+  if (provider.kind === "football-data-org") {
+    const matches = new Map<string, unknown>();
+    let aggregateBytes = 0;
+    let response!: Response;
+    const referenceAt = new Date().toISOString();
+    for (const windowUrl of buildFootballDataOrgWindowUrls(referenceAt)) {
+      response = await fetch(windowUrl, { headers, redirect: "follow", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      if (!response.ok || response.status !== 200) {
+        throw new ResearchAutomationHttpError(502, "FOOTBALL_DATA_ORG_HTTP_ERROR", `football-data.org HTTP ${response.status} yanıtı verdi.`);
+      }
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      aggregateBytes += bytes.byteLength;
+      if (aggregateBytes > provider.maximumBytes) {
+        throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Birleşik football-data.org yanıtı 5 MB güvenlik sınırını aşıyor.");
+      }
+      const payload = JSON.parse(new TextDecoder("utf-8").decode(bytes)) as { matches?: unknown };
+      if (!Array.isArray(payload.matches)) {
+        throw new ResearchAutomationHttpError(502, "FOOTBALL_DATA_ORG_INVALID_JSON", "football-data.org yanıtında maç listesi bulunamadı.");
+      }
+      for (const item of payload.matches) {
+        const match = item as { id?: unknown; utcDate?: unknown; homeTeam?: { name?: unknown }; awayTeam?: { name?: unknown } };
+        matches.set(String(match.id ?? `${match.utcDate}|${match.homeTeam?.name}|${match.awayTeam?.name}`), item);
+      }
+    }
+    return {
+      provider,
+      response,
+      responseBuffer: new TextEncoder().encode(JSON.stringify({ matches: [...matches.values()] })).buffer as ArrayBuffer,
+      responseContentType: "application/json; charset=utf-8",
+      upstreamEtag: null,
+      upstreamLastModified: null,
+    };
+  }
+
+  const response = await fetch(provider.upstreamUrl, { headers, redirect: "follow", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  if (!response.ok) {
+    throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_HTTP_ERROR", `Fikstür kaynağı HTTP ${response.status} yanıtı verdi.`);
+  }
+  const declaredBytes = Number(response.headers.get("content-length") ?? "0");
+  if (declaredBytes > provider.maximumBytes) {
+    throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Fikstür CSV 5 MB güvenlik sınırını aşıyor.");
+  }
+  return {
+    provider,
+    response,
+    responseBuffer: await response.arrayBuffer(),
+    responseContentType: response.headers.get("content-type"),
+    upstreamEtag: response.headers.get("etag"),
+    upstreamLastModified: response.headers.get("last-modified"),
+  };
+}
+
 async function getBucket(): Promise<R2Bucket> {
   const { env } = await import("cloudflare:workers");
   const bucket = (env as unknown as { BUCKET?: R2Bucket }).BUCKET;
@@ -839,11 +996,12 @@ async function getBucket(): Promise<R2Bucket> {
 }
 
 async function getResearchAutomationRuntime(): Promise<{
+  SPORTMONKS_API_TOKEN?: string;
   API_FOOTBALL_API_KEY?: string;
   FOOTBALL_DATA_ORG_API_TOKEN?: string;
 }> {
   const { env } = await import("cloudflare:workers");
-  return env as unknown as { API_FOOTBALL_API_KEY?: string; FOOTBALL_DATA_ORG_API_TOKEN?: string };
+  return env as unknown as { SPORTMONKS_API_TOKEN?: string; API_FOOTBALL_API_KEY?: string; FOOTBALL_DATA_ORG_API_TOKEN?: string };
 }
 
 async function sha256(buffer: ArrayBuffer) {
