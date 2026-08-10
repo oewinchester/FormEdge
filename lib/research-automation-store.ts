@@ -799,7 +799,7 @@ function buildFixtureProviderCandidates(input: {
   const candidates: FixtureProviderCandidate[] = [];
   if (input.sportMonksToken) candidates.push({
     kind: "sportmonks",
-    key: "sportmonks-v1",
+    key: "sportmonks-v3",
     token: input.sportMonksToken,
     upstreamUrl: buildSportMonksWindowUrl(nowIso),
     adapterVersion: SPORTMONKS_ADAPTER_VERSION,
@@ -905,6 +905,9 @@ async function fetchFixtureProvider(provider: FixtureProviderCandidate) {
         throw new ResearchAutomationHttpError(502, "SPORTMONKS_PAGE_BUDGET_EXCEEDED", "SportMonks fikstürleri üç sayfalık güvenli çağrı bütçesini aştı.");
       }
     }
+    if (fixtures.size === 0) {
+      throw new ResearchAutomationHttpError(502, "SPORTMONKS_EMPTY_WINDOW", "SportMonks seçili tarih aralığında sıfır fikstür döndürdü; yedek kaynak deneniyor.");
+    }
     const responseBuffer = new TextEncoder().encode(JSON.stringify({ data: [...fixtures.values()] })).buffer as ArrayBuffer;
     return {
       provider,
@@ -942,6 +945,9 @@ async function fetchFixtureProvider(provider: FixtureProviderCandidate) {
         fixtures.set(String(fixture.fixture?.id ?? `${fixture.fixture?.date}|${fixture.teams?.home?.name}|${fixture.teams?.away?.name}`), item);
       }
     }
+    if (fixtures.size === 0) {
+      throw new ResearchAutomationHttpError(502, "API_FOOTBALL_EMPTY_WINDOW", "API-Football seçili tarih aralığında sıfır fikstür döndürdü; yedek kaynak deneniyor.");
+    }
     return {
       provider,
       response,
@@ -975,6 +981,9 @@ async function fetchFixtureProvider(provider: FixtureProviderCandidate) {
         const match = item as { id?: unknown; utcDate?: unknown; homeTeam?: { name?: unknown }; awayTeam?: { name?: unknown } };
         matches.set(String(match.id ?? `${match.utcDate}|${match.homeTeam?.name}|${match.awayTeam?.name}`), item);
       }
+    }
+    if (matches.size === 0) {
+      throw new ResearchAutomationHttpError(502, "FOOTBALL_DATA_ORG_EMPTY_WINDOW", "football-data.org seçili tarih aralığında sıfır fikstür döndürdü; yedek kaynak deneniyor.");
     }
     return {
       provider,

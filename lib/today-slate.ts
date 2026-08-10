@@ -36,6 +36,7 @@ export function assessLiveSlateFreshness(input: {
   generatedAt: string;
   capturedAt: string | null;
   status: string;
+  sourceRowCount?: number | null;
 }) {
   const generatedMs = Date.parse(input.generatedAt);
   const capturedMs = input.capturedAt ? Date.parse(input.capturedAt) : Number.NaN;
@@ -45,6 +46,8 @@ export function assessLiveSlateFreshness(input: {
   const ageMinutes = Math.max(0, Math.floor((generatedMs - capturedMs) / 60_000));
   const level = input.status === "failed"
     ? "failed" as const
+    : input.status === "imported" && (input.sourceRowCount ?? 0) === 0
+      ? "empty" as const
     : ageMinutes <= 90
       ? "fresh" as const
       : ageMinutes <= 36 * 60

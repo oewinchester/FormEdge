@@ -45,7 +45,7 @@ const payload = JSON.stringify({
 });
 
 test("SportMonks plan coverage is the exact 30-league subscription", () => {
-  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v2");
+  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v3");
   assert.equal(SPORTMONKS_PLAN_LEAGUES.length, 30);
   assert.equal(new Set(SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId)).size, 30);
   assert.deepEqual(
@@ -57,7 +57,7 @@ test("SportMonks plan coverage is the exact 30-league subscription", () => {
 test("SportMonks URL keeps the token out of logs and enforces the page budget", () => {
   const url = buildSportMonksWindowUrl("2026-08-10T12:00:00.000Z");
   assert.match(url, /fixtures\/between\/2026-08-09\/2026-08-13/);
-  assert.match(url, /fixtureLeagues%3A8%2C9%2C72/);
+  assert.doesNotMatch(url, /fixtureLeagues/);
   assert.match(url, /include=participants%3Bscores%3Bstate/);
   assert.match(url, /order=asc/);
   assert.doesNotMatch(url, /order=starting_at/);

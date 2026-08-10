@@ -293,7 +293,7 @@ function riskLabel(value: "cautious" | "balanced" | "bold") {
 }
 
 function freshnessLabel(value: UserDashboardOverview["todaySlate"]["source"]["freshness"]) {
-  return value === "fresh" ? "Kaynak taze" : value === "aging" ? "Kaynak yaşlanıyor" : value === "stale" ? "Kaynak eski" : value === "failed" ? "Son çekim başarısız" : "Kaynak bekleniyor";
+  return value === "fresh" ? "Kaynak taze" : value === "aging" ? "Kaynak yaşlanıyor" : value === "stale" ? "Kaynak eski" : value === "failed" ? "Son çekim başarısız" : value === "empty" ? "Kaynak boş döndü" : "Kaynak bekleniyor";
 }
 
 function dayLabel(value: UserDashboardOverview["todaySlate"]["matches"][number]["day"]) {

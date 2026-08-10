@@ -158,6 +158,7 @@ async function loadTodayResearchSlate() {
     generatedAt,
     capturedAt: latestFeed?.completedAt ?? latestFeed?.startedAt ?? null,
     status: latestFeed?.status ?? "never_run",
+    sourceRowCount: latestFeed?.sourceRowCount ?? 0,
   });
   const matches = fixtureRows.map(({ fixture, leagueLabel, ingestionCapturedAt }) => {
     const thread = threadByFixture.get(fixture.id) ?? null;

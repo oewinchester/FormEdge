@@ -29,6 +29,9 @@ test("forward and historical research automation use separate hourly fail-closed
   assert.doesNotMatch(store, /Bearer \$\{provider\.token\}/);
   assert.match(store, /fetchFixtureProviderWithFallback/);
   assert.match(store, /ALL_FIXTURE_PROVIDERS_FAILED/);
+  assert.match(store, /SPORTMONKS_EMPTY_WINDOW/);
+  assert.match(store, /API_FOOTBALL_EMPTY_WINDOW/);
+  assert.match(store, /FOOTBALL_DATA_ORG_EMPTY_WINDOW/);
   assert.match(store, /fixture-provider-fallback/);
   assert.match(store, /detail: error instanceof Error/);
   assert.match(store, /fixture-feed-completed/);

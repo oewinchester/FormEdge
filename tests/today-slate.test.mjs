@@ -24,11 +24,19 @@ test("live slate freshness is explicit and fail-closed", () => {
     generatedAt: "2026-08-10T12:00:00.000Z",
     capturedAt: "2026-08-10T11:00:00.000Z",
     status: "imported",
+    sourceRowCount: 12,
   }).level, "fresh");
+  assert.equal(assessLiveSlateFreshness({
+    generatedAt: "2026-08-10T12:00:00.000Z",
+    capturedAt: "2026-08-10T11:00:00.000Z",
+    status: "imported",
+    sourceRowCount: 0,
+  }).level, "empty");
   assert.equal(assessLiveSlateFreshness({
     generatedAt: "2026-08-10T12:00:00.000Z",
     capturedAt: "2026-08-08T12:00:00.000Z",
     status: "imported",
+    sourceRowCount: 12,
   }).level, "stale");
   assert.equal(assessLiveSlateFreshness({
     generatedAt: "2026-08-10T12:00:00.000Z",
