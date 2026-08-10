@@ -3,8 +3,10 @@ import test from "node:test";
 import {
   SPORTMONKS_ADAPTER_VERSION,
   SPORTMONKS_MAX_PAGES_PER_DATE,
+  SPORTMONKS_MAX_HISTORY_PAGES_PER_WINDOW,
   SPORTMONKS_PLAN_LEAGUES,
   buildSportMonksDateUrls,
+  buildSportMonksHistoryUrls,
   parseSportMonksFixtures,
   sportMonksAuthorizationHeader,
   sportMonksPageUrl,
@@ -45,13 +47,24 @@ const payload = JSON.stringify({
 });
 
 test("SportMonks plan coverage is the exact 30-league subscription", () => {
-  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v4");
+  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v5");
   assert.equal(SPORTMONKS_PLAN_LEAGUES.length, 30);
   assert.equal(new Set(SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId)).size, 30);
   assert.deepEqual(
     SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId).sort((a, b) => a - b),
     [8, 9, 72, 82, 85, 181, 208, 271, 301, 325, 384, 387, 444, 453, 462, 486, 501, 564, 567, 573, 591, 600, 609, 636, 648, 651, 743, 779, 944, 968],
   );
+});
+
+test("SportMonks history URLs backfill only active licensed leagues in safe windows", () => {
+  const urls = buildSportMonksHistoryUrls("2026-08-10T12:00:00.000Z", [600, 8, 600, 999999]);
+  assert.equal(urls.length, 2);
+  assert.match(urls[0], /fixtures\/between\/2026-02-11\/2026-05-11/);
+  assert.match(urls[1], /fixtures\/between\/2026-05-12\/2026-08-09/);
+  assert.match(urls[0], /filters=fixtureLeagues%3A8%2C600/);
+  assert.match(urls[0], /include=participants%3Bscores%3Bstate/);
+  assert.doesNotMatch(urls[0], /api_token/i);
+  assert.equal(SPORTMONKS_MAX_HISTORY_PAGES_PER_WINDOW, 24);
 });
 
 test("SportMonks daily URLs keep the token out of logs and enforce pagination", () => {

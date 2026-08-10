@@ -7,7 +7,20 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.16 · Checkpoint 17P · Provider Migration Foundation**
+**v0.7.0-alpha.17 · Checkpoint 17W · Daily Snapshot & Point-in-Time Analysis Backfill**
+
+- Başarılı SportMonks turunu İstanbul günü boyunca D1 snapshot'ından yeniden kullanan; manuel yenileme ve saatlik worker'ın aynı gün API çağrısını çoğaltmasını engelleyen günlük çekim kilidi
+- Yalnız yaklaşan fikstürlerde aktif olan lisanslı liglerin son 180 günlük sonuçlarını iki güvenli tarih penceresinde alan; 30 ligin tamamını gereksiz yere sorgulamayan geçmiş backfill'i
+- Geçmiş sonuçları mevcut point-in-time modele bağlayan, başlamış maça geriye dönük tahmin üretmeyen ve tur başına 12 yaklaşan maç için değişmez analiz sürümü oluşturabilen otomasyon
+- Kaynak, geçmiş sayfası, aktif lig, tahmin başarı/hata ve günlük cache-hit telemetrisini secret değerlerini açmadan üretim loguna yazan operasyon görünürlüğü
+
+Önceki checkpoint: **v0.7.0-alpha.16 · Checkpoint 17V · SportMonks Official Daily Fixtures**
+
+- SportMonks v3 resmî günlük fikstür endpoint'leri, belgelenmiş ham Authorization başlığı ve sayfalama sözleşmesiyle 30 lisanslı ligi normalize eden canlı adaptör
+- Bugün ve takip eden üç günü ayrı sorgulayan, fikstürleri kimlikle tekilleştiren ve sıfır/eşlenemeyen yanıtı başarı gibi göstermeyen fail-closed veri turu
+- Fikstür, lig ve atlanan satır sayılarını üretim logunda doğrulayan; API tokenını kaynak, log ve istemci payload'ından uzak tutan server-only sınır
+
+Önceki checkpoint: **v0.7.0-alpha.16 · Checkpoint 17P · Provider Migration Foundation**
 
 - API-Football v3'ü sunucu tarafı secret, sabit endpoint, iki pencereli fikstür/geçmiş çekimi ve normalize D1/R2 importuyla birincil sağlayıcı yapan adaptör
 - API-Football yapılandırılmadığında football-data.org'a, o da yoksa kontrollü CSV akışına düşen; sağlayıcıyı run kimliğinde ve provenance kaydında ayıran üç katmanlı geçiş
@@ -232,7 +245,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.7.0-alpha.11 | CP17K | Fail-closed lig–kaynak onboarding kalite puanı, değişmez snapshot ve korumalı kalite konsolu | Tamamlandı |
 | v0.7.0-alpha.12 | CP17L | Sürüm bazlı değişmez model kartları, OOS/holdout/release kanıtı ve belge-only yönetişim konsolu | Tamamlandı |
 | v0.7.0-alpha.13 | CP17M | Bugünün gerçek fikstürleri, kaynak tazeliği, araştırma model yönü ve fail-closed öneri ayrımı | Tamamlandı |
-| **v0.7.0-alpha.14** | **CP17N** | **Owner hesabının Admin + Expert eşlenmesi ve canlı API secret’ının Worker runtime’a bağlanması** | **Mevcut** |
+| v0.7.0-alpha.14 | CP17N | Owner hesabının Admin + Expert eşlenmesi ve canlı API secret'ının Worker runtime'a bağlanması | Tamamlandı |
+| **v0.7.0-alpha.17** | **CP17W** | **Günlük SportMonks snapshot'ı, aktif-lig geçmiş backfill'i ve point-in-time analiz üretimi** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 

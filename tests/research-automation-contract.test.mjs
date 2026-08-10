@@ -24,6 +24,10 @@ test("forward and historical research automation use separate hourly fail-closed
   assert.match(store, /buildFootballDataOrgWindowUrls\((nowIso|referenceAt)\)/);
   assert.match(store, /buildApiFootballWindowUrls\((nowIso|referenceAt)\)/);
   assert.match(store, /buildSportMonksDateUrls\(nowIso\)/);
+  assert.match(store, /buildSportMonksHistoryUrls/);
+  assert.match(store, /fixture-feed-daily-cache-hit/);
+  assert.match(store, /cacheScope:\s*"istanbul_day"/);
+  assert.match(store, /research-automation-completed/);
   assert.match(store, /SPORTMONKS_API_TOKEN/);
   assert.match(store, /Authorization = sportMonksAuthorizationHeader\(provider\.token\)/);
   assert.match(store, /SPORTMONKS_UNMAPPABLE_FIXTURES/);

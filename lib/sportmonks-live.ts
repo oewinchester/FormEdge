@@ -2,10 +2,11 @@ import type { DataQualityIssue } from "./data-quality.ts";
 import type { AdminImportEnvelope, NormalizedFootballPayload } from "./import-contract.ts";
 import { footballDataFixtureId, footballDataTeamId } from "./football-data-source.ts";
 
-export const SPORTMONKS_ADAPTER_VERSION = "sportmonks-v3-fixtures-v4" as const;
+export const SPORTMONKS_ADAPTER_VERSION = "sportmonks-v3-fixtures-v5" as const;
 export const SPORTMONKS_BASE_URL = "https://api.sportmonks.com/v3/football/fixtures" as const;
-export const SPORTMONKS_MAX_BYTES = 8_000_000;
+export const SPORTMONKS_MAX_BYTES = 16_000_000;
 export const SPORTMONKS_MAX_PAGES_PER_DATE = 8;
+export const SPORTMONKS_MAX_HISTORY_PAGES_PER_WINDOW = 24;
 
 type LeagueMeta = {
   sportmonksId: number;
@@ -79,6 +80,33 @@ export function buildSportMonksDateUrls(referenceAt: string) {
   });
 }
 
+export function buildSportMonksHistoryUrls(referenceAt: string, leagueIds: number[]) {
+  const now = new Date(referenceAt);
+  if (Number.isNaN(now.getTime())) throw new Error("A valid SportMonks reference time is required.");
+  const allowedIds = new Set(SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId));
+  const selectedIds = [...new Set(leagueIds)]
+    .filter((leagueId) => Number.isInteger(leagueId) && allowedIds.has(leagueId))
+    .sort((first, second) => first - second);
+  if (selectedIds.length === 0) return [];
+  const istanbul = new Date(now.getTime() + 3 * 60 * 60_000);
+  const localToday = Date.parse(`${istanbul.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  const day = 86_400_000;
+  return [
+    { startOffset: -180, endOffset: -91 },
+    { startOffset: -90, endOffset: -1 },
+  ].map(({ startOffset, endOffset }) => {
+    const startDate = new Date(localToday + startOffset * day).toISOString().slice(0, 10);
+    const endDate = new Date(localToday + endOffset * day).toISOString().slice(0, 10);
+    const query = new URLSearchParams({
+      include: "participants;scores;state",
+      filters: `fixtureLeagues:${selectedIds.join(",")}`,
+      order: "asc",
+      per_page: "50",
+    });
+    return `${SPORTMONKS_BASE_URL}/between/${startDate}/${endDate}?${query.toString()}`;
+  });
+}
+
 export function sportMonksAuthorizationHeader(token: string) {
   const value = token.trim();
   if (!value) throw new Error("SportMonks API token is required.");
@@ -95,7 +123,7 @@ export function parseSportMonksFixtures(input: { json: string; capturedAt: strin
   const capturedAt = new Date(input.capturedAt).toISOString();
   const parsed = JSON.parse(input.json) as { data?: unknown };
   if (!Array.isArray(parsed.data)) throw new Error("SportMonks response does not contain a data array.");
-  if (parsed.data.length > 5_000) throw new Error("SportMonks response exceeds the 5,000-fixture safety limit.");
+  if (parsed.data.length > 10_000) throw new Error("SportMonks response exceeds the 10,000-fixture safety limit.");
   const grouped = new Map<string, {
     league: LeagueMeta;
     season: string;

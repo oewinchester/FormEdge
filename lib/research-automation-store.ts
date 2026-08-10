@@ -1,4 +1,4 @@
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   auditLogs,
@@ -22,9 +22,11 @@ import {
 import {
   SPORTMONKS_ADAPTER_VERSION,
   SPORTMONKS_MAX_BYTES,
+  SPORTMONKS_MAX_HISTORY_PAGES_PER_WINDOW,
   SPORTMONKS_MAX_PAGES_PER_DATE,
   SPORTMONKS_PLAN_LEAGUES,
   buildSportMonksDateUrls,
+  buildSportMonksHistoryUrls,
   parseSportMonksFixtures,
   sportMonksAuthorizationHeader,
   sportMonksPageUrl,
@@ -63,12 +65,13 @@ import {
   evaluateResearchOperationsGate,
   summarizeAutomationHealth,
 } from "@/lib/research-automation-health";
+import { getIstanbulSlateWindow } from "@/lib/today-slate";
 
 const AUTOMATION_ACTIVE_KEY = "research-forward-shadow:1x2";
 const FIXTURE_FEED_ACTIVE_KEY = "football-data:fixtures";
 const FEED_WINDOW_MS = 10 * 60_000;
 const FETCH_TIMEOUT_MS = 20_000;
-const MAX_PREDICTIONS_PER_CYCLE = 6;
+const MAX_PREDICTIONS_PER_CYCLE = 12;
 const MAX_SETTLEMENTS_PER_CYCLE = 300;
 
 export const SYSTEM_RESEARCH_ACTOR: AdminActor = {
@@ -116,6 +119,27 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
     lt(researchFixtureFeedRuns.startedAt, new Date(now.getTime() - 30 * 60_000).toISOString()),
   ));
   const providerKey = primaryProvider.key;
+  const istanbulDay = getIstanbulSlateWindow(now);
+  const successfulToday = await db.select().from(researchFixtureFeedRuns)
+    .where(and(
+      inArray(researchFixtureFeedRuns.status, ["imported", "unchanged"]),
+      gte(researchFixtureFeedRuns.startedAt, istanbulDay.startIso),
+      lte(researchFixtureFeedRuns.startedAt, istanbulDay.todayEndIso),
+    ))
+    .orderBy(desc(researchFixtureFeedRuns.startedAt)).limit(30);
+  const dailySnapshot = successfulToday.find((row) => (
+    row.id.startsWith(`fdfix:${providerKey}:`) && (row.pilotRowCount ?? 0) > 0
+  ));
+  if (dailySnapshot) {
+    console.info("fixture-feed-daily-cache-hit", JSON.stringify({
+      providerKey,
+      runId: dailySnapshot.id,
+      istanbulDay: istanbulDay.startIso.slice(0, 10),
+      sourceRowCount: dailySnapshot.sourceRowCount,
+      importedFixtureCount: dailySnapshot.pilotRowCount,
+    }));
+    return { run: publicFixtureFeedRun(dailySnapshot), reused: true, cacheScope: "istanbul_day" as const };
+  }
   const runId = `fdfix:${providerKey}:${Math.floor(now.getTime() / FEED_WINDOW_MS)}`;
   const inserted = await db.insert(researchFixtureFeedRuns).values({
     id: runId,
@@ -219,6 +243,7 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
       });
       ingestionRunIds.push(imported.runId);
     }
+    const importedLeagueCount = new Set(parsed.envelopes.map((envelope) => envelope.payload.league.id)).size;
     await db.update(researchFixtureFeedRuns).set({
       activeKey: null,
       status: "imported",
@@ -231,7 +256,7 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
       contentBytes,
       sourceRowCount: parsed.sourceRowCount,
       pilotRowCount: parsed.pilotRowCount,
-      leagueCount: parsed.envelopes.length,
+      leagueCount: importedLeagueCount,
       oddsSnapshotCount: parsed.oddsSnapshotCount,
       ingestionRunIdsJson: JSON.stringify(ingestionRunIds),
       completedAt: new Date().toISOString(),
@@ -241,7 +266,7 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
       adapterVersion,
       sourceRowCount: parsed.sourceRowCount,
       importedFixtureCount: parsed.pilotRowCount,
-      leagueCount: parsed.envelopes.length,
+      leagueCount: importedLeagueCount,
       status: "imported",
     }));
     return { run: await loadPublicFixtureFeedRun(runId), reused: false };
@@ -402,6 +427,15 @@ export async function runResearchAutomationCycle(
       entityId: runId,
       detailsJson: JSON.stringify({ trigger, status, candidateCount, predictionsCreated, observationsCaptured, observationsSettled }),
     });
+    console.info("research-automation-completed", JSON.stringify({
+      status,
+      candidateCount,
+      predictionsCreated,
+      predictionsReused,
+      predictionsFailed,
+      observationsCaptured,
+      predictionErrors: summary.predictionErrors,
+    }));
     return { run: await loadPublicAutomationRun(runId), reused: false };
   } catch (error) {
     const normalized = normalizeAutomationError(error, "AUTOMATION_FAILED", "Araştırma otomasyonu tamamlanamadı.");
@@ -800,7 +834,7 @@ function buildFixtureProviderCandidates(input: {
   const candidates: FixtureProviderCandidate[] = [];
   if (input.sportMonksToken) candidates.push({
     kind: "sportmonks",
-    key: "sportmonks-v4",
+    key: "sportmonks-v5",
     token: input.sportMonksToken,
     upstreamUrl: buildSportMonksDateUrls(nowIso)[0],
     upstreamUrls: buildSportMonksDateUrls(nowIso),
@@ -874,6 +908,7 @@ async function fetchFixtureProvider(provider: FixtureProviderCandidate) {
   if (provider.kind === "sportmonks") {
     const fixtures = new Map<string, unknown>();
     const dailyCounts: Array<{ date: string; fixtures: number; pages: number }> = [];
+    const historyCounts: Array<{ range: string; fixtures: number; pages: number }> = [];
     let aggregateBytes = 0;
     let response!: Response;
     for (const dateUrl of provider.upstreamUrls ?? [provider.upstreamUrl]) {
@@ -918,6 +953,51 @@ async function fetchFixtureProvider(provider: FixtureProviderCandidate) {
         pages: pagesFetched,
       });
     }
+    const activeLeagueIds = [...new Set([...fixtures.values()].map((item) => {
+      const value = (item as { league_id?: unknown }).league_id;
+      return typeof value === "number" && Number.isInteger(value) ? value : null;
+    }).filter((value): value is number => value !== null))];
+    for (const historyUrl of buildSportMonksHistoryUrls(new Date().toISOString(), activeLeagueIds)) {
+      const countBeforeRange = fixtures.size;
+      let pagesFetched = 0;
+      for (let page = 1; page <= SPORTMONKS_MAX_HISTORY_PAGES_PER_WINDOW; page += 1) {
+        response = await fetch(sportMonksPageUrl(historyUrl, page), {
+          headers,
+          redirect: "follow",
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        });
+        if (!response.ok || response.status !== 200) {
+          throw new ResearchAutomationHttpError(502, "SPORTMONKS_HISTORY_HTTP_ERROR", `SportMonks geçmiş fikstür isteği HTTP ${response.status} yanıtı verdi.`);
+        }
+        const chunk = new Uint8Array(await response.arrayBuffer());
+        aggregateBytes += chunk.byteLength;
+        if (aggregateBytes > provider.maximumBytes) {
+          throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Birleşik SportMonks fikstür ve geçmiş yanıtı 16 MB güvenlik sınırını aşıyor.");
+        }
+        const payload = JSON.parse(new TextDecoder("utf-8").decode(chunk)) as {
+          data?: unknown;
+          pagination?: { has_more?: unknown };
+        };
+        pagesFetched = page;
+        if (!Array.isArray(payload.data)) {
+          throw new ResearchAutomationHttpError(502, "SPORTMONKS_HISTORY_INVALID_JSON", "SportMonks geçmiş yanıtında fikstür listesi bulunamadı.");
+        }
+        for (const item of payload.data) {
+          const fixture = item as { id?: unknown; starting_at?: unknown; name?: unknown };
+          fixtures.set(String(fixture.id ?? `${fixture.starting_at}|${fixture.name}`), item);
+        }
+        if (payload.pagination?.has_more !== true) break;
+        if (page === SPORTMONKS_MAX_HISTORY_PAGES_PER_WINDOW) {
+          throw new ResearchAutomationHttpError(502, "SPORTMONKS_HISTORY_PAGE_BUDGET_EXCEEDED", "SportMonks geçmiş fikstürleri güvenli sayfa bütçesini aştı.");
+        }
+      }
+      const path = new URL(historyUrl).pathname.split("/");
+      historyCounts.push({
+        range: `${path.at(-2) ?? "unknown"}/${path.at(-1) ?? "unknown"}`,
+        fixtures: fixtures.size - countBeforeRange,
+        pages: pagesFetched,
+      });
+    }
     if (fixtures.size === 0) {
       throw new ResearchAutomationHttpError(502, "SPORTMONKS_EMPTY_WINDOW", "SportMonks seçili tarih aralığında sıfır fikstür döndürdü; yedek kaynak deneniyor.");
     }
@@ -929,6 +1009,9 @@ async function fetchFixtureProvider(provider: FixtureProviderCandidate) {
     });
     console.info("sportmonks-fetch-summary", JSON.stringify({
       dailyCounts,
+      historyCounts,
+      activeLeagueIds,
+      historyFixtureCount: historyCounts.reduce((total, item) => total + item.fixtures, 0),
       rawFixtureCount: fixtures.size,
       importedFixtureCount: parsed.pilotRowCount,
       leagueCount: parsed.envelopes.length,
