@@ -7,7 +7,14 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.15 · Checkpoint 17O · Live Competition Coverage & Rolling History**
+**v0.7.0-alpha.16 · Checkpoint 17P · Provider Migration Foundation**
+
+- API-Football v3'ü sunucu tarafı secret, sabit endpoint, iki pencereli fikstür/geçmiş çekimi ve normalize D1/R2 importuyla birincil sağlayıcı yapan adaptör
+- API-Football yapılandırılmadığında football-data.org'a, o da yoksa kontrollü CSV akışına düşen; sağlayıcıyı run kimliğinde ve provenance kaydında ayıran üç katmanlı geçiş
+- Süper Lig dahil bilinen 13 organizasyonu mevcut FormEdge kimlikleriyle eşleyen; diğer API-Football liglerini kararlı sağlayıcı kimliğiyle research-only içeri alan kapsam
+- Art arda 25 hataya ve saatlik rate-limit'e yol açan eski Football-Data.co.uk arşiv mutasyonlarını arayüzde kapatan; tarihsel geçişi yeni sağlayıcı anahtarına bağlayan fail-closed kontrol
+
+Önceki checkpoint: **v0.7.0-alpha.15 · Checkpoint 17O · Live Competition Coverage & Rolling History**
 
 - football-data.org ücretsiz pakette sunulan 12 organizasyonun tamamını kapsayan; PPL dahil o gün gerçekten oynanan maçları dar dört-lig filtresinde kaybetmeyen canlı fikstür adaptörü
 - API'nin en fazla 10 günlük sorgu sınırını koruyan dört tarihsel + bir yaklaşan pencereyle son 40 günlük sonuçları ve önümüzdeki 72 saati tekilleştirerek D1/R2 katmanına alan veri turu

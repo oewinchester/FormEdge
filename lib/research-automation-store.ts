@@ -13,6 +13,13 @@ import {
   type AdminActor,
 } from "@/lib/admin-data";
 import {
+  API_FOOTBALL_ADAPTER_VERSION,
+  API_FOOTBALL_MAX_BYTES,
+  apiFootballProviderError,
+  buildApiFootballWindowUrls,
+  parseApiFootballFixtures,
+} from "@/lib/api-football-live";
+import {
   FOOTBALL_DATA_FIXTURE_FEED_ADAPTER_VERSION,
   FOOTBALL_DATA_FIXTURE_FEED_MAX_BYTES,
   FOOTBALL_DATA_FIXTURE_FEED_URL,
@@ -77,10 +84,18 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
   const now = new Date();
   const nowIso = now.toISOString();
   const runtime = await getResearchAutomationRuntime();
+  const apiFootballKey = runtime.API_FOOTBALL_API_KEY?.trim() || null;
   const liveApiToken = runtime.FOOTBALL_DATA_ORG_API_TOKEN?.trim() || null;
-  const upstreamUrl = liveApiToken ? buildFootballDataOrgMatchesUrl(nowIso) : FOOTBALL_DATA_FIXTURE_FEED_URL;
-  const adapterVersion = liveApiToken ? FOOTBALL_DATA_ORG_ADAPTER_VERSION : FOOTBALL_DATA_FIXTURE_FEED_ADAPTER_VERSION;
-  const maximumBytes = liveApiToken ? FOOTBALL_DATA_ORG_MAX_BYTES : FOOTBALL_DATA_FIXTURE_FEED_MAX_BYTES;
+  const jsonProvider = Boolean(apiFootballKey || liveApiToken);
+  const upstreamUrl = apiFootballKey
+    ? buildApiFootballWindowUrls(nowIso)[1]
+    : liveApiToken ? buildFootballDataOrgMatchesUrl(nowIso) : FOOTBALL_DATA_FIXTURE_FEED_URL;
+  const adapterVersion = apiFootballKey
+    ? API_FOOTBALL_ADAPTER_VERSION
+    : liveApiToken ? FOOTBALL_DATA_ORG_ADAPTER_VERSION : FOOTBALL_DATA_FIXTURE_FEED_ADAPTER_VERSION;
+  const maximumBytes = apiFootballKey
+    ? API_FOOTBALL_MAX_BYTES
+    : liveApiToken ? FOOTBALL_DATA_ORG_MAX_BYTES : FOOTBALL_DATA_FIXTURE_FEED_MAX_BYTES;
   await db.update(researchFixtureFeedRuns).set({
     activeKey: null,
     status: "failed",
@@ -92,7 +107,7 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
     eq(researchFixtureFeedRuns.status, "fetching"),
     lt(researchFixtureFeedRuns.startedAt, new Date(now.getTime() - 30 * 60_000).toISOString()),
   ));
-  const providerKey = liveApiToken ? "fdorg-v2" : "fdcsv";
+  const providerKey = apiFootballKey ? "api-football-v1" : liveApiToken ? "fdorg-v2" : "fdcsv";
   const runId = `fdfix:${providerKey}:${Math.floor(now.getTime() / FEED_WINDOW_MS)}`;
   const inserted = await db.insert(researchFixtureFeedRuns).values({
     id: runId,
@@ -131,14 +146,44 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
 
   try {
     const headers: Record<string, string> = {
-      Accept: liveApiToken ? "application/json" : "text/csv,text/plain;q=0.9,*/*;q=0.1",
+      Accept: jsonProvider ? "application/json" : "text/csv,text/plain;q=0.9,*/*;q=0.1",
       "Cache-Control": "no-cache",
     };
+    if (apiFootballKey) headers["x-apisports-key"] = apiFootballKey;
     if (liveApiToken) headers["X-Auth-Token"] = liveApiToken;
-    if (!liveApiToken && previous?.upstreamEtag) headers["If-None-Match"] = previous.upstreamEtag;
+    if (!jsonProvider && previous?.upstreamEtag) headers["If-None-Match"] = previous.upstreamEtag;
     let response!: Response;
     let responseBuffer: ArrayBuffer;
-    if (liveApiToken) {
+    if (apiFootballKey) {
+      const fixtures = new Map<string, unknown>();
+      let aggregateBytes = 0;
+      for (const windowUrl of buildApiFootballWindowUrls(nowIso)) {
+        response = await fetch(windowUrl, { headers, redirect: "follow", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+        responseStatus = response.status;
+        responseContentType = response.headers.get("content-type");
+        if (!response.ok || response.status !== 200) {
+          throw new ResearchAutomationHttpError(502, "API_FOOTBALL_HTTP_ERROR", `API-Football HTTP ${response.status} yanıtı verdi.`);
+        }
+        const chunk = new Uint8Array(await response.arrayBuffer());
+        aggregateBytes += chunk.byteLength;
+        if (aggregateBytes > maximumBytes) {
+          throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Birleşik API-Football yanıtı 8 MB güvenlik sınırını aşıyor.");
+        }
+        const payload = JSON.parse(new TextDecoder("utf-8").decode(chunk)) as { response?: unknown; errors?: unknown };
+        const providerError = apiFootballProviderError(payload.errors);
+        if (providerError) throw new ResearchAutomationHttpError(502, "API_FOOTBALL_PROVIDER_ERROR", providerError);
+        if (!Array.isArray(payload.response)) {
+          throw new ResearchAutomationHttpError(502, "API_FOOTBALL_INVALID_JSON", "API-Football yanıtında fikstür listesi bulunamadı.");
+        }
+        for (const item of payload.response) {
+          const fixture = item as { fixture?: { id?: unknown; date?: unknown }; teams?: { home?: { name?: unknown }; away?: { name?: unknown } } };
+          const key = String(fixture.fixture?.id ?? `${fixture.fixture?.date}|${fixture.teams?.home?.name}|${fixture.teams?.away?.name}`);
+          fixtures.set(key, item);
+        }
+      }
+      responseBuffer = new TextEncoder().encode(JSON.stringify({ response: [...fixtures.values()], errors: [] })).buffer as ArrayBuffer;
+      responseContentType = "application/json; charset=utf-8";
+    } else if (liveApiToken) {
       const matches = new Map<string, unknown>();
       let aggregateBytes = 0;
       for (const windowUrl of buildFootballDataOrgWindowUrls(nowIso)) {
@@ -216,14 +261,15 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
     }
 
     const rawText = new TextDecoder("utf-8").decode(bytes);
-    const parsed = liveApiToken
-      ? parseFootballDataOrgMatches({ json: rawText, capturedAt: nowIso, upstreamUrl })
-      : parseFootballDataFixtureFeed({ csv: rawText, capturedAt: nowIso });
-    rawSnapshotKey = `research/football-data/fixtures/${rawChecksumSha256}.${liveApiToken ? "json" : "csv"}`;
+    const parsed = apiFootballKey
+      ? parseApiFootballFixtures({ json: rawText, capturedAt: nowIso, upstreamUrl })
+      : liveApiToken ? parseFootballDataOrgMatches({ json: rawText, capturedAt: nowIso, upstreamUrl })
+        : parseFootballDataFixtureFeed({ csv: rawText, capturedAt: nowIso });
+    rawSnapshotKey = `research/football-data/fixtures/${rawChecksumSha256}.${jsonProvider ? "json" : "csv"}`;
     await (await getBucket()).put(rawSnapshotKey, bytes, {
       httpMetadata: { contentType: responseContentType || "text/csv; charset=utf-8" },
       customMetadata: {
-        source: liveApiToken ? "football-data.org" : "football-data.co.uk",
+        source: apiFootballKey ? "api-football" : liveApiToken ? "football-data.org" : "football-data.co.uk",
         adapterVersion,
         fetchedAt: nowIso,
         checksumSha256: rawChecksumSha256,
@@ -232,7 +278,7 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
     const ingestionRunIds: string[] = [];
     for (const envelope of parsed.envelopes) {
       const imported = await importFootballSnapshot(actor, envelope, {
-        importFormat: liveApiToken ? "json" : "csv",
+        importFormat: jsonProvider ? "json" : "csv",
         externalIssues: parsed.qualityIssues,
         forceResearchOnlyReason: "Fikstür kaynağının ticari yeniden kullanım ve yayın kapıları doğrulanmadığı için kullanıcı önerisi üretilemez.",
       });
@@ -331,9 +377,12 @@ export async function runResearchAutomationCycle(
     }
 
     const runtime = await getResearchAutomationRuntime();
-    const liveApiActive = Boolean(runtime.FOOTBALL_DATA_ORG_API_TOKEN?.trim());
+    const liveProvider = runtime.API_FOOTBALL_API_KEY?.trim()
+      ? "api-football"
+      : runtime.FOOTBALL_DATA_ORG_API_TOKEN?.trim() ? "football-data-org" : null;
+    const liveApiActive = Boolean(liveProvider);
     if (liveApiActive) {
-      liveLeagueCode = "football-data-org";
+      liveLeagueCode = liveProvider;
       liveResultStatus = "covered_by_live_api";
     } else {
       liveLeagueCode = await selectNextLiveLeagueCode();
@@ -504,7 +553,9 @@ export async function getResearchAutomationOverview(actor: AdminActor) {
     generatedAt,
     actor: { email: actor.email, displayName: actor.displayName, role: actor.role },
     source: {
-      name: feedRows[0]?.adapterVersion === FOOTBALL_DATA_ORG_ADAPTER_VERSION ? "football-data.org v4 matches" : "Football-Data.co.uk fixture feed",
+      name: feedRows[0]?.adapterVersion === API_FOOTBALL_ADAPTER_VERSION
+        ? "API-Football v3 fixtures"
+        : feedRows[0]?.adapterVersion === FOOTBALL_DATA_ORG_ADAPTER_VERSION ? "football-data.org v4 matches" : "Football-Data.co.uk fixture feed",
       url: feedRows[0]?.upstreamUrl ?? FOOTBALL_DATA_FIXTURE_FEED_URL,
       adapterVersion: feedRows[0]?.adapterVersion ?? FOOTBALL_DATA_FIXTURE_FEED_ADAPTER_VERSION,
       commercialReuseVerified: false,
@@ -788,10 +839,11 @@ async function getBucket(): Promise<R2Bucket> {
 }
 
 async function getResearchAutomationRuntime(): Promise<{
+  API_FOOTBALL_API_KEY?: string;
   FOOTBALL_DATA_ORG_API_TOKEN?: string;
 }> {
   const { env } = await import("cloudflare:workers");
-  return env as unknown as { FOOTBALL_DATA_ORG_API_TOKEN?: string };
+  return env as unknown as { API_FOOTBALL_API_KEY?: string; FOOTBALL_DATA_ORG_API_TOKEN?: string };
 }
 
 async function sha256(buffer: ArrayBuffer) {

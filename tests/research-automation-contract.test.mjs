@@ -22,9 +22,13 @@ test("forward and historical research automation use separate hourly fail-closed
   assert.match(store, /recommendationEligible:\s*false/);
   assert.match(store, /getResearchAutomationRuntime\(\)/);
   assert.match(store, /buildFootballDataOrgWindowUrls\(nowIso\)/);
+  assert.match(store, /buildApiFootballWindowUrls\(nowIso\)/);
+  assert.match(store, /x-apisports-key/);
+  assert.match(store, /API_FOOTBALL_API_KEY/);
   assert.match(store, /fdfix:\$\{providerKey\}/);
   assert.match(store, /covered_by_live_api/);
   assert.doesNotMatch(store, /process\.env\.FOOTBALL_DATA_ORG_API_TOKEN/);
+  assert.doesNotMatch(store, /process\.env\.API_FOOTBALL_API_KEY/);
   assert.match(store, /summarizeAutomationHealth/);
   assert.match(store, /limit\(120\)/);
   assert.match(shadowStore, /selectHistoricalAutomationCampaign[\s\S]*advanceShadowValidationCampaign/);

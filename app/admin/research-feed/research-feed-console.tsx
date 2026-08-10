@@ -121,6 +121,7 @@ type Props = {
 };
 
 type QueueItem = { leagueCode: string; seasonCode: string };
+const LEGACY_ARCHIVE_ENABLED = false;
 
 export function ResearchFeedConsole({ user, signOutPath }: Props) {
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -200,7 +201,7 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
   };
 
   const pullOne = async (item: QueueItem) => {
-    if (!canPull || busy) return;
+    if (!LEGACY_ARCHIVE_ENABLED || !canPull || busy) return;
     const key = selectionKey(item.leagueCode, item.seasonCode);
     setActiveKey(key);
     setQueueProgress(null);
@@ -218,7 +219,7 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
   };
 
   const runQueue = async (items: QueueItem[]) => {
-    if (!canPull || busy) return;
+    if (!LEGACY_ARCHIVE_ENABLED || !canPull || busy) return;
     const pending = items.filter((item) => !importedKeys.has(selectionKey(item.leagueCode, item.seasonCode)));
     if (!pending.length) {
       setNotice("Seçilen kuyrukta eksik sezon yok. İsterseniz tekil düğmeyle kaynağı yeniden doğrulayabilirsiniz.");
@@ -314,7 +315,7 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
           <div className="research-source-actions">
             <a href={overview?.source.dataUrl ?? "https://www.football-data.co.uk/data.php"} target="_blank" rel="noreferrer">Veri açıklaması <ExternalLink size={13} /></a>
             <a href={overview?.source.notesUrl ?? "https://www.football-data.co.uk/notes.txt"} target="_blank" rel="noreferrer">Kolon notları <ExternalLink size={13} /></a>
-            <button type="button" onClick={() => void runQueue(overview?.bootstrapQueue ?? [])} disabled={!canPull || busy || loading}><Play size={14} />Eski CSV arşiv kuyruğunu dene</button>
+            <button type="button" disabled><LockKeyhole size={14} />Eski CSV çekimi kapalı</button>
           </div>
           {!canPull && <p className="research-editor-lock"><LockKeyhole size={13} />Editör rolü akışı görüntüleyebilir; haricî kaynak çekimini yalnız yönetici başlatabilir.</p>}
         </section>
@@ -328,12 +329,12 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
               <header>
                 <div className="research-league-identity"><span>{league.countryCode}</span><div><small>{league.code} · TIER {league.tier}</small><b>{league.name}</b><p>{league.finishedFixtureCount} bitmiş maç · %{Math.round(league.statCoverage * 100)} şut veri kapsamı</p></div></div>
                 <div className="research-readiness"><span className={league.modelLabReady ? "ready" : "waiting"}>{league.modelLabReady ? <CheckCircle2 size={12} /> : <FileClock size={12} />}{league.modelLabReady ? "Model Lab adayı" : "Veri bekliyor"}</span><small>{league.datasetCount} dataset · {league.backtestCount} backtest</small></div>
-                <button type="button" onClick={() => void runQueue(missing)} disabled={!canPull || busy || missing.length === 0}><CloudDownload size={14} />{missing.length ? `${missing.length} eksik sezonu çek` : "Sezonlar hazır"}</button>
+                <button type="button" onClick={() => void runQueue(missing)} disabled={!LEGACY_ARCHIVE_ENABLED || !canPull || busy || missing.length === 0}><CloudDownload size={14} />{missing.length ? "Yeni sağlayıcı arşivi bekleniyor" : "Sezonlar hazır"}</button>
               </header>
               <div className="research-season-grid">
                 {league.seasons.map((season) => {
                   const key = selectionKey(league.code, season.code);
-                  return <button className={`research-season ${season.status}`} type="button" key={season.code} onClick={() => void pullOne({ leagueCode: league.code, seasonCode: season.code })} disabled={!canPull || busy} aria-label={`${league.name} ${season.label} sezonunu ${season.status === "imported" || season.status === "unchanged" ? "yeniden doğrula" : "çek"}`}>
+                  return <button className={`research-season ${season.status}`} type="button" key={season.code} onClick={() => void pullOne({ leagueCode: league.code, seasonCode: season.code })} disabled={!LEGACY_ARCHIVE_ENABLED || !canPull || busy} aria-label={`${league.name} ${season.label} arşiv durumu`}>
                     <span><b>{season.label}</b><em>{statusLabel(season.status)}</em></span>
                     <small>{season.sourceRowCount ? `${season.sourceRowCount} maç` : season.errorCode ?? "çekim bekliyor"}</small>
                     {activeKey === key ? <LoaderCircle className="spin" size={14} /> : statusIcon(season.status)}
