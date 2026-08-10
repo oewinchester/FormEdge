@@ -108,7 +108,7 @@ export function UserDashboard({
       const nextOverview = await overviewResponse.json() as UserDashboardOverview & { error?: string };
       if (!overviewResponse.ok) throw new Error(nextOverview.error ?? "Yeni fikstürler yüklenemedi.");
       setOverview(nextOverview);
-      setNotice("Fikstür akışı ve araştırma analizleri yenilendi.");
+      setNotice(`${nextOverview.todaySlate.source.name}: ${nextOverview.todaySlate.source.importedFixtureCount} fikstür, ${nextOverview.todaySlate.source.leagueCount} lig işlendi.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Fikstür akışı yenilenemedi.");
     } finally {
@@ -196,11 +196,11 @@ export function UserDashboard({
           </header>
           <div className={`user-live-source ${overview.todaySlate.source.freshness}`}>
             <span><Activity size={15} /></span>
-            <div><b>{freshnessLabel(overview.todaySlate.source.freshness)}</b><small>{overview.todaySlate.source.capturedAt ? `Son çekim ${formatDate(overview.todaySlate.source.capturedAt)}` : "Henüz başarılı kaynak çekimi yok"} · {overview.todaySlate.source.note}</small></div>
-            <em>{overview.todaySlate.counts.today} bugün · {overview.todaySlate.counts.analyzed} analiz</em>
+            <div><b>{freshnessLabel(overview.todaySlate.source.freshness)} · {overview.todaySlate.source.name}</b><small>{overview.todaySlate.source.capturedAt ? `Son çekim ${formatDate(overview.todaySlate.source.capturedAt)}` : "Henüz başarılı kaynak çekimi yok"} · {overview.todaySlate.source.note}</small></div>
+            <em>{overview.todaySlate.source.importedFixtureCount} alındı · {overview.todaySlate.source.leagueCount} lig · {overview.todaySlate.counts.today} bugün</em>
           </div>
           <div className="user-live-match-grid">
-            {overview.todaySlate.matches.length === 0 && <div className="user-live-empty"><CalendarDays size={22} /><div><b>Bu pencerede içeri alınmış güncel maç yok.</b><p>“Veriyi şimdi yenile” ile ücretsiz kaynağı tekrar kontrol edin. Kaynak güncel maç sağlamıyorsa panel boşluğu gizlemez; canlı API bağlantısı gerekecektir.</p></div></div>}
+            {overview.todaySlate.matches.length === 0 && <div className="user-live-empty"><CalendarDays size={22} /><div><b>Bu pencerede içeri alınmış güncel maç yok.</b><p>“Veriyi şimdi yenile” ile {overview.todaySlate.source.name} tekrar kontrol edilir; ana kaynak alınamazsa yedek zinciri otomatik çalışır.</p></div></div>}
             {overview.todaySlate.matches.map((match) => <article className="user-live-match" key={match.fixtureId}>
               <header><span>{dayLabel(match.day)}</span><small>{match.leagueLabel} · {formatDate(match.kickoffAt)}</small></header>
               <div className="user-live-teams"><b>{match.homeTeamName}</b><i>—</i><b>{match.awayTeamName}</b></div>

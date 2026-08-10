@@ -28,6 +28,8 @@ test("forward and historical research automation use separate hourly fail-closed
   assert.match(store, /Authorization = `Bearer \$\{provider\.token\}`/);
   assert.match(store, /fetchFixtureProviderWithFallback/);
   assert.match(store, /ALL_FIXTURE_PROVIDERS_FAILED/);
+  assert.match(store, /fixture-provider-fallback/);
+  assert.match(store, /fixture-feed-completed/);
   assert.match(store, /x-apisports-key/);
   assert.match(store, /API_FOOTBALL_API_KEY/);
   assert.match(store, /fdfix:\$\{providerKey\}/);

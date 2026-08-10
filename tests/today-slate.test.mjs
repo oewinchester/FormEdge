@@ -46,8 +46,12 @@ test("dashboard exposes research fixtures without weakening recommendation gates
   assert.match(store, /researchRecordsShownWithLabel:\s*true/);
   assert.match(store, /recommendationGatePreserved:\s*true/);
   assert.match(store, /!thread\.researchOnly[\s\S]*!version\.researchOnly/);
+  assert.match(store, /SportMonks Football API v3/);
+  assert.match(store, /API-Football v3/);
+  assert.match(store, /importedFixtureCount:\s*latestFeed\?\.pilotRowCount/);
   assert.match(route, /actor\.role !== "admin"/);
   assert.match(route, /runResearchAutomationCycle\(actor, "admin"\)/);
   assert.match(dashboard, /Bugünün maç merkezi/);
+  assert.match(dashboard, /source\.importedFixtureCount/);
   assert.match(dashboard, /Bahis önerisi değil/);
 });

@@ -235,6 +235,14 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
       ingestionRunIdsJson: JSON.stringify(ingestionRunIds),
       completedAt: new Date().toISOString(),
     }).where(eq(researchFixtureFeedRuns.id, runId));
+    console.info("fixture-feed-completed", JSON.stringify({
+      provider: selectedProvider.kind,
+      adapterVersion,
+      sourceRowCount: parsed.sourceRowCount,
+      importedFixtureCount: parsed.pilotRowCount,
+      leagueCount: parsed.envelopes.length,
+      status: "imported",
+    }));
     return { run: await loadPublicFixtureFeedRun(runId), reused: false };
   } catch (error) {
     const normalized = normalizeAutomationError(error, "FIXTURE_FEED_FAILED", "Fikstür akışı güvenli biçimde alınamadı.");
@@ -835,6 +843,7 @@ async function fetchFixtureProviderWithFallback(candidates: FixtureProviderCandi
     } catch (error) {
       const code = error instanceof ResearchAutomationHttpError ? error.code : "UPSTREAM_FAILURE";
       failures.push(`${provider.kind}:${code}`);
+      console.warn("fixture-provider-fallback", JSON.stringify({ provider: provider.kind, code }));
     }
   }
   throw new ResearchAutomationHttpError(

@@ -153,6 +153,7 @@ async function loadTodayResearchSlate() {
   const threadByFixture = new Map(threadRows.map((thread) => [thread.fixtureId, thread]));
   const versionById = new Map(versionRows.map((version) => [version.id, version]));
   const latestFeed = feedRows[0] ?? null;
+  const sourceProfile = liveSourceProfile(latestFeed?.adapterVersion ?? null);
   const freshness = assessLiveSlateFreshness({
     generatedAt,
     capturedAt: latestFeed?.completedAt ?? latestFeed?.startedAt ?? null,
@@ -193,15 +194,18 @@ async function loadTodayResearchSlate() {
     timezone: "Europe/Istanbul" as const,
     window: { startAt: window.startIso, todayEndsAt: window.todayEndIso, endAt: window.endIso },
     source: {
-      name: latestFeed?.adapterVersion?.startsWith("football-data-org-") ? "football-data.org v4" : "Football-Data.co.uk fixture feed",
+      name: sourceProfile.name,
+      provider: sourceProfile.provider,
+      adapterVersion: latestFeed?.adapterVersion ?? null,
       status: latestFeed?.status ?? "never_run",
       capturedAt: freshness.capturedAt,
       freshness: freshness.level,
       ageMinutes: freshness.ageMinutes,
       errorCode: latestFeed?.errorCode ?? null,
-      note: latestFeed?.adapterVersion?.startsWith("football-data-org-")
-        ? "Kimlik doğrulamalı fikstür API'si; oran sağlamaz ve öneri kapıları ayrıca uygulanır."
-        : "Ücretsiz CSV akışı haftalık/takvimli güncellenir; canlı skor servisi değildir.",
+      sourceRowCount: latestFeed?.sourceRowCount ?? 0,
+      importedFixtureCount: latestFeed?.pilotRowCount ?? 0,
+      leagueCount: latestFeed?.leagueCount ?? 0,
+      note: sourceProfile.note,
     },
     counts: {
       today: matches.filter((match) => match.day === "today").length,
@@ -215,6 +219,29 @@ async function loadTodayResearchSlate() {
       recommendationGatePreserved: true,
       noAutomaticBetInstruction: true,
     },
+  };
+}
+
+function liveSourceProfile(adapterVersion: string | null) {
+  if (adapterVersion?.startsWith("sportmonks-")) return {
+    provider: "sportmonks" as const,
+    name: "SportMonks Football API v3",
+    note: "30 liglik lisanslı ana kaynak; oran ve öneri kapıları ayrıca doğrulanır.",
+  };
+  if (adapterVersion?.startsWith("api-football-")) return {
+    provider: "api-football" as const,
+    name: "API-Football v3",
+    note: "Birinci yedek fikstür API'si; ana kaynak alınamazsa otomatik devreye girer.",
+  };
+  if (adapterVersion?.startsWith("football-data-org-")) return {
+    provider: "football-data-org" as const,
+    name: "football-data.org v4",
+    note: "İkinci yedek fikstür API'si; oran sağlamaz ve öneri kapıları ayrıca uygulanır.",
+  };
+  return {
+    provider: "football-data.co.uk" as const,
+    name: "Football-Data.co.uk fixture feed",
+    note: "Son acil durum CSV kaynağı; canlı skor servisi değildir.",
   };
 }
 
