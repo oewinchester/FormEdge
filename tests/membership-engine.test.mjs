@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 import {
   CARDLESS_TRIAL_HOURS,
   PLAN_ENTITLEMENTS,
@@ -77,6 +78,11 @@ test("access and plan gates keep Free, Pro and Expert capabilities distinct", ()
   assert.equal(expert.effectivePlan, "expert");
   assert.equal(hasMembershipFeature(expert, "telegram"), true);
   assert.equal(expert.entitlements, PLAN_ENTITLEMENTS.expert);
+});
+
+test("every membership surface synchronizes configured owner access before resolving entitlements", async () => {
+  const store = await readFile(new URL("../lib/membership-store.ts", import.meta.url), "utf8");
+  assert.match(store, /getUserMembershipCenter[\s\S]*await synchronizeConfiguredOwnerAccess\(user\)/);
 });
 
 test("waitlist normalization is strict, minimal and idempotency friendly", () => {

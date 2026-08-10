@@ -75,7 +75,8 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
   const db = await getDb();
   const now = new Date();
   const nowIso = now.toISOString();
-  const liveApiToken = process.env.FOOTBALL_DATA_ORG_API_TOKEN?.trim() || null;
+  const runtime = await getResearchAutomationRuntime();
+  const liveApiToken = runtime.FOOTBALL_DATA_ORG_API_TOKEN?.trim() || null;
   const upstreamUrl = liveApiToken ? buildFootballDataOrgMatchesUrl(nowIso) : FOOTBALL_DATA_FIXTURE_FEED_URL;
   const adapterVersion = liveApiToken ? FOOTBALL_DATA_ORG_ADAPTER_VERSION : FOOTBALL_DATA_FIXTURE_FEED_ADAPTER_VERSION;
   const maximumBytes = liveApiToken ? FOOTBALL_DATA_ORG_MAX_BYTES : FOOTBALL_DATA_FIXTURE_FEED_MAX_BYTES;
@@ -740,6 +741,13 @@ async function getBucket(): Promise<R2Bucket> {
   const bucket = (env as unknown as { BUCKET?: R2Bucket }).BUCKET;
   if (!bucket) throw new Error("Cloudflare R2 binding `BUCKET` is unavailable.");
   return bucket;
+}
+
+async function getResearchAutomationRuntime(): Promise<{
+  FOOTBALL_DATA_ORG_API_TOKEN?: string;
+}> {
+  const { env } = await import("cloudflare:workers");
+  return env as unknown as { FOOTBALL_DATA_ORG_API_TOKEN?: string };
 }
 
 async function sha256(buffer: ArrayBuffer) {

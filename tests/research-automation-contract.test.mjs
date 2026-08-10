@@ -20,6 +20,8 @@ test("forward and historical research automation use separate hourly fail-closed
   assert.match(schema, /enum:\s*\["forward_shadow", "historical_validation"\]/);
   assert.match(store, /researchOnly:\s*true/);
   assert.match(store, /recommendationEligible:\s*false/);
+  assert.match(store, /getResearchAutomationRuntime\(\)/);
+  assert.doesNotMatch(store, /process\.env\.FOOTBALL_DATA_ORG_API_TOKEN/);
   assert.match(store, /summarizeAutomationHealth/);
   assert.match(store, /limit\(120\)/);
   assert.match(shadowStore, /selectHistoricalAutomationCampaign[\s\S]*advanceShadowValidationCampaign/);

@@ -7,7 +7,14 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.13 · Checkpoint 17M · Bugünün Maç Merkezi**
+**v0.7.0-alpha.14 · Checkpoint 17N · Owner Access & Live Runtime Wiring**
+
+- Sites çalışma zamanı secret’ını doğrudan Cloudflare env bağından okuyan; zamanlayıcı ve manuel yenilemede aynı güncel API sağlayıcısını kullanan canlı veri bağlantısı
+- Tanımlı platform sahibini hangi üye ekranından giriş yaparsa yapsın D1’de aktif `admin` rolüne eşleyen idempotent owner senkronizasyonu
+- Aktif iç test hesabını üyelik motorunda otomatik `Expert` plana yükselten sınırsız analiz, tam geçmiş, gelişmiş export, bildirim ve kupon yetkileri
+- Token değerini log, istemci payload’ı, Git geçmişi ve kaynak kodundan uzak tutan server-only secret sınırı
+
+Önceki checkpoint: **v0.7.0-alpha.13 · Checkpoint 17M · Bugünün Maç Merkezi**
 
 - İstanbul günü ve takip eden 48 saati kapsayan; gerçek fikstür, kaynak tazeliği, model olasılıkları ve yayın durumunu tek ekranda gösteren kullanıcı maç merkezi
 - Research-only model yönünü görünür kılarken doğrulanmış öneriyi ayrı tutan; model/yayın/değer blocker kodlarını açıkça gösteren fail-closed kartlar
@@ -210,7 +217,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.7.0-alpha.10 | CP17J | Değişmez prediction lineage manifesti, kaynak/run/R2/feature/model/yayın zinciri ve fail-closed Data Lineage gezgini | Tamamlandı |
 | v0.7.0-alpha.11 | CP17K | Fail-closed lig–kaynak onboarding kalite puanı, değişmez snapshot ve korumalı kalite konsolu | Tamamlandı |
 | v0.7.0-alpha.12 | CP17L | Sürüm bazlı değişmez model kartları, OOS/holdout/release kanıtı ve belge-only yönetişim konsolu | Tamamlandı |
-| **v0.7.0-alpha.13** | **CP17M** | **Bugünün gerçek fikstürleri, kaynak tazeliği, araştırma model yönü ve fail-closed öneri ayrımı** | **Mevcut** |
+| v0.7.0-alpha.13 | CP17M | Bugünün gerçek fikstürleri, kaynak tazeliği, araştırma model yönü ve fail-closed öneri ayrımı | Tamamlandı |
+| **v0.7.0-alpha.14** | **CP17N** | **Owner hesabının Admin + Expert eşlenmesi ve canlı API secret’ının Worker runtime’a bağlanması** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 

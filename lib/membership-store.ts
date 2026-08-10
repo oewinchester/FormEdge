@@ -28,6 +28,7 @@ import {
   enforceWaitlistRateLimit,
   getBetaProgramOverview,
 } from "@/lib/beta-access-store";
+import { synchronizeConfiguredOwnerAccess } from "@/lib/access-control";
 
 export type WaitlistInput = Parameters<typeof normalizeWaitlistInput>[0] & {
   website?: unknown;
@@ -106,6 +107,7 @@ export async function submitBetaWaitlist(
 }
 
 export async function getUserMembershipCenter(user: ChatGPTUser) {
+  await synchronizeConfiguredOwnerAccess(user);
   let { profile, preferences } = await ensureUserProductAccount(user);
   const db = await getDb();
   if (profile.subscriptionStatus === "trial"
