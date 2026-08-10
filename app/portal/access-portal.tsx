@@ -40,6 +40,7 @@ const ADMIN_SURFACES = [
   { href: "/admin/research-feed", label: "Research Feed", note: "Gerçek CSV çekimi ve ham kaynak arşivi", icon: DatabaseZap },
   { href: "/admin/league-onboarding", label: "Lig Onboarding", note: "Kanıtlı, fail-closed lig ve kaynak kalite puanı", icon: Gauge },
   { href: "/admin/data-lineage", label: "Data Lineage", note: "Kaynaktan yayın kararına değişmez kanıt zinciri", icon: GitBranch },
+  { href: "/admin/model-cards", label: "Model Kartları", note: "Sürüm bazlı dataset, holdout ve release kanıtı", icon: BookOpenCheck },
   { href: "/admin/model-lab", label: "Model Lab", note: "Dataset, benchmark ve kanıt matrisi", icon: FlaskConical },
   { href: "/admin/shadow-validation", label: "Shadow Validation", note: "Gerçek veri kuyruğu, backtest ve zamansal drift", icon: Radar },
   { href: "/admin/predictions", label: "Prediction Ops", note: "İzleme, final ve geri çekme yaşam döngüsü", icon: ListChecks },

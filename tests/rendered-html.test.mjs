@@ -112,6 +112,16 @@ test("renders the signed-out League Onboarding protection wall", async () => {
   assert.match(html, /admin%2Fleague-onboarding|admin\/league-onboarding/i);
 });
 
+test("renders the signed-out Model Cards protection wall", async () => {
+  const response = await renderRoute("/admin/model-cards");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Model kartları korumalıdır/i);
+  assert.match(html, /DOCUMENTATION ≠ RELEASE/i);
+  assert.match(html, /auth\/sign-in/i);
+  assert.match(html, /admin%2Fmodel-cards|admin\/model-cards/i);
+});
+
 test("renders the signed-out Notification Ops protection wall", async () => {
   const response = await renderRoute("/admin/notification-ops");
   assert.equal(response.status, 200);

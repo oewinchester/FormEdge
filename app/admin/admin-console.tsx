@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   BadgeDollarSign,
   BellRing,
+  BookOpenCheck,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -282,6 +283,7 @@ export function AdminConsole({ user, signOutPath }: Props) {
           <a href="/admin/research-feed"><DatabaseZap size={17} />Research Feed</a>
           <a href="/admin/league-onboarding"><Gauge size={17} />Lig Onboarding</a>
           <a href="/admin/data-lineage"><GitBranch size={17} />Data Lineage</a>
+          <a href="/admin/model-cards"><BookOpenCheck size={17} />Model Kartları</a>
           <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>
           <a href="/admin/shadow-validation"><Radar size={17} />Shadow Validation</a>
           <a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a>

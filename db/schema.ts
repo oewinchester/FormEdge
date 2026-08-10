@@ -1444,6 +1444,37 @@ export const releaseGates = sqliteTable(
   ],
 );
 
+export const modelVersionCards = sqliteTable(
+  "model_version_cards",
+  {
+    id: text("id").primaryKey(),
+    modelVersionId: text("model_version_id").notNull().references(() => modelVersions.id),
+    schemaVersion: text("schema_version").notNull(),
+    evidenceFingerprintSha256: text("evidence_fingerprint_sha256").notNull(),
+    cardStatus: text("card_status", { enum: ["blocked", "documented"] }).notNull().default("blocked"),
+    datasetRunId: text("dataset_run_id").references(() => featureDatasetRuns.id),
+    backtestRunId: text("backtest_run_id").references(() => backtestRuns.id),
+    evidenceRunId: text("evidence_run_id").references(() => modelEvidenceRuns.id),
+    releaseGateId: text("release_gate_id").references(() => releaseGates.id),
+    blockerCount: integer("blocker_count").notNull().default(0),
+    warningCount: integer("warning_count").notNull().default(0),
+    blockerCodesJson: text("blocker_codes_json").notNull().default("[]"),
+    warningCodesJson: text("warning_codes_json").notNull().default("[]"),
+    manifestJson: text("manifest_json").notNull(),
+    researchOnly: integer("research_only", { mode: "boolean" }).notNull().default(true),
+    recommendationEligible: integer("recommendation_eligible", { mode: "boolean" }).notNull().default(false),
+    generatedByEmail: text("generated_by_email").notNull(),
+    evidenceAsOf: text("evidence_as_of").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("model_version_cards_evidence_unique").on(table.evidenceFingerprintSha256),
+    index("model_version_cards_version_time_idx").on(table.modelVersionId, table.createdAt),
+    index("model_version_cards_status_time_idx").on(table.cardStatus, table.createdAt),
+    index("model_version_cards_backtest_idx").on(table.backtestRunId),
+  ],
+);
+
 export const userNotificationPreferences = sqliteTable("user_notification_preferences", {
   userEmail: text("user_email").primaryKey().references(() => userProfiles.email),
   finalAnalysisEnabled: integer("final_analysis_enabled", { mode: "boolean" }).notNull().default(true),

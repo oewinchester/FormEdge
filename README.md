@@ -7,7 +7,15 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.11 · Checkpoint 17K · Aşama 2 / League Onboarding Quality Score**
+**v0.7.0-alpha.12 · Checkpoint 17L · Aşama 3 / Versioned Model Cards**
+
+- Her model sürümünü konfigürasyon SHA-256 kimliği, feature şeması, tarihsel dataset, walk-forward backtest, zamansal holdout/kalibrasyon ve release gate kaydıyla birleştiren deterministik `model-version-card-v1` sözleşmesi
+- Eksik veya uyuşmayan dataset/backtest/evidence/gate bağlarını, leakage ihlalini ve geçersiz OOS metriğini açık blocker kodlarıyla fail-closed tutan kart denetimi
+- Aynı kanıt parmak izini yeniden yazmayan; kart, bulgu ve upstream kimliklerini değişmez D1 snapshot’ı ve audit log ile saklayan model yönetişim defteri
+- Sürüm seçimi, dört aşamalı kanıt zinciri, OOS ve holdout ölçümleri, uygun/yasak kullanım, sınırlamalar ve snapshot bayatlığını gösteren korumalı responsive Model Kartları konsolu
+- Kart belgelense dahi `researchOnly=true`, `recommendationEligible=false`, `cardCanOpenReleaseGate=false` ve `cardCanChangeModelStatus=false` sınırlarını zorunlu tutan belge-only politika
+
+Önceki checkpoint: **v0.7.0-alpha.11 · Checkpoint 17K · League Onboarding Quality Score**
 
 - Her lig–kaynak çiftini lisans `%20`, geçmiş derinliği `%20`, kimlik eşleme `%15`, gelişmiş veri `%15`, kadro `%10`, kickoff öncesi oran bütünlüğü `%10` ve kaynak SLA `%10` ağırlıklarıyla değerlendiren deterministik `league-onboarding-quality-v1` sözleşmesi
 - Lisans, minimum 40 bitmiş maç, kimlik eşleme, gelişmiş veri, oran zamanı veya SLA kanıtı eşikleri sağlanmadığında açık blocker kodlarıyla fail-closed kalan araştırma hazırlık kapısı
@@ -191,7 +199,9 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.7.0-alpha.7 | CP17G | D1 tabanlı otomasyon sağlığı, süre/hata geçmişi ve lig × aşama Research Observatory | Tamamlandı |
 | v0.7.0-alpha.8 | CP17H | Forward + tarihsel worker için birleşik fail-closed Research Operations Gate ve açık blocker kodları | Tamamlandı |
 | v0.7.0-alpha.9 | CP17I | CI, CodeQL, Dependabot, üretim güvenlik başlıkları, migration/secret doğrulaması ve secret-safe launch readiness | Tamamlandı |
-| **v0.7.0-alpha.10** | **CP17J** | **Değişmez prediction lineage manifesti, kaynak/run/R2/feature/model/yayın zinciri ve fail-closed Data Lineage gezgini** | **Mevcut** |
+| v0.7.0-alpha.10 | CP17J | Değişmez prediction lineage manifesti, kaynak/run/R2/feature/model/yayın zinciri ve fail-closed Data Lineage gezgini | Tamamlandı |
+| v0.7.0-alpha.11 | CP17K | Fail-closed lig–kaynak onboarding kalite puanı, değişmez snapshot ve korumalı kalite konsolu | Tamamlandı |
+| **v0.7.0-alpha.12** | **CP17L** | **Sürüm bazlı değişmez model kartları, OOS/holdout/release kanıtı ve belge-only yönetişim konsolu** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 
@@ -259,6 +269,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 58. Bir lig için en az 40 sonuçlanmış gerçek ileri-zaman gözlemi, iki 20’lik zaman penceresi ve bütün kalite/drift kapıları tamamlanmadan forward stabilite adayı üretilemez.
 59. Tarihsel worker her saat `:47` için tek kampanya aşaması ilerletir; `:17` forward worker’ıyla kilit paylaşmaz, bütün tur ve hata sonuçlarını iş türüyle D1’e yazar ve retrospektif sonucu hiçbir zaman forward gözlem gibi işaretleyemez.
 60. Tahmin lineage manifestindeki kaynak/run/R2/feature/model/yayın bağlarından biri eksik veya doğrulanamazsa zincir fail-closed bloklanır; tam lineage kaydı tek başına kullanıcı önerisi ya da ticari yayın uygunluğu üretemez.
+61. Lig onboarding puanı yalnız araştırma hazırlığını belgeler; lisans, kimlik, geçmiş, gelişmiş veri, oran zamanı veya SLA blocker’ı varken hazır sayılamaz ve hiçbir puan öneri kapısını açamaz.
+62. Model kartı yalnız model sürümünün mevcut kanıtını belgeler; eksik dataset/backtest/holdout/release bağı kartı bloklar ve belgelenmiş kart dahi model statüsünü veya öneri/release kapısını değiştiremez.
 
 ## Teknoloji
 
@@ -353,6 +365,8 @@ lib/football-data-fixture-feed.ts Yaklaşan fikstür ve araştırma 1X2 snapshot
 lib/research-automation-store.ts Saatlik fikstür/sonuç toplama, tahmin kilitleme, settlement ve forward-shadow projeksiyonu
 lib/league-onboarding-quality.ts Saf lig–kaynak onboarding puanı, eşikler ve fail-closed blocker sözleşmesi
 lib/league-onboarding-store.ts Canlı kalite kanıtı, değişmez D1 snapshot’ı ve yönetim projeksiyonu
+lib/model-card.ts             Saf sürüm bazlı model kartı, bulgu ve belge-only yönetişim sözleşmesi
+lib/model-card-store.ts       Canlı model kanıtı, değişmez D1 snapshot’ı ve yönetim projeksiyonu
 lib/user-account-store.ts        Ürün profili ve kullanıcı tercihleri için idempotent hesap başlangıcı
 lib/admin-data.ts            Veri alımı, kalite ve yönetici yetkilendirmesi
 tests/                       Veri ve model güvenlik testleri

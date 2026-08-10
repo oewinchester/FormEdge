@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   BadgeDollarSign,
   BellRing,
+  BookOpenCheck,
   CheckCircle2,
   CloudSun,
   Database,
@@ -82,6 +83,7 @@ export function DataLineageConsole({ user, signOutPath }: Props) {
           <a href="/portal"><Database size={17} />Panel merkezi</a>
           <a href="/admin"><Database size={17} />Veri konsolu</a>
           <a href="/admin/league-onboarding"><Gauge size={17} />Lig Onboarding</a>
+          <a href="/admin/model-cards"><BookOpenCheck size={17} />Model Kartları</a>
           <a href="/admin/model-lab"><FlaskConical size={17} />Model Lab</a>
           <a href="/admin/shadow-validation"><Radar size={17} />Shadow Validation</a>
           <a href="/admin/predictions"><ListChecks size={17} />Prediction Ops</a>
