@@ -13,7 +13,6 @@ import {
   CloudSun,
   Database,
   DatabaseZap,
-  ExternalLink,
   FileClock,
   FileWarning,
   FlaskConical,
@@ -175,7 +174,7 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
       });
       const payload = await response.json() as { result?: { run?: { status?: string } }; error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Canlı API verisi alınamadı.");
-      setNotice(`Canlı API turu ${payload.result?.run?.status === "completed" ? "tamamlandı" : "işlendi"}. Bugünün maçları ve son 40 günlük sonuç penceresi D1'e aktarıldı.`);
+      setNotice(`SportMonks turu ${payload.result?.run?.status === "completed" ? "tamamlandı" : "işlendi"}. Dört günlük fikstür penceresi ve aktif takımların 365 günlük geçmişi D1/R2 katmanına aktarıldı.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Canlı API verisi alınamadı.");
     } finally {
@@ -269,8 +268,8 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
           <a href="/admin/context-ops"><CloudSun size={17} />Context Ops</a>
           <a href="/admin/notification-ops"><BellRing size={17} />Notification Ops</a>
           <a href="/admin/member-ops"><UsersRound size={17} />Member Ops</a>
-          <a href="#leagues"><CloudDownload size={17} />Pilot ligler</a>
-          <a href="#runs"><History size={17} />Çekim geçmişi</a>
+          <a href="#leagues"><CloudDownload size={17} />Arşivlenmiş pilot veri</a>
+          <a href="#runs"><History size={17} />Arşiv geçmişi</a>
         </nav>
         <div className="admin-sidebar-note research-sidebar-note"><LockKeyhole size={18} /><b>Öneri kapısı kilitli</b><p>Bu akış yalnız araştırma ve backtest hazırlığı içindir. Ticari hak, revizyon zamanı ve oran yakalama zamanı doğrulanmadı.</p></div>
         <a className="admin-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a>
@@ -283,7 +282,7 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
         </header>
 
         <section className="admin-intro research-feed-intro" id="overview">
-          <div><small>LIVE API + LEGACY CSV · CONTROLLED ACQUISITION</small><h1>Bugünün fikstürünü ve yakın geçmişi canlı API’den al.</h1><p>Aktif canlı akış 12 ücretsiz organizasyonu, bugünden sonraki 72 saati ve API sınırına uygun son 40 günlük sonuç penceresini çeker. Aşağıdaki 25 sezonluk CSV kuyruğu ayrı, eski arşiv kaynağıdır.</p></div>
+          <div><small>SPORTMONKS API V3 · SINGLE SOURCE</small><h1>Fikstürü, takım geçmişini ve analiz kuyruğunu tek akışta yönet.</h1><p>Aktif akış yalnız lisanslı 30 ligi, dört günlük fikstür penceresini ve yaklaşan takımların 365 günlük geçmişini işler. Aşağıdaki eski CSV kayıtları salt-okunur araştırma arşividir; hiçbir canlı karar veya yeni çekimde kullanılmaz.</p></div>
           <div className="research-source-actions"><button type="button" onClick={() => void runLiveImport()} disabled={!canPull || busy}><Play size={16} />{activeKey === "live-api" ? "Canlı veri alınıyor" : "Canlı veriyi şimdi çek"}</button><button type="button" onClick={() => void loadOverview()} disabled={loading || busy}><RefreshCw size={16} className={loading ? "spin" : ""} />Yenile</button></div>
         </section>
 
@@ -293,12 +292,12 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
 
         <section className="research-policy-strip">
           <ShieldAlert size={18} />
-          <div><b>Kaynak araştırmaya açık; ticari kullanım kararı açık değil.</b><p>Kesin capture zamanı olmayan oran sütunları ham CSV’de korunur fakat oddsSnapshots ve değer hesabına yazılmaz. Kaynak revizyon zamanı doğrulanana kadar hiçbir kayıt öneri üretmez.</p></div>
+          <div><b>Tek canlı kaynak SportMonks; ticari yayın kapısı ayrıca doğrulanır.</b><p>Fikstür ve takım istatistikleri capture zamanıyla saklanır. Odds paketi ve pre-match oran snapshot&apos;ı doğrulanmadan değer fırsatı veya stake üretilemez.</p></div>
           <span>LEGAL: REVIEW</span>
         </section>
 
         <section className="research-source-card">
-          <div><span><Radar size={20} /></span><div><small>ACTIVE SOURCE · FOOTBALL-DATA.ORG V4</small><h2>12 organizasyon · 5 güvenli zaman penceresi</h2><p>API’nin istek başına en fazla 10 günlük dönem sınırı korunur; birleşik yanıt kimlik üzerinden tekilleştirilir ve research-only olarak arşivlenir.</p></div></div>
+          <div><span><Radar size={20} /></span><div><small>ACTIVE SOURCE · SPORTMONKS FOOTBALL API V3</small><h2>30 lisanslı lig · günlük tek snapshot</h2><p>Günlük fikstürler lig kimliğiyle filtrelenir; aktif takımların 365 günlük maç ve temel istatistik geçmişi kimlik üzerinden tekilleştirilir. Aynı İstanbul günündeki sonraki turlar kayıtlı snapshot&apos;ı işler.</p></div></div>
           <div className="research-source-actions"><button type="button" onClick={() => void runLiveImport()} disabled={!canPull || busy}><CloudDownload size={14} />Canlı API turunu çalıştır</button><a href="/dashboard">Bugünün maçlarını aç <ChevronRight size={13} /></a></div>
         </section>
 
@@ -311,17 +310,15 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
         </section>
 
         <section className="research-source-card">
-          <div><span><CloudDownload size={20} /></span><div><small>FIXED SOURCE CONTRACT</small><h2>{overview?.source.name ?? "Football-Data.co.uk Research CSV"}</h2><p>{overview?.source.adapterVersion ?? "football-data-csv-v1"} · 3 MB üst sınır · yönlendirme kapalı · SHA-256 içerik kimliği</p></div></div>
+          <div><span><Archive size={20} /></span><div><small>LEGACY RESEARCH ARCHIVE · OFFLINE</small><h2>{overview?.source.name ?? "Salt-okunur tarihsel araştırma arşivi"}</h2><p>Bu kayıtlar eski backtest kanıtlarını tekrar üretmek için korunur. Haricî kaynağa yeni istek atılmaz ve canlı fikstür/model hattına dahil edilmez.</p></div></div>
           <div className="research-source-actions">
-            <a href={overview?.source.dataUrl ?? "https://www.football-data.co.uk/data.php"} target="_blank" rel="noreferrer">Veri açıklaması <ExternalLink size={13} /></a>
-            <a href={overview?.source.notesUrl ?? "https://www.football-data.co.uk/notes.txt"} target="_blank" rel="noreferrer">Kolon notları <ExternalLink size={13} /></a>
-            <button type="button" disabled><LockKeyhole size={14} />Eski CSV çekimi kapalı</button>
+            <button type="button" disabled><LockKeyhole size={14} />Eski haricî çekim kalıcı kapalı</button>
           </div>
           {!canPull && <p className="research-editor-lock"><LockKeyhole size={13} />Editör rolü akışı görüntüleyebilir; haricî kaynak çekimini yalnız yönetici başlatabilir.</p>}
         </section>
 
         <section className="research-league-list" id="leagues">
-          <header><div><small>5 LİG × 5 SEZON</small><h2>Backtest başlangıç havuzu</h2></div><span>{overview?.totals.importedSeasons ?? 0}/{overview?.totals.targetSeasons ?? 25} hazır</span></header>
+          <header><div><small>SALT-OKUNUR KANIT</small><h2>Eski backtest başlangıç havuzu</h2></div><span>{overview?.totals.importedSeasons ?? 0}/{overview?.totals.targetSeasons ?? 25} arşivli</span></header>
           {(overview?.leagues ?? []).map((league) => {
             const missing = league.seasons.filter((season) => season.status !== "imported" && season.status !== "unchanged")
               .map((season) => ({ leagueCode: league.code, seasonCode: season.code }));
@@ -346,7 +343,7 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
         </section>
 
         <section className="research-model-handoff">
-          <span><Radar size={20} /></span><div><small>NEXT CONTROLLED STEP</small><h2>Kaynakları kalıcı doğrulama kampanyasına bağla.</h2><p>Shadow Validation eksik sezonları sırayla çeker; point-in-time dataset, dört benchmark, kanıt matrisi ve erken/geç dönem drift ölçümünü kesintiye dayanıklı aşamalarda tamamlar.</p></div><a href="/admin/shadow-validation">Shadow Validation’a geç <ChevronRight size={14} /></a>
+          <span><Radar size={20} /></span><div><small>NEXT CONTROLLED STEP</small><h2>SportMonks snapshot&apos;larını kalıcı doğrulama kampanyasına bağla.</h2><p>Yeni model kanıtı yalnız SportMonks provenance kayıtlarıyla üretilir; eski arşiv salt-okunur karşılaştırma kanıtı olarak kalır.</p></div><a href="/admin/shadow-validation">Shadow Validation’a geç <ChevronRight size={14} /></a>
         </section>
 
         <section className="research-runs-card" id="runs">

@@ -21,7 +21,7 @@ FormEdge'in ürün yüzeyi, otomatik maç merkezi, model sürümleme, veri linea
 
 ## Faz 0 — CP17Y: SportMonks tek kaynak ve otomatik analiz hattı
 
-Durum: Uygulandı; üretim doğrulaması bekleniyor.
+Durum: Uygulandı ve üretime dağıtıldı; gerçek günlük run kabul ölçütleri izleniyor.
 
 - Canlı otomasyondaki bütün yedek sağlayıcı yollarını kaldır.
 - Günlük fikstürü yalnız satın alınan 30 lig için sorgula.
@@ -38,6 +38,7 @@ Kabul ölçütleri:
 - Aynı İstanbul gününde ikinci yenileme yeni SportMonks çağrı zinciri başlatmaz.
 - Analizi olmayan her maç için açık blocker veya analiz sürümü vardır.
 - API-Football, football-data.org ve CSV hiçbir canlı otomasyon kararında çalışmaz.
+- Eski Football-Data çekim endpoint'i kapalıdır; mevcut tarihsel kayıtlar yalnız salt-okunur kanıt arşivi olarak korunur.
 
 ## Faz 1 — SportMonks veri kapsamı ve kalite kapıları
 
@@ -60,6 +61,7 @@ Kabul ölçütleri:
 Durum: Temel model var; gerçek ileri-zaman kanıtı yetersiz.
 
 - En az üç pilot lig için otomatik forward-shadow gözlemi biriktir.
+- Eski tarihsel doğrulama kampanyalarını SportMonks provenance ve sezon snapshot'larıyla yeniden üret; eski CSV arşivini model seçimi girdisi olmaktan çıkar.
 - Takım lig değiştirdiğinde geçmiş formunu ayrı bir çapraz-lig normalizasyon politikasıyla ele al; gizli veri doldurma yapma.
 - Elo, Poisson, Dixon–Coles ve form-dominance modellerini aynı point-in-time dataset üzerinde karşılaştır.
 - Calibration/holdout/ablation raporlarını model kartına bağla.

@@ -1,8 +1,6 @@
 import { requireAdminActor, toAdminApiError } from "@/lib/admin-data";
-import { FootballDataSourceError } from "@/lib/football-data-source";
 import {
   getFootballDataResearchOverview,
-  pullFootballDataSeason,
   ResearchFeedHttpError,
 } from "@/lib/football-data-source-store";
 
@@ -27,7 +25,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const actor = await requireAdminActor();
+    await requireAdminActor();
     const declaredBytes = Number(request.headers.get("content-length") ?? "0");
     if (declaredBytes > MAX_REQUEST_BYTES) {
       return Response.json({ error: "İstek boyutu sınırı aşıldı." }, { status: 413, headers: NO_STORE_HEADERS });
@@ -42,11 +40,11 @@ export async function POST(request: Request) {
     } catch {
       return Response.json({ error: "Geçerli JSON gereklidir." }, { status: 400, headers: NO_STORE_HEADERS });
     }
-    const result = await pullFootballDataSeason(actor, {
-      leagueCode: body.leagueCode,
-      seasonCode: body.seasonCode,
-    });
-    return Response.json({ result }, { status: result.reused ? 200 : 201, headers: NO_STORE_HEADERS });
+    void body;
+    return Response.json({
+      error: "Eski Football-Data çekimi kalıcı olarak kapatıldı. Canlı ve yeni tarihsel veri yalnız SportMonks otomasyonundan alınır.",
+      code: "LEGACY_SOURCE_DISABLED",
+    }, { status: 410, headers: NO_STORE_HEADERS });
   } catch (error) {
     return errorResponse(error);
   }
@@ -57,12 +55,6 @@ function errorResponse(error: unknown) {
     const headers: Record<string, string> = { ...NO_STORE_HEADERS };
     if (error.retryAfterSeconds) headers["Retry-After"] = String(error.retryAfterSeconds);
     return Response.json({ error: error.message, code: error.code }, { status: error.status, headers });
-  }
-  if (error instanceof FootballDataSourceError) {
-    return Response.json(
-      { error: error.message, code: "SOURCE_SELECTION_INVALID", issues: error.issues },
-      { status: 400, headers: NO_STORE_HEADERS },
-    );
   }
   const response = toAdminApiError(error);
   return Response.json({ error: response.message }, { status: response.status, headers: NO_STORE_HEADERS });
