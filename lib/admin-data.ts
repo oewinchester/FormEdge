@@ -290,6 +290,8 @@ export async function importFootballSnapshot(
         target: fixtures.id,
         set: {
           kickoffAt: sql`excluded.kickoff_at`,
+          homeTeamId: sql`excluded.home_team_id`,
+          awayTeamId: sql`excluded.away_team_id`,
           status: sql`excluded.status`,
           homeScore: sql`excluded.home_score`,
           awayScore: sql`excluded.away_score`,

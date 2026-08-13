@@ -19,7 +19,7 @@ FormEdge'in ürün yüzeyi, otomatik maç merkezi, model sürümleme, veri linea
 - Şirket, vergi, faturalama, ödeme, iade ve ülke bazlı bahis/analiz hukuku incelemesi
 - Üretim yedekleme/geri yükleme tatbikatı, alarm/SLO, E2E ve mobil görsel regresyon kanıtı
 
-## Faz 0 — CP17Y: SportMonks tek kaynak ve otomatik analiz hattı
+## Faz 0 — CP17Y–CP17AA: SportMonks tek kaynak ve otomatik analiz hattı
 
 Durum: Uygulandı ve üretime dağıtıldı; gerçek günlük run kabul ölçütleri izleniyor.
 
@@ -31,6 +31,8 @@ Durum: Uygulandı ve üretime dağıtıldı; gerçek günlük run kabul ölçüt
 - İstanbul günü başına yalnız bir başarılı upstream snapshot kullan; sonraki turlarda D1/R2 kaydını işle.
 - Dört günlük pencerede en fazla 60 maçı otomatik analiz kuyruğuna al.
 - Bir tahmin üretilemezse nedeni log ve run özetinde göster; turu sahte yeşil başarıya çevirmeme.
+- SportMonks takım adlarını kimlik olarak kullanma; provider takım ID'sini kalıcı kanonik anahtar yap ve güvenilir yeniden importta eski fikstür bağlarını uzlaştır.
+- Analizi olmayan her maç kartında son otomasyon denemesinin kesin engelini veya kuyruk durumunu göster.
 
 Kabul ölçütleri:
 
@@ -42,13 +44,13 @@ Kabul ölçütleri:
 
 ## Faz 1 — SportMonks veri kapsamı ve kalite kapıları
 
-Durum: Sıradaki.
+Durum: Devam ediyor; hesap/rate-limit/lig kapsam kanıtı ve kalıcı takım kimliği CP17Z–CP17AA ile uygulandı.
 
-- Hesap kapsamını `/my` ve coverage endpoint'leriyle sunucu tarafında doğrula; secret değerini saklama veya istemciye çıkarma.
+- [x] Hesap kapsamını `/my` ve coverage endpoint'leriyle sunucu tarafında doğrula; secret değerini saklama veya istemciye çıkarma.
 - Statistics, lineups, sidelined/injury ve xG kapsamını lig bazında ölç.
 - Kullanıcının satın aldığı odds özelliği varsa yalnız doğrulanmış pre-match 1X2 bookmaker snapshot'larını ayrı endpoint'ten al; paket yoksa değer/kupon kapısını kapalı tut.
-- API cevabındaki rate-limit kalan hak ve reset bilgisini operasyon telemetrisine ekle.
-- Silinen/ertelenen fikstür, takım adı değişimi ve sezon geçişi için kimlik uzlaştırma testleri ekle.
+- [x] API cevabındaki rate-limit kalan hak ve reset bilgisini operasyon telemetrisine ekle.
+- [x] Takım adı değişiminde provider takım ID'sini koruyan kimlik uzlaştırma testi ekle; ertelenen/silinen fikstür ve sezon geçişi senaryolarını tamamla.
 - Lig onboarding kalite puanını SportMonks kapsam kanıtına bağla.
 
 Kabul ölçütleri:

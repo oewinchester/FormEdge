@@ -41,9 +41,10 @@ import {
   summarizeAutomationHealth,
 } from "@/lib/research-automation-health";
 import { getIstanbulSlateWindow } from "@/lib/today-slate";
+import { ModelLabValidationError } from "@/lib/model-lab";
 
 const AUTOMATION_ACTIVE_KEY = "research-forward-shadow:1x2";
-const FIXTURE_FEED_ACTIVE_KEY = "sportmonks:fixtures:v7";
+const FIXTURE_FEED_ACTIVE_KEY = "sportmonks:fixtures:v8";
 const FEED_WINDOW_MS = 10 * 60_000;
 const FETCH_TIMEOUT_MS = 20_000;
 const MAX_PREDICTIONS_PER_CYCLE = 60;
@@ -722,11 +723,18 @@ function requireAutomationAdmin(actor: AdminActor) {
 }
 
 function errorSummary(stage: string, error: unknown) {
-  const code = error instanceof ResearchAutomationHttpError ? error.code : "UNEXPECTED_ERROR";
+  const message = error instanceof Error ? error.message.slice(0, 300) : "Bilinmeyen hata";
+  const code = error instanceof ResearchAutomationHttpError
+    ? error.code
+    : error instanceof ModelLabValidationError && message.includes("known matches for both teams")
+      ? "FORECAST_HISTORY_INSUFFICIENT"
+      : error instanceof ModelLabValidationError
+        ? "MODEL_VALIDATION_FAILED"
+        : "UNEXPECTED_ERROR";
   return {
     stage,
     code,
-    message: error instanceof Error ? error.message.slice(0, 300) : "Bilinmeyen hata",
+    message,
   };
 }
 
@@ -759,7 +767,7 @@ function buildSportMonksProvider(token: string | null, nowIso: string): SportMon
   const upstreamUrls = buildSportMonksDateUrls(nowIso);
   return {
     kind: "sportmonks",
-    key: "sportmonks-v7-account-coverage",
+    key: "sportmonks-v8-stable-team-identity",
     token,
     upstreamUrl: upstreamUrls[0],
     upstreamUrls,

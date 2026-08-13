@@ -205,7 +205,7 @@ export function UserDashboard({
               {match.analysis ? <>
                 <div className="user-probabilities">{(["1", "X", "2"] as const).map((outcome) => { const value = probabilityFor(match.analysis!.probabilities, outcome); return <span className={match.analysis!.predictedOutcome === outcome ? "leader" : ""} key={outcome}><small>{outcome}</small><b>%{Math.round(value * 100)}</b><i style={{ width: `${value * 100}%` }} /></span>; })}</div>
                 <footer><div><small>{match.recommendation ? "DOĞRULANMIŞ ÖNERİ" : "OTOMATİK MODEL ANALİZİ"}</small><b>{match.recommendation?.outcome ?? match.analysis.predictedOutcome}</b></div><span className="open-analysis">Analizi aç <ArrowRight size={13} /></span></footer>
-              </> : <div className="user-live-pending"><Clock3 size={15} /><span><b>Model analizi bekleniyor</b><small>Fikstür alındı; ilk sürüm henüz üretilmedi.</small></span></div>}
+              </> : <div className="user-live-pending"><Clock3 size={15} /><span><b>{analysisStatusLabel(match.analysisStatus.code)}</b><small>{match.analysisStatus.message}</small></span></div>}
               {!match.recommendation && <p className="user-live-blockers"><LockKeyhole size={12} />{blockerSummary(match.blockers)}</p>}
             </a>)}
           </div>
@@ -259,12 +259,23 @@ function blockerSummary(values: string[]) {
   if (!values.length) return "Yayın ve değer kanıtı tamamlanmadı.";
   const labels: Record<string, string> = {
     MODEL_ANALYSIS_PENDING: "Model analizi bekleniyor",
+    ANALYSIS_QUEUED: "Otomatik analiz sırasında",
+    ANALYSIS_RUNNING: "Otomatik analiz çalışıyor",
+    FORECAST_HISTORY_INSUFFICIENT: "Takım geçmişi henüz yetersiz",
+    MODEL_VALIDATION_FAILED: "Model doğrulama kapısı geçilmedi",
     RESEARCH_ONLY: "Araştırma verisi",
     RELEASE_GATE_CLOSED: "Sürüm kapısı kapalı",
     DATA_COMPLETENESS_BELOW_THRESHOLD: "Veri bütünlüğü yetersiz",
     LINEUP_NOT_CONFIRMED: "Kadrolar kesin değil",
   };
   return values.slice(0, 2).map((value) => labels[value] ?? value.replaceAll("_", " ").toLocaleLowerCase("tr-TR")).join(" · ");
+}
+
+function analysisStatusLabel(code: string) {
+  return code === "FORECAST_HISTORY_INSUFFICIENT" ? "Geçmiş veri tamamlanıyor"
+    : code === "ANALYSIS_RUNNING" ? "Model analizi çalışıyor"
+      : code === "MODEL_VALIDATION_FAILED" ? "Model doğrulaması bekleniyor"
+        : "Model analizi sırada";
 }
 
 function formatDate(value: string) {

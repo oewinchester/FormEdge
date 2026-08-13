@@ -1,8 +1,8 @@
 import type { DataQualityIssue } from "./data-quality.ts";
 import type { AdminImportEnvelope, NormalizedFootballPayload } from "./import-contract.ts";
-import { footballDataFixtureId, footballDataTeamId } from "./football-data-source.ts";
+import { footballDataFixtureId } from "./football-data-source.ts";
 
-export const SPORTMONKS_ADAPTER_VERSION = "sportmonks-v3-fixtures-v7" as const;
+export const SPORTMONKS_ADAPTER_VERSION = "sportmonks-v3-fixtures-v8" as const;
 export const SPORTMONKS_BASE_URL = "https://api.sportmonks.com/v3/football/fixtures" as const;
 export const SPORTMONKS_ACCOUNT_BASE_URL = "https://api.sportmonks.com/v3/my" as const;
 export const SPORTMONKS_MAX_BYTES = 32_000_000;
@@ -205,6 +205,13 @@ export function sportMonksPlanTeamIds(fixtures: unknown[]) {
   return [...teamIds].sort((first, second) => first - second);
 }
 
+export function sportMonksTeamId(providerTeamId: number) {
+  if (!Number.isInteger(providerTeamId) || providerTeamId <= 0) {
+    throw new Error("A valid SportMonks team id is required.");
+  }
+  return `sportmonks-team-${providerTeamId}`;
+}
+
 export function sportMonksAuthorizationHeader(token: string) {
   const value = token.trim();
   if (!value) throw new Error("SportMonks API token is required.");
@@ -237,8 +244,10 @@ export function parseSportMonksFixtures(input: { json: string; capturedAt: strin
     const away = raw.participants?.find((participant) => textValue(participant.meta?.location)?.toLowerCase() === "away");
     const homeName = textValue(home?.name);
     const awayName = textValue(away?.name);
+    const homeProviderId = integerValue(home?.id);
+    const awayProviderId = integerValue(away?.id);
     const kickoffAt = normalizeKickoff(textValue(raw.starting_at));
-    if (!league || !homeName || !awayName || !kickoffAt) {
+    if (!league || !homeName || !awayName || !homeProviderId || !awayProviderId || !kickoffAt) {
       ignoredCount += 1;
       continue;
     }
@@ -249,8 +258,8 @@ export function parseSportMonksFixtures(input: { json: string; capturedAt: strin
       bucket = { league, season, teams: new Map(), fixtures: [], stats: [] };
       grouped.set(bucketKey, bucket);
     }
-    const homeTeamId = footballDataTeamId(league.code, homeName);
-    const awayTeamId = footballDataTeamId(league.code, awayName);
+    const homeTeamId = sportMonksTeamId(homeProviderId);
+    const awayTeamId = sportMonksTeamId(awayProviderId);
     bucket.teams.set(homeTeamId, { id: homeTeamId, name: homeName, shortName: textValue(home?.short_code), countryCode: league.countryCode });
     bucket.teams.set(awayTeamId, { id: awayTeamId, name: awayName, shortName: textValue(away?.short_code), countryCode: league.countryCode });
     const status = mapStatus(raw.state_id, raw.state);

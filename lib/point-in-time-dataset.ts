@@ -424,7 +424,7 @@ export async function buildUpcomingPointInTimeForecast(input: {
   const awayRows = historicalFixturesForTeam(teamFixtures, target.awayTeamId, predictionMs, 10);
   if (homeRows.length < minimumHistoryMatches || awayRows.length < minimumHistoryMatches) {
     throw new ModelLabValidationError(
-      `Upcoming forecast requires at least ${minimumHistoryMatches} known matches for both teams.`,
+      `Upcoming forecast requires at least ${minimumHistoryMatches} known matches for both teams (home=${homeRows.length}, away=${awayRows.length}).`,
     );
   }
   const h2hRows = historicalHeadToHead(

@@ -15,6 +15,7 @@ import {
   sportMonksAuthorizationHeader,
   sportMonksPageUrl,
   sportMonksPlanTeamIds,
+  sportMonksTeamId,
 } from "../lib/sportmonks-live.ts";
 
 const payload = JSON.stringify({
@@ -59,7 +60,7 @@ const payload = JSON.stringify({
 });
 
 test("SportMonks plan coverage is the exact 30-league subscription", () => {
-  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v7");
+  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v8");
   assert.equal(SPORTMONKS_PLAN_LEAGUES.length, 30);
   assert.equal(new Set(SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId)).size, 30);
   assert.deepEqual(
@@ -144,6 +145,8 @@ test("SportMonks fixtures become deterministic research-only envelopes", () => {
   assert.ok(result.envelopes.every((item) => item.source.legalStatus === "review"));
   const premierLeague = result.envelopes.find((item) => item.payload.league.id === "eng-premier-league");
   assert.equal(premierLeague?.payload.fixtures[0].status, "finished");
+  assert.equal(premierLeague?.payload.fixtures[0].homeTeamId, "sportmonks-team-3");
+  assert.equal(premierLeague?.payload.fixtures[0].awayTeamId, "sportmonks-team-4");
   assert.equal(premierLeague?.payload.fixtures[0].homeScore, 2);
   assert.equal(premierLeague?.payload.fixtures[0].awayScore, 1);
   assert.equal(premierLeague?.payload.stats.length, 2);
@@ -153,6 +156,20 @@ test("SportMonks fixtures become deterministic research-only envelopes", () => {
   assert.equal(premierLeague?.payload.stats[0].dangerousAttacks, 61);
   assert.equal(premierLeague?.payload.league.coverageLevel, "advanced");
   assert.equal(result.envelopes.find((item) => item.payload.league.id === "tr-super-lig")?.payload.fixtures[0].status, "scheduled");
+});
+
+test("SportMonks provider team identity stays stable when the display name changes", () => {
+  assert.equal(sportMonksTeamId(1905), "sportmonks-team-1905");
+  assert.throws(() => sportMonksTeamId(0), /team id/);
+  const renamed = JSON.parse(payload);
+  renamed.data[0].participants[0].name = "Galatasaray SK";
+  const result = parseSportMonksFixtures({
+    json: JSON.stringify(renamed),
+    capturedAt: "2026-08-10T12:00:00.000Z",
+    upstreamUrl: buildSportMonksDateUrls("2026-08-10T12:00:00.000Z")[0],
+  });
+  const fixture = result.envelopes.find((item) => item.payload.league.id === "tr-super-lig")?.payload.fixtures[0];
+  assert.equal(fixture?.homeTeamId, "sportmonks-team-1");
 });
 
 test("SportMonks invalid envelopes fail closed", () => {

@@ -7,7 +7,20 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.19 · Checkpoint 17Y · SportMonks Single-Source Intelligence Pipeline**
+**v0.7.0-alpha.21 · Checkpoint 17AA · Stable Team Identity & Visible Analysis Queue**
+
+- SportMonks takım adını kimlik olarak kullanmayı bırakan; lig ve sezonlar arasında kalıcı provider takım ID'siyle fikstür geçmişini bugünkü maçlara bağlayan v8 adaptörü
+- Eski fikstürlerin ev/deplasman kimliklerini güvenilir yeniden import sırasında güncelleyerek modelin geçmiş maçları bulmasını sağlayan D1 uzlaştırması
+- Her analiz denemesini maç kimliğiyle eşleyip yetersiz geçmiş, model doğrulama veya kuyruk durumunu genel “bekleniyor” etiketi yerine açık Türkçe nedenle gösteren dashboard
+- Adapter/cache namespace değişikliğiyle yeni kimlik modelini bir kez yeniden çeken; aynı İstanbul günündeki sonraki yenilemeleri kayıtlı snapshot üzerinde çalıştıran API bütçe koruması
+
+Önceki checkpoint: **v0.7.0-alpha.20 · Checkpoint 17Z · SportMonks Coverage & Quota Evidence**
+
+- Satın alınan ligleri `/my/leagues`, kaynakları `/my/resources` ve enrichment kapsamını `/my/enrichments` üzerinden doğrulayan günlük hesap kanıtı
+- Rate-limit kalan hak/reset telemetrisi ile lig bazlı fikstür, bitmiş maç ve istatistik kapsamını Research Feed üzerinde görünür yapan operasyon tablosu
+- Başarılı SportMonks snapshot'ını İstanbul günü boyunca yeniden kullanarak aynı gün tekrar upstream çağrı üretmeyen cache sözleşmesi
+
+Önceki checkpoint: **v0.7.0-alpha.19 · Checkpoint 17Y · SportMonks Single-Source Intelligence Pipeline**
 
 - Canlı otomasyon yolundan API-Football, football-data.org ve Football-Data CSV fallback'lerini çıkaran; secret eksikliğini veya SportMonks hatasını başka sağlayıcıyla maskelemeyen tek-kaynak sözleşmesi
 - Günlük SportMonks isteklerini doğrudan satın alınmış 30 ligle filtreleyen; yaklaşan her takım için son 365 günlük maç geçmişini ve mevcut temel takım istatistiklerini aynı lisanslı kaynaktan alan analiz backfill'i
@@ -266,7 +279,9 @@ Satış hazırlığı ve koşullu dış kapılar: [`docs/FormEdge-Sales-Readines
 | v0.7.0-alpha.14 | CP17N | Owner hesabının Admin + Expert eşlenmesi ve canlı API secret'ının Worker runtime'a bağlanması | Tamamlandı |
 | v0.7.0-alpha.18 | CP17X | Otomatik maç merkezi, önerilen analizler ve tek tık maç ayrıntısı | Tamamlandı |
 | **v0.7.0-alpha.17** | **CP17W** | **Günlük SportMonks snapshot'ı, aktif-lig geçmiş backfill'i ve point-in-time analiz üretimi** | **Tamamlandı** |
-| **v0.7.0-alpha.19** | **CP17Y** | **SportMonks-only 30 lig çekimi, takım geçmişi/istatistik backfill'i ve dürüst analiz otomasyonu** | **Mevcut** |
+| **v0.7.0-alpha.19** | **CP17Y** | **SportMonks-only 30 lig çekimi, takım geçmişi/istatistik backfill'i ve dürüst analiz otomasyonu** | **Tamamlandı** |
+| **v0.7.0-alpha.20** | **CP17Z** | **SportMonks hesap kapsamı, lig bazlı kalite ve rate-limit kanıtı** | **Tamamlandı** |
+| **v0.7.0-alpha.21** | **CP17AA** | **Kalıcı SportMonks takım kimliği, otomatik geçmiş uzlaştırma ve açık analiz engelleri** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 

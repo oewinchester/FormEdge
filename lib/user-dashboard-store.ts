@@ -158,6 +158,7 @@ async function loadTodayResearchSlate() {
   const versionById = new Map(versionRows.map((version) => [version.id, version]));
   const latestFeed = feedRows[0] ?? null;
   const latestAutomation = automationRows[0] ?? null;
+  const latestPredictionFailures = predictionFailuresByFixture(latestAutomation?.summaryJson ?? "{}");
   const sourceProfile = liveSourceProfile(latestFeed?.adapterVersion ?? null);
   const freshness = assessLiveSlateFreshness({
     generatedAt,
@@ -177,6 +178,9 @@ async function loadTodayResearchSlate() {
       && version.recommendationEligible
       && version.recommendationOutcome,
     );
+    const predictionFailure = latestPredictionFailures.get(fixture.id) ?? null;
+    const pendingBlocker = predictionFailure?.code
+      ?? (latestAutomation?.status === "running" ? "ANALYSIS_RUNNING" : "ANALYSIS_QUEUED");
     return {
       fixtureId: fixture.id,
       kickoffAt: fixture.kickoffAt,
@@ -191,8 +195,15 @@ async function loadTodayResearchSlate() {
         outcome: version!.recommendationOutcome!,
         eligible: true as const,
       } : null,
+      analysisStatus: version ? {
+        code: "ANALYSIS_READY" as const,
+        message: "Otomatik model analizi hazır.",
+      } : {
+        code: pendingBlocker,
+        message: predictionFailureMessage(predictionFailure),
+      },
       researchOnly: !recommendationEligible,
-      blockers: version ? parseJson<string[]>(version.blockerCodesJson, []) : ["MODEL_ANALYSIS_PENDING"],
+      blockers: version ? parseJson<string[]>(version.blockerCodesJson, []) : [pendingBlocker],
     };
   });
   return {
@@ -236,6 +247,40 @@ async function loadTodayResearchSlate() {
       noAutomaticBetInstruction: true,
     },
   };
+}
+
+type PredictionFailure = { stage: string; code: string; message: string };
+
+export function predictionFailuresByFixture(summaryJson: string) {
+  const summary = parseJson<{ predictionErrors?: unknown }>(summaryJson, {});
+  const rows = Array.isArray(summary.predictionErrors) ? summary.predictionErrors : [];
+  const result = new Map<string, PredictionFailure>();
+  for (const item of rows) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Partial<PredictionFailure>;
+    if (typeof row.stage !== "string" || !row.stage.startsWith("prediction:")) continue;
+    if (typeof row.code !== "string" || typeof row.message !== "string") continue;
+    result.set(row.stage.slice("prediction:".length), {
+      stage: row.stage,
+      code: row.code,
+      message: row.message,
+    });
+  }
+  return result;
+}
+
+function predictionFailureMessage(failure: PredictionFailure | null) {
+  if (!failure) return "Otomatik analiz sırasına alındı; sonraki arka plan turunda işlenecek.";
+  if (failure.code === "FORECAST_HISTORY_INSUFFICIENT") {
+    const counts = failure.message.match(/home=(\d+), away=(\d+)/);
+    return counts
+      ? `Model için en az 5 geçmiş maç gerekir; ev sahibi ${counts[1]}, deplasman ${counts[2]} doğrulanmış maça sahip.`
+      : "İki takım için en az 5 doğrulanmış geçmiş maç henüz bulunmuyor.";
+  }
+  if (failure.code === "MODEL_VALIDATION_FAILED") {
+    return "Maç modelin zaman veya veri doğrulama kapısını geçemedi.";
+  }
+  return "Otomatik analiz denemesi tamamlanamadı; sonraki arka plan turunda yeniden denenecek.";
 }
 
 function liveSourceProfile(adapterVersion: string | null) {
