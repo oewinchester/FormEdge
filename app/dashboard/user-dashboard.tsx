@@ -77,7 +77,11 @@ export function UserDashboard({
       const nextOverview = await overviewResponse.json() as UserDashboardOverview & { error?: string };
       if (!overviewResponse.ok) throw new Error(nextOverview.error ?? "Yeni fikstürler yüklenemedi.");
       setOverview(nextOverview);
-      setNotice("Maçlar ve analizler arka planda güncellendi.");
+      if (nextOverview.todaySlate.analysisPipeline.status === "partial" || nextOverview.todaySlate.analysisPipeline.status === "failed") {
+        setError(`Veri alındı ancak analiz hattı tamamlanamadı: ${nextOverview.todaySlate.analysisPipeline.failed} maç başarısız.`);
+      } else {
+        setNotice("Maçlar ve analizler arka planda güncellendi.");
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Fikstür akışı yenilenemedi.");
     } finally {
@@ -160,7 +164,7 @@ export function UserDashboard({
         {notice && <div className="user-message success"><CheckCircle2 size={16} />{notice}<button type="button" onClick={() => setNotice(null)}>×</button></div>}
         {!overview.membership.productAccess && <section className="user-membership-gate"><BadgeCheck size={18} /><div><b>Davetli beta erişimi bekleniyor.</b><p>Onboarding profilinizi tamamlayabilirsiniz; gerçek kullanıcı analizleri yalnız davet ve erişim kapısı açıldıktan sonra görünür.</p></div><a href="/dashboard/membership">Üyelik merkezini aç<ChevronRight size={13} /></a></section>}
 
-        <section className="user-automation-strip"><Activity size={17} /><div><b>Otomatik analiz akışı çalışıyor</b><p>Günlük veri bir kez alınır; aynı gün sonraki turlarda kayıtlı snapshot işlenir. Manuel maç seçimi gerekmez.</p></div><span>{refreshingSlate ? "İŞLENİYOR" : "ARKA PLAN AKTİF"}</span></section>
+        <section className={`user-automation-strip ${overview.todaySlate.analysisPipeline.status}`}><Activity size={17} /><div><b>{pipelineLabel(overview.todaySlate.analysisPipeline.status)}</b><p>Günlük veri bir kez alınır; aynı gün sonraki turlarda kayıtlı snapshot işlenir. {overview.todaySlate.analysisPipeline.candidateCount} aday · {overview.todaySlate.analysisPipeline.created} yeni · {overview.todaySlate.analysisPipeline.reused} yeniden kullanıldı · {overview.todaySlate.analysisPipeline.failed} hata.</p></div><span>{refreshingSlate ? "İŞLENİYOR" : overview.todaySlate.analysisPipeline.status === "partial" || overview.todaySlate.analysisPipeline.status === "failed" ? "KONTROL GEREKİYOR" : "ARKA PLAN AKTİF"}</span></section>
 
         <section className="user-kpis">
           <article><span><CalendarDays size={18} /></span><small>BUGÜN</small><b>{overview.todaySlate.counts.today}</b><p>Otomatik alınan maç</p></article>
@@ -194,7 +198,7 @@ export function UserDashboard({
           </div>
           <div className="user-filter-row automatic-filters">{(["all", "today", "tomorrow", "analyzed"] as MatchFilter[]).map((item) => <button type="button" className={filter === item ? "active" : ""} onClick={() => setFilter(item)} key={item}>{filterLabel(item)}</button>)}</div>
           <div className="user-live-match-grid">
-            {overview.todaySlate.matches.length === 0 && <div className="user-live-empty"><CalendarDays size={22} /><div><b>Bu pencerede içeri alınmış güncel maç yok.</b><p>{overview.todaySlate.source.name} ve yedek kaynak zinciri arka planda yeniden kontrol edilir; maçlar geldiğinde bu alan otomatik dolar.</p></div></div>}
+            {overview.todaySlate.matches.length === 0 && <div className="user-live-empty"><CalendarDays size={22} /><div><b>Bu pencerede içeri alınmış güncel maç yok.</b><p>{overview.todaySlate.source.name} günlük snapshot&apos;ı arka planda kontrol edilir; maçlar geldiğinde bu alan otomatik dolar.</p></div></div>}
             {filteredMatches.map((match) => <a className="user-live-match user-live-match-link" href={`/dashboard/matches/${encodeURIComponent(match.fixtureId)}`} key={match.fixtureId}>
               <header><span>{dayLabel(match.day)}</span><small>{match.leagueLabel} · {formatDate(match.kickoffAt)}</small></header>
               <div className="user-live-teams"><b>{match.homeTeamName}</b><i>—</i><b>{match.awayTeamName}</b></div>
@@ -237,6 +241,14 @@ function riskLabel(value: "cautious" | "balanced" | "bold") {
 
 function freshnessLabel(value: UserDashboardOverview["todaySlate"]["source"]["freshness"]) {
   return value === "fresh" ? "Kaynak taze" : value === "aging" ? "Kaynak yaşlanıyor" : value === "stale" ? "Kaynak eski" : value === "failed" ? "Son çekim başarısız" : value === "empty" ? "Kaynak boş döndü" : "Kaynak bekleniyor";
+}
+
+function pipelineLabel(value: UserDashboardOverview["todaySlate"]["analysisPipeline"]["status"]) {
+  return value === "completed" ? "Otomatik analiz akışı tamamlandı"
+    : value === "partial" ? "Analiz akışı kısmi tamamlandı"
+      : value === "failed" ? "Analiz akışı başarısız"
+        : value === "running" ? "Otomatik analiz akışı çalışıyor"
+          : "Otomatik analiz akışı ilk turu bekliyor";
 }
 
 function dayLabel(value: UserDashboardOverview["todaySlate"]["matches"][number]["day"]) {

@@ -55,8 +55,11 @@ test("dashboard exposes research fixtures without weakening recommendation gates
   assert.match(store, /recommendationGatePreserved:\s*true/);
   assert.match(store, /!thread\.researchOnly[\s\S]*!version\.researchOnly/);
   assert.match(store, /SportMonks Football API v3/);
-  assert.match(store, /API-Football v3/);
+  assert.doesNotMatch(store, /API-Football v3/);
+  assert.doesNotMatch(store, /yedek fikstür API/);
   assert.match(store, /importedFixtureCount:\s*latestFeed\?\.pilotRowCount/);
+  assert.match(store, /analysisPipeline:/);
+  assert.match(store, /failed:\s*latestAutomation\?\.predictionsFailed/);
   assert.match(route, /getChatGPTUser\(\)/);
   assert.match(route, /membership\.membership\.productAccess/);
   assert.match(route, /pullResearchFixtureFeed\(SYSTEM_RESEARCH_ACTOR\)/);
@@ -66,6 +69,7 @@ test("dashboard exposes research fixtures without weakening recommendation gates
   assert.match(dashboard, /dashboard\/matches/);
   assert.match(dashboard, /source\.importedFixtureCount/);
   assert.match(dashboard, /autoRefreshAttempted/);
+  assert.match(dashboard, /KONTROL GEREKİYOR/);
   assert.match(dashboard, /void refreshLiveSlate\(\)/);
   assert.doesNotMatch(dashboard, /Veriyi şimdi yenile/);
   assert.match(dashboard, /bahis önerisi değildir/i);

@@ -21,6 +21,7 @@ import {
   predictionThreads,
   predictionValueAssessments,
   predictionVersions,
+  researchAutomationRuns,
   researchFixtureFeedRuns,
   teamMatchStats,
   teams,
@@ -117,7 +118,7 @@ async function loadTodayResearchSlate() {
   const db = await getDb();
   const generatedAt = new Date().toISOString();
   const window = getIstanbulSlateWindow(generatedAt);
-  const [fixtureRows, feedRows] = await Promise.all([
+  const [fixtureRows, feedRows, automationRows] = await Promise.all([
     db.select({
       fixture: fixtures,
       leagueLabel: leagues.name,
@@ -134,6 +135,9 @@ async function loadTodayResearchSlate() {
       .limit(160),
     db.select().from(researchFixtureFeedRuns)
       .orderBy(desc(researchFixtureFeedRuns.startedAt)).limit(1),
+    db.select().from(researchAutomationRuns)
+      .where(eq(researchAutomationRuns.jobKind, "forward_shadow"))
+      .orderBy(desc(researchAutomationRuns.startedAt)).limit(1),
   ]);
   const fixtureIds = fixtureRows.map((row) => row.fixture.id);
   const teamIds = [...new Set(fixtureRows.flatMap((row) => [row.fixture.homeTeamId, row.fixture.awayTeamId]))];
@@ -153,6 +157,7 @@ async function loadTodayResearchSlate() {
   const threadByFixture = new Map(threadRows.map((thread) => [thread.fixtureId, thread]));
   const versionById = new Map(versionRows.map((version) => [version.id, version]));
   const latestFeed = feedRows[0] ?? null;
+  const latestAutomation = automationRows[0] ?? null;
   const sourceProfile = liveSourceProfile(latestFeed?.adapterVersion ?? null);
   const freshness = assessLiveSlateFreshness({
     generatedAt,
@@ -208,6 +213,16 @@ async function loadTodayResearchSlate() {
       leagueCount: latestFeed?.leagueCount ?? 0,
       note: sourceProfile.note,
     },
+    analysisPipeline: {
+      status: latestAutomation?.status ?? "never_run",
+      candidateCount: latestAutomation?.candidateCount ?? 0,
+      created: latestAutomation?.predictionsCreated ?? 0,
+      reused: latestAutomation?.predictionsReused ?? 0,
+      failed: latestAutomation?.predictionsFailed ?? 0,
+      errorCode: latestAutomation?.errorCode ?? null,
+      errorMessage: latestAutomation?.errorMessage ?? null,
+      completedAt: latestAutomation?.completedAt ?? null,
+    },
     counts: {
       today: matches.filter((match) => match.day === "today").length,
       upcoming: matches.filter((match) => match.day !== "today").length,
@@ -224,25 +239,12 @@ async function loadTodayResearchSlate() {
 }
 
 function liveSourceProfile(adapterVersion: string | null) {
-  if (adapterVersion?.startsWith("sportmonks-")) return {
+  return {
     provider: "sportmonks" as const,
     name: "SportMonks Football API v3",
-    note: "30 liglik lisanslı ana kaynak; oran ve öneri kapıları ayrıca doğrulanır.",
-  };
-  if (adapterVersion?.startsWith("api-football-")) return {
-    provider: "api-football" as const,
-    name: "API-Football v3",
-    note: "Birinci yedek fikstür API'si; ana kaynak alınamazsa otomatik devreye girer.",
-  };
-  if (adapterVersion?.startsWith("football-data-org-")) return {
-    provider: "football-data-org" as const,
-    name: "football-data.org v4",
-    note: "İkinci yedek fikstür API'si; oran sağlamaz ve öneri kapıları ayrıca uygulanır.",
-  };
-  return {
-    provider: "football-data.co.uk" as const,
-    name: "Football-Data.co.uk fixture feed",
-    note: "Son acil durum CSV kaynağı; canlı skor servisi değildir.",
+    note: adapterVersion?.startsWith("sportmonks-")
+      ? "30 liglik tek canlı kaynak; fikstür, takım geçmişi ve temel maç istatistikleri aynı günlük snapshot'ta işlenir."
+      : "SportMonks tek canlı kaynak olarak yapılandırıldı; ilk başarılı günlük snapshot bekleniyor.",
   };
 }
 

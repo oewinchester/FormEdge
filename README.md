@@ -7,7 +7,17 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.18 · Checkpoint 17X · Automatic Match Intelligence Experience**
+**v0.7.0-alpha.19 · Checkpoint 17Y · SportMonks Single-Source Intelligence Pipeline**
+
+- Canlı otomasyon yolundan API-Football, football-data.org ve Football-Data CSV fallback'lerini çıkaran; secret eksikliğini veya SportMonks hatasını başka sağlayıcıyla maskelemeyen tek-kaynak sözleşmesi
+- Günlük SportMonks isteklerini doğrudan satın alınmış 30 ligle filtreleyen; yaklaşan her takım için son 365 günlük maç geçmişini ve mevcut temel takım istatistiklerini aynı lisanslı kaynaktan alan analiz backfill'i
+- Eski fikstür-only günlük snapshot'larının yeni geçmiş/istatistik sözleşmesiymiş gibi yeniden kullanılmasını engelleyen `sportmonks-v6-team-history` cache namespace'i
+- Dört günlük penceredeki en fazla 60 maçı otomatik sürümleyen; tahmin hatalarını artık yeşil başarı içinde gizlemeyip otomasyon turunu `partial` yapan doğru durum projeksiyonu
+- Dashboard kaynak etiketleri ve boş durum metinlerinden yedek sağlayıcı anlatısını kaldıran SportMonks-only ürün yüzeyi
+
+Satış hazırlığı ve koşullu dış kapılar: [`docs/FormEdge-Sales-Readiness-Roadmap-v0.3.md`](docs/FormEdge-Sales-Readiness-Roadmap-v0.3.md)
+
+Önceki checkpoint: **v0.7.0-alpha.18 · Checkpoint 17X · Automatic Match Intelligence Experience**
 
 - Ürün hesabı açıldığında manuel panel seçimi, maçı izlemeye alma ve tahmini elle kaydetme adımlarını kaldıran; üyeyi doğrudan bugünün otomatik maç merkezine taşıyan günlük akış
 - Bugün ve takip eden 48 saatin fikstürlerini, hazır analizleri ve güven eşiğine göre sıralanan önerilen analizleri aynı dashboard üzerinde gösteren tıklanabilir maç kartları
@@ -254,8 +264,9 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.7.0-alpha.12 | CP17L | Sürüm bazlı değişmez model kartları, OOS/holdout/release kanıtı ve belge-only yönetişim konsolu | Tamamlandı |
 | v0.7.0-alpha.13 | CP17M | Bugünün gerçek fikstürleri, kaynak tazeliği, araştırma model yönü ve fail-closed öneri ayrımı | Tamamlandı |
 | v0.7.0-alpha.14 | CP17N | Owner hesabının Admin + Expert eşlenmesi ve canlı API secret'ının Worker runtime'a bağlanması | Tamamlandı |
-| **v0.7.0-alpha.18** | **CP17X** | **Otomatik maç merkezi, önerilen analizler ve tek tık maç ayrıntısı** | **Mevcut** |
+| v0.7.0-alpha.18 | CP17X | Otomatik maç merkezi, önerilen analizler ve tek tık maç ayrıntısı | Tamamlandı |
 | **v0.7.0-alpha.17** | **CP17W** | **Günlük SportMonks snapshot'ı, aktif-lig geçmiş backfill'i ve point-in-time analiz üretimi** | **Tamamlandı** |
+| **v0.7.0-alpha.19** | **CP17Y** | **SportMonks-only 30 lig çekimi, takım geçmişi/istatistik backfill'i ve dürüst analiz otomasyonu** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 
@@ -318,7 +329,7 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 53. Retrospektif erken/geç dönem stabilitesi, sonuçtan önce kaydedilmiş ileri-zaman shadow performansı sayılamaz; `forwardObserved=false` iken yayın uygunluğu her metrikte `blocked` kalır.
 54. Ticari kullanım, revizyon zamanı veya kanıt koşusu eksikliği metrik kartından gizlenemez; her engel koduyla birlikte değişmez shadow validation sonucunda saklanır.
 55. Forward Shadow gözlemi yalnız tahmin sürümü ve gözlem kaydı kickoff’tan önce, feature cutoff tahmin anından geç değilse geçerlidir; fixture başına yalnız ilk kayıt korunur.
-56. Saatlik araştırma worker’ı tur başına en fazla altı tahmin sürümü oluşturabilir, aynı anda ikinci tur başlatamaz ve zaman aşımına uğrayan kilidi başarısız kayıt bırakarak serbest bırakır.
+56. Saatlik araştırma worker’ı tur başına en fazla 60 tahmin sürümü oluşturabilir, aynı anda ikinci tur başlatamaz ve zaman aşımına uğrayan kilidi başarısız kayıt bırakarak serbest bırakır.
 57. Fikstür akışındaki oranlar tahmini değiştiremez; upstream capture zamanı doğrulanmadığı için yalnız research snapshot olarak kalır ve recommendation-eligible olamaz.
 58. Bir lig için en az 40 sonuçlanmış gerçek ileri-zaman gözlemi, iki 20’lik zaman penceresi ve bütün kalite/drift kapıları tamamlanmadan forward stabilite adayı üretilemez.
 59. Tarihsel worker her saat `:47` için tek kampanya aşaması ilerletir; `:17` forward worker’ıyla kilit paylaşmaz, bütün tur ve hata sonuçlarını iş türüyle D1’e yazar ve retrospektif sonucu hiçbir zaman forward gözlem gibi işaretleyemez.

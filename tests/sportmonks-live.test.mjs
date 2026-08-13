@@ -3,13 +3,14 @@ import test from "node:test";
 import {
   SPORTMONKS_ADAPTER_VERSION,
   SPORTMONKS_MAX_PAGES_PER_DATE,
-  SPORTMONKS_MAX_HISTORY_PAGES_PER_WINDOW,
   SPORTMONKS_PLAN_LEAGUES,
+  SPORTMONKS_TEAM_HISTORY_DAYS,
   buildSportMonksDateUrls,
-  buildSportMonksHistoryUrls,
+  buildSportMonksTeamHistoryUrl,
   parseSportMonksFixtures,
   sportMonksAuthorizationHeader,
   sportMonksPageUrl,
+  sportMonksPlanTeamIds,
 } from "../lib/sportmonks-live.ts";
 
 const payload = JSON.stringify({
@@ -42,12 +43,19 @@ const payload = JSON.stringify({
         { description: "CURRENT", score: { goals: 2, participant: "home" } },
         { description: "CURRENT", score: { goals: 1, participant: "away" } },
       ],
+      statistics: [
+        { type_id: 45, participant_id: 3, data: { value: 58 } },
+        { type_id: 42, participant_id: 3, data: { value: 14 } },
+        { type_id: 86, participant_id: 3, data: { value: 7 } },
+        { type_id: 44, participant_id: 3, data: { value: 61 } },
+        { type_id: 45, participant_id: 4, data: { value: 42 } },
+      ],
     },
   ],
 });
 
 test("SportMonks plan coverage is the exact 30-league subscription", () => {
-  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v5");
+  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v6");
   assert.equal(SPORTMONKS_PLAN_LEAGUES.length, 30);
   assert.equal(new Set(SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId)).size, 30);
   assert.deepEqual(
@@ -56,15 +64,15 @@ test("SportMonks plan coverage is the exact 30-league subscription", () => {
   );
 });
 
-test("SportMonks history URLs backfill only active licensed leagues in safe windows", () => {
-  const urls = buildSportMonksHistoryUrls("2026-08-10T12:00:00.000Z", [600, 8, 600, 999999]);
-  assert.equal(urls.length, 2);
-  assert.match(urls[0], /fixtures\/between\/2026-02-11\/2026-05-11/);
-  assert.match(urls[1], /fixtures\/between\/2026-05-12\/2026-08-09/);
-  assert.match(urls[0], /filters=fixtureLeagues%3A8%2C600/);
-  assert.match(urls[0], /include=participants%3Bscores%3Bstate/);
-  assert.doesNotMatch(urls[0], /api_token/i);
-  assert.equal(SPORTMONKS_MAX_HISTORY_PAGES_PER_WINDOW, 24);
+test("SportMonks team history URL backfills one year with match statistics", () => {
+  const url = buildSportMonksTeamHistoryUrl("2026-08-10T12:00:00.000Z", 1001);
+  assert.match(url, /fixtures\/between\/2025-08-10\/2026-08-09\/1001/);
+  assert.match(url, /include=participants%3Bscores%3Bstate%3Bstatistics/);
+  assert.match(url, /order=desc/);
+  assert.match(url, /per_page=50/);
+  assert.doesNotMatch(url, /api_token/i);
+  assert.equal(SPORTMONKS_TEAM_HISTORY_DAYS, 365);
+  assert.throws(() => buildSportMonksTeamHistoryUrl("2026-08-10T12:00:00.000Z", 0), /team id/);
 });
 
 test("SportMonks daily URLs keep the token out of logs and enforce pagination", () => {
@@ -73,7 +81,7 @@ test("SportMonks daily URLs keep the token out of logs and enforce pagination", 
   assert.match(urls[0], /fixtures\/date\/2026-08-10/);
   assert.match(urls[3], /fixtures\/date\/2026-08-13/);
   const url = urls[0];
-  assert.doesNotMatch(url, /fixtureLeagues/);
+  assert.match(url, /filters=fixtureLeagues%3A/);
   assert.match(url, /include=participants%3Bscores%3Bstate/);
   assert.match(url, /order=asc/);
   assert.doesNotMatch(url, /order=starting_at/);
@@ -81,6 +89,7 @@ test("SportMonks daily URLs keep the token out of logs and enforce pagination", 
   assert.doesNotMatch(url, /api_token/i);
   assert.equal(SPORTMONKS_MAX_PAGES_PER_DATE, 8);
   assert.match(sportMonksPageUrl(url, 2), /page=2/);
+  assert.deepEqual(sportMonksPlanTeamIds(JSON.parse(payload).data), [1, 2, 3, 4]);
 });
 
 test("SportMonks uses the documented raw Authorization token without Bearer prefix", () => {
@@ -98,6 +107,12 @@ test("SportMonks fixtures become deterministic research-only envelopes", () => {
   assert.equal(premierLeague?.payload.fixtures[0].status, "finished");
   assert.equal(premierLeague?.payload.fixtures[0].homeScore, 2);
   assert.equal(premierLeague?.payload.fixtures[0].awayScore, 1);
+  assert.equal(premierLeague?.payload.stats.length, 2);
+  assert.equal(premierLeague?.payload.stats[0].possession, 58);
+  assert.equal(premierLeague?.payload.stats[0].shots, 14);
+  assert.equal(premierLeague?.payload.stats[0].shotsOnTarget, 7);
+  assert.equal(premierLeague?.payload.stats[0].dangerousAttacks, 61);
+  assert.equal(premierLeague?.payload.league.coverageLevel, "advanced");
   assert.equal(result.envelopes.find((item) => item.payload.league.id === "tr-super-lig")?.payload.fixtures[0].status, "scheduled");
 });
 
