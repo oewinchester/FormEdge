@@ -7,7 +7,15 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.17 · Checkpoint 17W · Daily Snapshot & Point-in-Time Analysis Backfill**
+**v0.7.0-alpha.18 · Checkpoint 17X · Automatic Match Intelligence Experience**
+
+- Ürün hesabı açıldığında manuel panel seçimi, maçı izlemeye alma ve tahmini elle kaydetme adımlarını kaldıran; üyeyi doğrudan bugünün otomatik maç merkezine taşıyan günlük akış
+- Bugün ve takip eden 48 saatin fikstürlerini, hazır analizleri ve güven eşiğine göre sıralanan önerilen analizleri aynı dashboard üzerinde gösteren tıklanabilir maç kartları
+- Analizi eksik maçlarda üyelik erişimini doğrulayıp sistem aktörüyle veri → geçmiş → model sürümü zincirini otomatik çalıştıran; SportMonks günlük snapshot kilidiyle tekrarlı upstream çağrıyı engelleyen yenileme sınırı
+- Research-only model yönünü ayrıntı sayfasında açıkça etiketleyen; doğrulanmamış analizi bahis önerisine dönüştürmeden olasılık, güven, kanıt ve blocker geçmişini görünür yapan güvenli ürün yüzeyi
+- Admin ve araştırma konsollarını doğrudan yönetim rotalarında korurken günlük kullanıcı navigasyonundan çıkaran ürün/operasyon ayrımı
+
+Önceki checkpoint: **v0.7.0-alpha.17 · Checkpoint 17W · Daily Snapshot & Point-in-Time Analysis Backfill**
 
 - Başarılı SportMonks turunu İstanbul günü boyunca D1 snapshot'ından yeniden kullanan; manuel yenileme ve saatlik worker'ın aynı gün API çağrısını çoğaltmasını engelleyen günlük çekim kilidi
 - Yalnız yaklaşan fikstürlerde aktif olan lisanslı liglerin son 180 günlük sonuçlarını iki güvenli tarih penceresinde alan; 30 ligin tamamını gereksiz yere sorgulamayan geçmiş backfill'i
@@ -246,7 +254,8 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 | v0.7.0-alpha.12 | CP17L | Sürüm bazlı değişmez model kartları, OOS/holdout/release kanıtı ve belge-only yönetişim konsolu | Tamamlandı |
 | v0.7.0-alpha.13 | CP17M | Bugünün gerçek fikstürleri, kaynak tazeliği, araştırma model yönü ve fail-closed öneri ayrımı | Tamamlandı |
 | v0.7.0-alpha.14 | CP17N | Owner hesabının Admin + Expert eşlenmesi ve canlı API secret'ının Worker runtime'a bağlanması | Tamamlandı |
-| **v0.7.0-alpha.17** | **CP17W** | **Günlük SportMonks snapshot'ı, aktif-lig geçmiş backfill'i ve point-in-time analiz üretimi** | **Mevcut** |
+| **v0.7.0-alpha.18** | **CP17X** | **Otomatik maç merkezi, önerilen analizler ve tek tık maç ayrıntısı** | **Mevcut** |
+| **v0.7.0-alpha.17** | **CP17W** | **Günlük SportMonks snapshot'ı, aktif-lig geçmiş backfill'i ve point-in-time analiz üretimi** | **Tamamlandı** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 

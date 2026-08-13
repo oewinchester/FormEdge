@@ -302,7 +302,6 @@ export async function getUserMatchAnalysis(user: ChatGPTUser, fixtureId: string)
   const db = await getDb();
   const [thread] = await db.select().from(predictionThreads).where(and(
     eq(predictionThreads.fixtureId, fixtureId.trim()),
-    eq(predictionThreads.researchOnly, false),
   )).limit(1);
   if (!thread) return null;
   const [fixture] = await db.select().from(fixtures).where(eq(fixtures.id, thread.fixtureId)).limit(1);
@@ -315,7 +314,6 @@ export async function getUserMatchAnalysis(user: ChatGPTUser, fixtureId: string)
     db.select().from(predictionVersions).where(eq(predictionVersions.id, selectedVersionId)).limit(1),
     db.select().from(predictionVersions).where(and(
       eq(predictionVersions.threadId, thread.id),
-      eq(predictionVersions.researchOnly, false),
     )).orderBy(desc(predictionVersions.versionNumber)).limit(20),
     db.select().from(predictionEvents).where(eq(predictionEvents.threadId, thread.id))
       .orderBy(desc(predictionEvents.sequence)).limit(40),
@@ -327,7 +325,7 @@ export async function getUserMatchAnalysis(user: ChatGPTUser, fixtureId: string)
       .where(eq(predictionValueAssessments.predictionVersionId, selectedVersionId)).limit(1),
   ]);
   const version = selectedVersion[0];
-  if (!version || version.researchOnly) return null;
+  if (!version) return null;
   const access = await authorizeMatchAnalysisView(user, fixture.id);
   const historyFixtures = await db.select().from(fixtures).where(and(
     eq(fixtures.leagueId, fixture.leagueId),
@@ -370,6 +368,7 @@ export async function getUserMatchAnalysis(user: ChatGPTUser, fixtureId: string)
       leagueLabel: thread.leagueLabel,
       saved: savedRows.length > 0,
       withdrawalReason: eventRows.find((event) => event.eventType === "withdrawn")?.reasonText ?? null,
+      researchOnly: thread.researchOnly || version.researchOnly,
     },
     fixture: {
       id: fixture.id,

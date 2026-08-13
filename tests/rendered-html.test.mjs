@@ -166,6 +166,16 @@ test("redirects a signed-out panel hub request through the branded entry", async
   assert.match(response.headers.get("location") ?? "", /\/auth\/sign-in\?next=%2Fportal$/i);
 });
 
+test("redirects an authenticated panel hub request to the automatic dashboard", async () => {
+  const response = await renderRoute("/portal", {
+    "oai-authenticated-user-email": "member@example.com",
+    "oai-authenticated-user-full-name": "FormEdge%20Member",
+    "oai-authenticated-user-full-name-encoding": "percent-encoded-utf-8",
+  });
+  assert.equal(response.status, 307);
+  assert.match(response.headers.get("location") ?? "", /\/dashboard$/);
+});
+
 test("renders a fail-closed wall for an invalid beta invitation", async () => {
   const response = await renderRoute("/invite/invalid");
   assert.equal(response.status, 200);

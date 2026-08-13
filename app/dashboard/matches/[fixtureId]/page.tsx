@@ -59,8 +59,8 @@ async function MatchAnalysisContent({ params }: { params: Promise<{ fixtureId: s
         <section className="admin-auth-card">
           <span className="admin-auth-icon"><LockKeyhole size={24} /></span>
           <small>FORMEDGE · PUBLICATION GATE</small>
-          <h1>Bu maç kullanıcı yayınına açık değil.</h1>
-          <p>Araştırma-only kayıtlar, yayın kapısını geçmemiş analizler ve bilinmeyen fikstürler kullanıcı dashboardında gösterilmez.</p>
+          <h1>Bu maçın analizi hazırlanıyor.</h1>
+          <p>Fikstür dashboarda alındı; yeterli geçmiş ve zaman-sızıntısı kontrolleri tamamlandığında analiz aynı sayfada otomatik görünecek.</p>
           <Link className="admin-primary-link" href="/dashboard"><ArrowLeft size={17} />Dashboarda dön</Link>
         </section>
       </main>

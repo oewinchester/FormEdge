@@ -8,8 +8,6 @@ import {
   BadgeCheck,
   BadgeDollarSign,
   Bell,
-  Bookmark,
-  BookmarkCheck,
   CalendarDays,
   ChevronRight,
   Clock3,
@@ -22,7 +20,6 @@ import {
   LayoutDashboard,
   LineChart,
   ListFilter,
-  LoaderCircle,
   LockKeyhole,
   LogOut,
   ShieldAlert,
@@ -31,7 +28,6 @@ import {
   TrendingUp,
   UserRound,
   WalletCards,
-  XCircle,
 } from "lucide-react";
 import { useState } from "react";
 import type { UserMatchAnalysis } from "@/lib/user-dashboard-store";
@@ -43,42 +39,19 @@ export function MatchAnalysisView({
   initialAnalysis: UserMatchAnalysis;
   signOutPath: string;
 }) {
-  const [analysis, setAnalysis] = useState(initialAnalysis);
+  const [analysis] = useState(initialAnalysis);
   const [view, setView] = useState<"quick" | "detailed">("quick");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const probabilityRows = [
     { outcome: "1" as const, value: analysis.analysis.probabilities.home },
     { outcome: "X" as const, value: analysis.analysis.probabilities.draw },
     { outcome: "2" as const, value: analysis.analysis.probabilities.away },
   ];
 
-  const toggleSaved = async () => {
-    setSaving(true);
-    setError(null);
-    const saved = !analysis.thread.saved;
-    try {
-      const response = await fetch("/api/dashboard/watchlist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ threadId: analysis.thread.id, saved }),
-      });
-      const payload = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "İzleme tercihi kaydedilemedi.");
-      setAnalysis((current) => ({ ...current, thread: { ...current.thread, saved } }));
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "İzleme tercihi kaydedilemedi.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <main className="user-shell match-analysis-shell">
       <aside className="user-sidebar"><a className="user-wordmark" href="/"><span>F</span><b>FORMEDGE</b></a><nav><a href="/dashboard"><LayoutDashboard size={18} />Genel bakış</a><a className="active" href="/dashboard#matches"><CalendarDays size={18} />Maç analizleri</a><a href="/dashboard/performance"><LineChart size={18} />Performans geçmişi</a><a href="/dashboard/bankroll"><WalletCards size={18} />Kasa ve kupon</a><a href="/dashboard/notifications"><Bell size={18} />Bildirimler</a><a href="/dashboard/membership"><BadgeCheck size={18} />Üyelik ve profil</a></nav><section className="user-plan-card transparency"><LockKeyhole size={17} /><div><small>YÖNTEM POLİTİKASI</small><b>Sonuçlar açık</b><p>Olasılık, veri zamanı ve sürüm görünür; özel ağırlık formülü gizlidir.</p></div></section><a className="user-signout" href={signOutPath}><LogOut size={15} />Oturumu kapat</a></aside>
       <section className="user-main">
-        <header className="user-topbar"><div><a href="/dashboard"><ArrowLeft size={14} />Dashboard</a><span>MATCH INTELLIGENCE · {analysis.thread.market}</span></div><div className="match-top-actions"><button type="button" className={analysis.thread.saved ? "saved" : ""} onClick={() => void toggleSaved()} disabled={saving}>{saving ? <LoaderCircle size={15} className="spin" /> : analysis.thread.saved ? <BookmarkCheck size={15} /> : <Bookmark size={15} />}{analysis.thread.saved ? "Kaydedildi" : "İzlemeye ekle"}</button></div></header>
-        {error && <div className="user-message error"><XCircle size={16} />{error}</div>}
+        <header className="user-topbar"><div><a href="/dashboard"><ArrowLeft size={14} />Dashboard</a><span>OTOMATİK MAÇ ANALİZİ · {analysis.thread.market}</span></div><div className="match-top-actions"><span className="automatic-analysis-badge"><Activity size={14} />Arka planda üretildi</span></div></header>
         <section className="match-analysis-hero">
           <header><div><span className={`user-status ${analysis.thread.status}`}>{statusLabel(analysis.thread.status)}</span><small>{analysis.thread.leagueLabel} · {formatDate(analysis.fixture.kickoffAt)}</small></div><div className="user-view-toggle"><button className={view === "quick" ? "active" : ""} onClick={() => setView("quick")} type="button"><Eye size={14} />Hızlı</button><button className={view === "detailed" ? "active" : ""} onClick={() => setView("detailed")} type="button" disabled={!analysis.access.detailedAnalysis} title={!analysis.access.detailedAnalysis ? "Detaylı analiz Pro veya Expert paketine açıktır." : undefined}><ListFilter size={14} />Detaylı</button></div></header>
           <div className="match-team-title"><section><span>{teamCode(analysis.fixture.homeTeamName)}</span><b>{analysis.fixture.homeTeamName}</b><small>Ev sahibi</small></section><div><em>VS</em>{analysis.fixture.homeScore !== null && <b>{analysis.fixture.homeScore} – {analysis.fixture.awayScore}</b>}</div><section><span>{teamCode(analysis.fixture.awayTeamName)}</span><b>{analysis.fixture.awayTeamName}</b><small>Deplasman</small></section></div>
@@ -95,7 +68,7 @@ export function MatchAnalysisView({
 
         <section className="match-quick-grid">
           <FormSummaryCard title={analysis.fixture.homeTeamName} side="home" form={analysis.form.home} />
-          <section className="match-verdict-card"><Target size={20} /><small>HIZLI SONUÇ</small><h2>{analysis.thread.status === "final" ? `Final model seçimi: ${analysis.analysis.recommendationOutcome}` : `Model yönü: ${analysis.analysis.predictedOutcome}`}</h2><p>{analysis.thread.status === "watchlist" ? "Bu bir bahis önerisi değildir; kesin kadro ve analiz yayın kapıları beklenir." : analysis.value?.recommendationEligible ? "Final analiz ayrıca değer filtresini geçti." : "Final analiz kalıcıdır; değer filtresini geçmedikçe bahis fırsatı değildir."}</p><div><span>Orandan bağımsız tahmin</span><span>Garanti içermez</span></div></section>
+          <section className="match-verdict-card"><Target size={20} /><small>HIZLI SONUÇ</small><h2>{analysis.thread.status === "final" ? `Final model seçimi: ${analysis.analysis.recommendationOutcome}` : `Otomatik model yönü: ${analysis.analysis.predictedOutcome}`}</h2><p>{analysis.thread.researchOnly ? "Model analizi otomatik üretildi; yayın ve değer kapıları geçilmedikçe bahis önerisi değildir." : analysis.value?.recommendationEligible ? "Final analiz ayrıca değer filtresini geçti." : "Analiz kalıcıdır; değer filtresini geçmedikçe bahis fırsatı değildir."}</p><div><span>Orandan bağımsız tahmin</span><span>Garanti içermez</span></div></section>
           <FormSummaryCard title={analysis.fixture.awayTeamName} side="away" form={analysis.form.away} />
         </section>
 
@@ -104,7 +77,7 @@ export function MatchAnalysisView({
           <section className="match-secondary-grid"><section className="match-h2h-card"><header><div><small>SON KARŞILAŞMALAR</small><h2>H2H bağlamı</h2></div><TrendingUp size={18} /></header>{analysis.h2h.length ? <div>{analysis.h2h.map((row) => <article key={row.fixtureId}><span>{formatShortDate(row.kickoffAt)}</span><b>{row.homeTeamName}</b><strong>{row.homeScore} – {row.awayScore}</strong><b>{row.awayTeamName}</b></article>)}</div> : <div className="user-empty-state compact"><BarChart3 size={18} /><b>Yakın H2H kaydı yok.</b><p>H2H yokluğu tahmini engellemez; varsayılan ağırlığı zaten sıfırdır.</p></div>}</section><section className="match-version-card"><header><div><small>DEĞİŞMEZ SÜRÜMLER</small><h2>Tahmin zaman çizgisi</h2></div><GitBranch size={18} /></header><div>{analysis.versions.map((version) => <article key={version.id}><span>v{version.versionNumber}</span><div><b>{version.predictedOutcome} · %{Math.round(version.confidence * 100)} güven</b><small>{formatDate(version.predictionAt)} · {triggerLabel(version.trigger)}</small></div><code>{version.versionFingerprint.slice(0, 9)}</code></article>)}</div></section></section>
         </>}
 
-        <section className="match-events-card"><header><div><small>PUBLIC EVENT LOG</small><h2>Durum geçmişi</h2></div><ShieldCheck size={18} /></header><div>{analysis.events.map((event) => <article key={event.id}><span className={`event-dot ${event.eventType}`} /><div><b>#{event.sequence} · {eventLabel(event.eventType)}</b><p>{event.reasonText}</p><small>{formatDate(event.occurredAt)}</small></div><em>{event.toStatus}</em></article>)}</div></section>
+        <section className="match-events-card"><header><div><small>OTOMATİK SÜRÜM KAYDI</small><h2>Analiz geçmişi</h2></div><ShieldCheck size={18} /></header><div>{analysis.events.map((event) => <article key={event.id}><span className={`event-dot ${event.eventType}`} /><div><b>#{event.sequence} · {eventLabel(event.eventType)}</b><p>{event.reasonText}</p><small>{formatDate(event.occurredAt)}</small></div><em>{event.toStatus}</em></article>)}</div></section>
         <section className="match-method-note"><LockKeyhole size={17} /><div><b>Algoritmanın özel ağırlıkları açıklanmaz.</b><p>Olasılık, tahmin zamanı, veri kesimi, kadro durumu, oran snapshotı, de-vig kanıtı, sürüm kimliği ve bütün sonuç geçmişi denetlenebilir kalır.</p></div></section>
         <footer className="user-footer"><span>FormEdge match intelligence · CP13 context + value evidence</span><a href="/dashboard/performance">Performans geçmişi<ChevronRight size={13} /></a></footer>
       </section>
@@ -214,7 +187,7 @@ function formatAge(value: number | null) {
 }
 
 function statusLabel(value: "watchlist" | "final" | "withdrawn" | "expired") {
-  return value === "watchlist" ? "İzleme · öneri değil" : value === "final" ? "Final analiz" : value === "withdrawn" ? "Geri çekildi" : "Süresi doldu";
+  return value === "watchlist" ? "Otomatik ön analiz" : value === "final" ? "Final analiz" : value === "withdrawn" ? "Geri çekildi" : "Süresi doldu";
 }
 
 function lineupLabel(value: "none" | "probable" | "confirmed") {
@@ -226,7 +199,7 @@ function triggerLabel(value: string) {
 }
 
 function eventLabel(value: string) {
-  return ({ watchlisted: "İzlemeye alındı", versioned: "Yeni sürüm", finalized: "Finalleştirildi", withdrawn: "Geri çekildi", reopened: "Yeniden izleme", expired: "Süresi doldu" } as Record<string, string>)[value] ?? value;
+  return ({ watchlisted: "İlk analiz oluşturuldu", versioned: "Analiz güncellendi", finalized: "Final analiz kilitlendi", withdrawn: "Geri çekildi", reopened: "Analiz yeniden açıldı", expired: "Süresi doldu" } as Record<string, string>)[value] ?? value;
 }
 
 function teamCode(value: string) {
