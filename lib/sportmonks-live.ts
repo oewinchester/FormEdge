@@ -2,8 +2,9 @@ import type { DataQualityIssue } from "./data-quality.ts";
 import type { AdminImportEnvelope, NormalizedFootballPayload } from "./import-contract.ts";
 import { footballDataFixtureId, footballDataTeamId } from "./football-data-source.ts";
 
-export const SPORTMONKS_ADAPTER_VERSION = "sportmonks-v3-fixtures-v6" as const;
+export const SPORTMONKS_ADAPTER_VERSION = "sportmonks-v3-fixtures-v7" as const;
 export const SPORTMONKS_BASE_URL = "https://api.sportmonks.com/v3/football/fixtures" as const;
+export const SPORTMONKS_ACCOUNT_BASE_URL = "https://api.sportmonks.com/v3/my" as const;
 export const SPORTMONKS_MAX_BYTES = 32_000_000;
 export const SPORTMONKS_MAX_PAGES_PER_DATE = 8;
 export const SPORTMONKS_TEAM_HISTORY_DAYS = 365;
@@ -51,6 +52,91 @@ export const SPORTMONKS_PLAN_LEAGUES = [
 ] as const satisfies readonly LeagueMeta[];
 
 const LEAGUE_BY_ID = new Map<number, LeagueMeta>(SPORTMONKS_PLAN_LEAGUES.map((league) => [league.sportmonksId, league]));
+
+export type SportMonksFeatureStatus = "available" | "unavailable" | "unknown";
+
+export type SportMonksAccountCoverage = {
+  status: "verified" | "partial" | "unavailable";
+  expectedLeagueIds: number[];
+  licensedLeagueIds: number[];
+  missingLeagueIds: number[];
+  resourceLabels: string[];
+  enrichmentLabels: string[];
+  features: Record<"statistics" | "lineups" | "injuries" | "xg" | "odds", SportMonksFeatureStatus>;
+  checkedAt: string;
+  errors: string[];
+};
+
+export type SportMonksRateLimit = {
+  limit: number | null;
+  remaining: number | null;
+  reset: string | null;
+  observedResponses: number;
+};
+
+export function buildSportMonksAccountUrls() {
+  return {
+    leagues: `${SPORTMONKS_ACCOUNT_BASE_URL}/leagues`,
+    resources: `${SPORTMONKS_ACCOUNT_BASE_URL}/resources`,
+    enrichments: `${SPORTMONKS_ACCOUNT_BASE_URL}/enrichments`,
+  } as const;
+}
+
+export function parseSportMonksAccountCoverage(input: {
+  leagues?: unknown;
+  resources?: unknown;
+  enrichments?: unknown;
+  checkedAt: string;
+  errors?: string[];
+}): SportMonksAccountCoverage {
+  const expectedLeagueIds = SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId);
+  const licensedLeagueIds = [...new Set(collectLeagueIds(input.leagues))].sort((a, b) => a - b);
+  const resourceLabels = collectLabels(input.resources);
+  const enrichmentLabels = collectLabels(input.enrichments);
+  const haystack = [...resourceLabels, ...enrichmentLabels].join(" ").toLowerCase();
+  const missingLeagueIds = expectedLeagueIds.filter((id) => !licensedLeagueIds.includes(id));
+  const errors = input.errors ?? [];
+  const status = licensedLeagueIds.length === 0
+    ? "unavailable"
+    : missingLeagueIds.length === 0 && errors.length === 0 ? "verified" : "partial";
+  return {
+    status,
+    expectedLeagueIds,
+    licensedLeagueIds,
+    missingLeagueIds,
+    resourceLabels,
+    enrichmentLabels,
+    features: {
+      statistics: featureStatus(haystack, ["statistic", "stats"]),
+      lineups: featureStatus(haystack, ["lineup"]),
+      injuries: featureStatus(haystack, ["injur", "sidelined"]),
+      xg: featureStatus(haystack, ["expected goal", " xg", "xg "]),
+      odds: featureStatus(haystack, ["odd", "market"]),
+    },
+    checkedAt: new Date(input.checkedAt).toISOString(),
+    errors,
+  };
+}
+
+export function readSportMonksRateLimit(headers: Headers): SportMonksRateLimit {
+  return {
+    limit: headerNumber(headers, ["x-ratelimit-limit", "ratelimit-limit"]),
+    remaining: headerNumber(headers, ["x-ratelimit-remaining", "ratelimit-remaining"]),
+    reset: headerValue(headers, ["x-ratelimit-reset", "ratelimit-reset"]),
+    observedResponses: 1,
+  };
+}
+
+export function mergeSportMonksRateLimits(values: SportMonksRateLimit[]): SportMonksRateLimit {
+  const limits = values.flatMap((value) => value.limit === null ? [] : [value.limit]);
+  const remaining = values.flatMap((value) => value.remaining === null ? [] : [value.remaining]);
+  return {
+    limit: limits.length ? Math.max(...limits) : null,
+    remaining: remaining.length ? Math.min(...remaining) : null,
+    reset: values.findLast((value) => value.reset !== null)?.reset ?? null,
+    observedResponses: values.reduce((total, value) => total + value.observedResponses, 0),
+  };
+}
 
 type SportMonksFixture = {
   id?: unknown;
@@ -274,6 +360,68 @@ function integerValue(value: unknown) {
 function numericValue(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return null;
+}
+
+function collectLeagueIds(value: unknown): number[] {
+  const root = unwrapData(value);
+  if (!Array.isArray(root)) return [];
+  return root.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    const id = integerValue(row.id) ?? integerValue(row.league_id);
+    return id === null ? [] : [id];
+  });
+}
+
+function collectLabels(value: unknown) {
+  const labels = new Set<string>();
+  const visit = (item: unknown, depth = 0) => {
+    if (depth > 5 || item === null || item === undefined) return;
+    if (typeof item === "string" && item.trim()) {
+      labels.add(item.trim());
+      return;
+    }
+    if (Array.isArray(item)) {
+      for (const child of item) visit(child, depth + 1);
+      return;
+    }
+    if (typeof item !== "object") return;
+    for (const [key, child] of Object.entries(item as Record<string, unknown>)) {
+      if (["name", "code", "key", "resource", "endpoint", "type"].includes(key) && typeof child === "string") {
+        labels.add(child.trim());
+      } else if (["data", "resources", "enrichments", "includes", "items"].includes(key)) {
+        visit(child, depth + 1);
+      }
+    }
+  };
+  visit(value);
+  return [...labels].filter(Boolean).sort((a, b) => a.localeCompare(b));
+}
+
+function unwrapData(value: unknown) {
+  if (value && typeof value === "object" && !Array.isArray(value) && "data" in value) {
+    return (value as { data?: unknown }).data;
+  }
+  return value;
+}
+
+function featureStatus(haystack: string, needles: string[]): SportMonksFeatureStatus {
+  if (!haystack) return "unknown";
+  return needles.some((needle) => haystack.includes(needle)) ? "available" : "unavailable";
+}
+
+function headerNumber(headers: Headers, names: string[]) {
+  const raw = headerValue(headers, names);
+  if (raw === null || !Number.isFinite(Number(raw))) return null;
+  return Number(raw);
+}
+
+function headerValue(headers: Headers, names: string[]) {
+  for (const name of names) {
+    const value = headers.get(name)?.trim();
+    if (value) return value;
+  }
   return null;
 }
 

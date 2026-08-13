@@ -28,8 +28,8 @@ test("renders the signed-out Research Feed protection wall", async () => {
   const response = await renderRoute("/admin/research-feed");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /Araştırma veri akışı korumalıdır/i);
-  assert.match(html, /PUBLIC CSV · RESEARCH ONLY/i);
+  assert.match(html, /SportMonks veri akışı korumalıdır/i);
+  assert.match(html, /SPORTMONKS API V3 · SINGLE SOURCE/i);
   assert.match(html, /auth\/sign-in/i);
   assert.match(html, /admin%2Fresearch-feed|admin\/research-feed/i);
 });

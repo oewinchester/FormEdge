@@ -3,6 +3,7 @@ import {
   getFootballDataResearchOverview,
   ResearchFeedHttpError,
 } from "@/lib/football-data-source-store";
+import { getResearchAutomationOverview } from "@/lib/research-automation-store";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,11 @@ type PullBody = {
 export async function GET() {
   try {
     const actor = await requireAdminActor();
-    return Response.json(await getFootballDataResearchOverview(actor), { headers: NO_STORE_HEADERS });
+    const [legacy, automation] = await Promise.all([
+      getFootballDataResearchOverview(actor),
+      getResearchAutomationOverview(actor),
+    ]);
+    return Response.json({ ...legacy, automation }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     return errorResponse(error);
   }

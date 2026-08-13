@@ -17,9 +17,13 @@ import {
   SPORTMONKS_MAX_BYTES,
   SPORTMONKS_MAX_PAGES_PER_DATE,
   SPORTMONKS_PLAN_LEAGUES,
+  buildSportMonksAccountUrls,
   buildSportMonksDateUrls,
   buildSportMonksTeamHistoryUrl,
+  mergeSportMonksRateLimits,
+  parseSportMonksAccountCoverage,
   parseSportMonksFixtures,
+  readSportMonksRateLimit,
   sportMonksAuthorizationHeader,
   sportMonksPageUrl,
   sportMonksPlanTeamIds,
@@ -39,7 +43,7 @@ import {
 import { getIstanbulSlateWindow } from "@/lib/today-slate";
 
 const AUTOMATION_ACTIVE_KEY = "research-forward-shadow:1x2";
-const FIXTURE_FEED_ACTIVE_KEY = "sportmonks:fixtures:v6";
+const FIXTURE_FEED_ACTIVE_KEY = "sportmonks:fixtures:v7";
 const FEED_WINDOW_MS = 10 * 60_000;
 const FETCH_TIMEOUT_MS = 20_000;
 const MAX_PREDICTIONS_PER_CYCLE = 60;
@@ -137,7 +141,7 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
 
   try {
     const fetched = await fetchSportMonksFixtures(provider);
-    const { response, responseBuffer } = fetched;
+    const { response, responseBuffer, providerSummary } = fetched;
     responseStatus = response.status;
     responseContentType = fetched.responseContentType;
     upstreamEtag = fetched.upstreamEtag;
@@ -154,6 +158,7 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
         responseContentType,
         upstreamEtag: upstreamEtag ?? previous.upstreamEtag,
         upstreamLastModified: upstreamLastModified ?? previous.upstreamLastModified,
+        providerSummaryJson: JSON.stringify(providerSummary),
       });
       return { run: await loadPublicFixtureFeedRun(runId), reused: true };
     }
@@ -171,6 +176,7 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
         upstreamLastModified,
         contentBytes,
         rawChecksumSha256,
+        providerSummaryJson: JSON.stringify(providerSummary),
       });
       return { run: await loadPublicFixtureFeedRun(runId), reused: true };
     }
@@ -211,6 +217,7 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
       pilotRowCount: parsed.pilotRowCount,
       leagueCount: importedLeagueCount,
       oddsSnapshotCount: parsed.oddsSnapshotCount,
+      providerSummaryJson: JSON.stringify(providerSummary),
       ingestionRunIdsJson: JSON.stringify(ingestionRunIds),
       completedAt: new Date().toISOString(),
     }).where(eq(researchFixtureFeedRuns.id, runId));
@@ -639,6 +646,7 @@ async function completeUnchangedFixtureFeed(
     pilotRowCount: previous.pilotRowCount,
     leagueCount: previous.leagueCount,
     oddsSnapshotCount: previous.oddsSnapshotCount,
+    providerSummaryJson: previous.providerSummaryJson,
     ingestionRunIdsJson: previous.ingestionRunIdsJson,
     completedAt: new Date().toISOString(),
     ...overrides,
@@ -671,6 +679,7 @@ function publicFixtureFeedRun(row: typeof researchFixtureFeedRuns.$inferSelect) 
     pilotRowCount: row.pilotRowCount,
     leagueCount: row.leagueCount,
     oddsSnapshotCount: row.oddsSnapshotCount,
+    providerSummary: parseJson<Record<string, unknown>>(row.providerSummaryJson, {}),
     ingestionRunIds: parseJson<string[]>(row.ingestionRunIdsJson, []),
     errorCode: row.errorCode,
     errorMessage: row.errorMessage,
@@ -750,7 +759,7 @@ function buildSportMonksProvider(token: string | null, nowIso: string): SportMon
   const upstreamUrls = buildSportMonksDateUrls(nowIso);
   return {
     kind: "sportmonks",
-    key: "sportmonks-v6-team-history",
+    key: "sportmonks-v7-account-coverage",
     token,
     upstreamUrl: upstreamUrls[0],
     upstreamUrls,
@@ -766,6 +775,8 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
     Authorization: sportMonksAuthorizationHeader(provider.token),
   };
   const fixtures = new Map<string, unknown>();
+  const rateLimits = [] as ReturnType<typeof readSportMonksRateLimit>[];
+  const account = await fetchSportMonksAccountCoverage(headers, rateLimits);
   const dailyCounts: Array<{ date: string; fixtures: number; pages: number }> = [];
   const historyCounts: Array<{ teamId: number; fixtures: number }> = [];
   let aggregateBytes = 0;
@@ -776,6 +787,7 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
     for (let page = 1; page <= SPORTMONKS_MAX_PAGES_PER_DATE; page += 1) {
       const pageResult = await fetchSportMonksPage(sportMonksPageUrl(dateUrl, page), headers, "SPORTMONKS_HTTP_ERROR");
       response = pageResult.response;
+      rateLimits.push(pageResult.rateLimit);
       aggregateBytes += pageResult.bytes.byteLength;
       requireSportMonksByteBudget(aggregateBytes, provider.maximumBytes);
       pagesFetched = page;
@@ -810,6 +822,7 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
     })));
     for (const { teamId, result } of results) {
       response = result.response;
+      rateLimits.push(result.rateLimit);
       aggregateBytes += result.bytes.byteLength;
       requireSportMonksByteBudget(aggregateBytes, provider.maximumBytes);
       const countBeforeTeam = fixtures.size;
@@ -828,6 +841,42 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
     capturedAt: new Date().toISOString(),
     upstreamUrl: provider.upstreamUrl,
   });
+  const importedLeagueCount = new Set(parsed.envelopes.map((item) => item.payload.league.id)).size;
+  const statisticRowCount = parsed.envelopes.reduce((total, item) => total + item.payload.stats.length, 0);
+  const providerSummary = {
+    schemaVersion: "sportmonks-provider-summary-v1",
+    capturedAt: new Date().toISOString(),
+    account,
+    rateLimit: mergeSportMonksRateLimits(rateLimits),
+    fetch: {
+      dailyCounts,
+      activeTeamCount: activeTeamIds.length,
+      historyTeamCount: historyCounts.filter((item) => item.fixtures > 0).length,
+      historyFixtureCount,
+      rawFixtureCount: fixtures.size,
+      importedFixtureCount: parsed.pilotRowCount,
+      leagueCount: importedLeagueCount,
+      statisticRowCount,
+      ignoredFixtureCount: parsed.ignoredCount,
+    },
+    leagues: SPORTMONKS_PLAN_LEAGUES.map((league) => {
+      const envelopes = parsed.envelopes.filter((item) => item.payload.league.id === league.id);
+      const fixtureCount = envelopes.reduce((total, item) => total + item.payload.fixtures.length, 0);
+      const finishedFixtureCount = envelopes.reduce((total, item) => total + item.payload.fixtures.filter((fixture) => fixture.status === "finished").length, 0);
+      const statisticFixtureCount = new Set(envelopes.flatMap((item) => item.payload.stats.map((stat) => stat.fixtureId))).size;
+      return {
+        sportmonksId: league.sportmonksId,
+        code: league.code,
+        leagueId: league.id,
+        name: league.name,
+        licensed: account.status === "unavailable" ? null : account.licensedLeagueIds.includes(league.sportmonksId),
+        fixtureCount,
+        finishedFixtureCount,
+        statisticFixtureCount,
+        statisticsCoveragePercent: finishedFixtureCount > 0 ? Math.round((statisticFixtureCount / finishedFixtureCount) * 100) : 0,
+      };
+    }),
+  };
   console.info("sportmonks-fetch-summary", JSON.stringify({
     dailyCounts,
     activeTeamCount: activeTeamIds.length,
@@ -835,9 +884,12 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
     historyFixtureCount,
     rawFixtureCount: fixtures.size,
     importedFixtureCount: parsed.pilotRowCount,
-    leagueCount: new Set(parsed.envelopes.map((item) => item.payload.league.id)).size,
-    statisticRowCount: parsed.envelopes.reduce((total, item) => total + item.payload.stats.length, 0),
+    leagueCount: importedLeagueCount,
+    statisticRowCount,
     ignoredFixtureCount: parsed.ignoredCount,
+    accountStatus: account.status,
+    licensedLeagueCount: account.licensedLeagueIds.length,
+    rateLimitRemaining: providerSummary.rateLimit.remaining,
   }));
   if (parsed.pilotRowCount === 0) {
     throw new ResearchAutomationHttpError(
@@ -853,6 +905,7 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
     responseContentType: "application/json; charset=utf-8",
     upstreamEtag: null,
     upstreamLastModified: null,
+    providerSummary,
   };
 }
 
@@ -876,7 +929,36 @@ async function fetchSportMonksPage(url: string, headers: Record<string, string>,
   if (!Array.isArray(payload.data)) {
     throw new ResearchAutomationHttpError(502, "SPORTMONKS_INVALID_JSON", "SportMonks yanıtında fikstür listesi bulunamadı.");
   }
-  return { response, bytes, data: payload.data, hasMore: payload.pagination?.has_more === true };
+  return { response, bytes, data: payload.data, hasMore: payload.pagination?.has_more === true, rateLimit: readSportMonksRateLimit(response.headers) };
+}
+
+async function fetchSportMonksAccountCoverage(
+  headers: Record<string, string>,
+  rateLimits: ReturnType<typeof readSportMonksRateLimit>[],
+) {
+  const urls = buildSportMonksAccountUrls();
+  const payloads: Partial<Record<keyof typeof urls, unknown>> = {};
+  const errors: string[] = [];
+  await Promise.all((Object.entries(urls) as Array<[keyof typeof urls, string]>).map(async ([kind, url]) => {
+    try {
+      const response = await fetch(url, { headers, redirect: "follow", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      rateLimits.push(readSportMonksRateLimit(response.headers));
+      if (!response.ok) {
+        errors.push(`${kind}:HTTP_${response.status}`);
+        return;
+      }
+      payloads[kind] = await response.json();
+    } catch {
+      errors.push(`${kind}:FETCH_FAILED`);
+    }
+  }));
+  return parseSportMonksAccountCoverage({
+    leagues: payloads.leagues,
+    resources: payloads.resources,
+    enrichments: payloads.enrichments,
+    checkedAt: new Date().toISOString(),
+    errors,
+  });
 }
 
 function addSportMonksFixtures(target: Map<string, unknown>, rows: unknown[]) {

@@ -376,6 +376,7 @@ export const researchFixtureFeedRuns = sqliteTable(
     pilotRowCount: integer("pilot_row_count").notNull().default(0),
     leagueCount: integer("league_count").notNull().default(0),
     oddsSnapshotCount: integer("odds_snapshot_count").notNull().default(0),
+    providerSummaryJson: text("provider_summary_json").notNull().default("{}"),
     ingestionRunIdsJson: text("ingestion_run_ids_json").notNull().default("[]"),
     requestedByEmail: text("requested_by_email").notNull(),
     errorCode: text("error_code"),

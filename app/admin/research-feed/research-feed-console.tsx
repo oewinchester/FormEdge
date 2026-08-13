@@ -112,6 +112,41 @@ type Overview = {
   leagues: League[];
   recentRuns: Array<PublicRun | null>;
   bootstrapQueue: Array<{ leagueCode: string; seasonCode: string }>;
+  automation?: {
+    latestFeedRun: null | {
+      status: string;
+      startedAt: string;
+      providerSummary?: {
+        account?: {
+          status?: "verified" | "partial" | "unavailable";
+          expectedLeagueIds?: number[];
+          licensedLeagueIds?: number[];
+          missingLeagueIds?: number[];
+          features?: Record<string, "available" | "unavailable" | "unknown">;
+          errors?: string[];
+        };
+        rateLimit?: { limit?: number | null; remaining?: number | null; reset?: string | null; observedResponses?: number };
+        fetch?: {
+          activeTeamCount?: number;
+          historyTeamCount?: number;
+          historyFixtureCount?: number;
+          importedFixtureCount?: number;
+          leagueCount?: number;
+          statisticRowCount?: number;
+        };
+        leagues?: Array<{
+          sportmonksId: number;
+          code: string;
+          name: string;
+          licensed: boolean | null;
+          fixtureCount: number;
+          finishedFixtureCount: number;
+          statisticFixtureCount: number;
+          statisticsCoveragePercent: number;
+        }>;
+      };
+    };
+  };
 };
 
 type Props = {
@@ -251,6 +286,10 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
   };
 
   const recentRuns = (overview?.recentRuns ?? []).filter((run): run is PublicRun => Boolean(run));
+  const providerSummary = overview?.automation?.latestFeedRun?.providerSummary;
+  const providerAccount = providerSummary?.account;
+  const providerFetch = providerSummary?.fetch;
+  const providerLeagues = providerSummary?.leagues ?? [];
 
   return (
     <main className="admin-shell research-feed-shell">
@@ -301,12 +340,38 @@ export function ResearchFeedConsole({ user, signOutPath }: Props) {
           <div className="research-source-actions"><button type="button" onClick={() => void runLiveImport()} disabled={!canPull || busy}><CloudDownload size={14} />Canlı API turunu çalıştır</button><a href="/dashboard">Bugünün maçlarını aç <ChevronRight size={13} /></a></div>
         </section>
 
+        <section className="research-coverage-card">
+          <header>
+            <div><small>ACCOUNT COVERAGE · DAILY EVIDENCE</small><h2>SportMonks paket kapsamı ve analiz girdisi</h2></div>
+            <span className={`research-coverage-state ${providerAccount?.status ?? "unavailable"}`}>{coverageStatusLabel(providerAccount?.status)}</span>
+          </header>
+          {!providerSummary ? <div className="admin-empty"><FileClock size={16} />İlk v7 kapsam turu bekleniyor. Canlı API turu çalıştığında lisans, kota ve istatistik yeterliliği burada kalıcılaşır.</div> : <>
+            <div className="research-coverage-metrics">
+              <article><small>LİSANSLI LİG</small><b>{providerAccount?.licensedLeagueIds?.length ?? "—"}<em>/{providerAccount?.expectedLeagueIds?.length ?? 30}</em></b></article>
+              <article><small>AKTİF TAKIM</small><b>{providerFetch?.activeTeamCount ?? 0}</b></article>
+              <article><small>GEÇMİŞ MAÇ</small><b>{providerFetch?.historyFixtureCount ?? 0}</b></article>
+              <article><small>İSTAT SATIRI</small><b>{providerFetch?.statisticRowCount ?? 0}</b></article>
+              <article><small>KALAN KOTA</small><b>{providerSummary.rateLimit?.remaining ?? "—"}<em>/{providerSummary.rateLimit?.limit ?? "—"}</em></b></article>
+            </div>
+            <div className="research-feature-grid">
+              {Object.entries(providerAccount?.features ?? {}).map(([feature, status]) => <span className={status} key={feature}>{featureLabel(feature)}<b>{featureStatusLabel(status)}</b></span>)}
+            </div>
+            <div className="research-provider-leagues">
+              {providerLeagues.map((league) => <article key={league.sportmonksId} className={league.statisticsCoveragePercent >= 60 ? "ready" : "blocked"}>
+                <div><b>{league.code} · {league.name}</b><small>{league.fixtureCount} maç · {league.finishedFixtureCount} final · {league.statisticFixtureCount} istatistikli</small></div>
+                <span>%{league.statisticsCoveragePercent}</span>
+              </article>)}
+            </div>
+            {(providerAccount?.missingLeagueIds?.length ?? 0) > 0 && <p className="research-coverage-warning"><ShieldAlert size={14} />Paket listesinde bulunamayan lig kimlikleri: {providerAccount?.missingLeagueIds?.join(", ")}</p>}
+          </>}
+        </section>
+
         <section className="admin-count-grid research-count-grid">
-          <article><span><DatabaseZap size={17} /></span><small>PİLOT LİG</small><b>{loading ? "—" : overview?.totals.pilotLeagues ?? 0}</b></article>
-          <article><span><Archive size={17} /></span><small>ALINAN SEZON</small><b>{loading ? "—" : overview?.totals.importedSeasons ?? 0}<em>/{overview?.totals.targetSeasons ?? 0}</em></b></article>
-          <article><span><Activity size={17} /></span><small>BİTMİŞ MAÇ</small><b>{loading ? "—" : overview?.totals.finishedFixtures ?? 0}</b></article>
-          <article><span><Database size={17} /></span><small>DATASET</small><b>{loading ? "—" : overview?.totals.datasets ?? 0}</b></article>
-          <article><span><Sigma size={17} /></span><small>BACKTEST</small><b>{loading ? "—" : overview?.totals.backtests ?? 0}</b></article>
+          <article><span><DatabaseZap size={17} /></span><small>PLAN LİGİ</small><b>{loading ? "—" : providerAccount?.expectedLeagueIds?.length ?? 30}</b></article>
+          <article><span><Archive size={17} /></span><small>İŞLENEN LİG</small><b>{loading ? "—" : providerFetch?.leagueCount ?? 0}<em>/30</em></b></article>
+          <article><span><Activity size={17} /></span><small>AKTARILAN MAÇ</small><b>{loading ? "—" : providerFetch?.importedFixtureCount ?? 0}</b></article>
+          <article><span><Database size={17} /></span><small>GEÇMİŞ MAÇ</small><b>{loading ? "—" : providerFetch?.historyFixtureCount ?? 0}</b></article>
+          <article><span><Sigma size={17} /></span><small>İSTAT SATIRI</small><b>{loading ? "—" : providerFetch?.statisticRowCount ?? 0}</b></article>
         </section>
 
         <section className="research-source-card">
@@ -393,6 +458,20 @@ function formatBytes(bytes: number) {
   if (!bytes) return "—";
   if (bytes < 1_000) return `${bytes} B`;
   return `${(bytes / 1_000).toFixed(1)} KB`;
+}
+
+function coverageStatusLabel(status?: "verified" | "partial" | "unavailable") {
+  if (status === "verified") return "30/30 doğrulandı";
+  if (status === "partial") return "Kısmi kapsam";
+  return "Kapsam bekleniyor";
+}
+
+function featureLabel(value: string) {
+  return ({ statistics: "Maç istatistikleri", lineups: "Kadrolar", injuries: "Sakatlıklar", xg: "xG", odds: "Oranlar" } as Record<string, string>)[value] ?? value;
+}
+
+function featureStatusLabel(value: "available" | "unavailable" | "unknown") {
+  return value === "available" ? "pakette" : value === "unavailable" ? "paket dışı" : "belirsiz";
 }
 
 function initials(value: string) {

@@ -1,0 +1,1 @@
+ALTER TABLE `research_fixture_feed_runs` ADD `provider_summary_json` text DEFAULT '{}' NOT NULL;

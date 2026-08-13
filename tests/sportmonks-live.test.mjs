@@ -5,9 +5,13 @@ import {
   SPORTMONKS_MAX_PAGES_PER_DATE,
   SPORTMONKS_PLAN_LEAGUES,
   SPORTMONKS_TEAM_HISTORY_DAYS,
+  buildSportMonksAccountUrls,
   buildSportMonksDateUrls,
   buildSportMonksTeamHistoryUrl,
+  mergeSportMonksRateLimits,
+  parseSportMonksAccountCoverage,
   parseSportMonksFixtures,
+  readSportMonksRateLimit,
   sportMonksAuthorizationHeader,
   sportMonksPageUrl,
   sportMonksPlanTeamIds,
@@ -55,13 +59,48 @@ const payload = JSON.stringify({
 });
 
 test("SportMonks plan coverage is the exact 30-league subscription", () => {
-  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v6");
+  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v7");
   assert.equal(SPORTMONKS_PLAN_LEAGUES.length, 30);
   assert.equal(new Set(SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId)).size, 30);
   assert.deepEqual(
     SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId).sort((a, b) => a - b),
     [8, 9, 72, 82, 85, 181, 208, 271, 301, 325, 384, 387, 444, 453, 462, 486, 501, 564, 567, 573, 591, 600, 609, 636, 648, 651, 743, 779, 944, 968],
   );
+});
+
+test("SportMonks account endpoints and licensed coverage are explicit", () => {
+  assert.deepEqual(buildSportMonksAccountUrls(), {
+    leagues: "https://api.sportmonks.com/v3/my/leagues",
+    resources: "https://api.sportmonks.com/v3/my/resources",
+    enrichments: "https://api.sportmonks.com/v3/my/enrichments",
+  });
+  const coverage = parseSportMonksAccountCoverage({
+    leagues: { data: SPORTMONKS_PLAN_LEAGUES.map((league) => ({ id: league.sportmonksId })) },
+    resources: { data: [{ name: "Fixture statistics" }, { name: "Lineups" }] },
+    enrichments: { data: [{ name: "Expected Goals xG" }] },
+    checkedAt: "2026-08-13T09:00:00.000Z",
+  });
+  assert.equal(coverage.status, "verified");
+  assert.equal(coverage.licensedLeagueIds.length, 30);
+  assert.deepEqual(coverage.missingLeagueIds, []);
+  assert.equal(coverage.features.statistics, "available");
+  assert.equal(coverage.features.lineups, "available");
+  assert.equal(coverage.features.xg, "available");
+  assert.equal(coverage.features.odds, "unavailable");
+});
+
+test("SportMonks account and rate-limit evidence fails visibly instead of becoming false success", () => {
+  const partial = parseSportMonksAccountCoverage({
+    leagues: [{ league_id: 8 }, { league_id: 600 }],
+    checkedAt: "2026-08-13T09:00:00.000Z",
+    errors: ["resources:HTTP_403"],
+  });
+  assert.equal(partial.status, "partial");
+  assert.equal(partial.missingLeagueIds.length, 28);
+  assert.equal(partial.features.statistics, "unknown");
+  const first = readSportMonksRateLimit(new Headers({ "x-ratelimit-limit": "3000", "x-ratelimit-remaining": "2870" }));
+  const second = readSportMonksRateLimit(new Headers({ "ratelimit-limit": "3000", "ratelimit-remaining": "2862", "ratelimit-reset": "42" }));
+  assert.deepEqual(mergeSportMonksRateLimits([first, second]), { limit: 3000, remaining: 2862, reset: "42", observedResponses: 2 });
 });
 
 test("SportMonks team history URL backfills one year with match statistics", () => {
