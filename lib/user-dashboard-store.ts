@@ -158,6 +158,16 @@ async function loadTodayResearchSlate() {
   const versionById = new Map(versionRows.map((version) => [version.id, version]));
   const latestFeed = feedRows[0] ?? null;
   const latestAutomation = automationRows[0] ?? null;
+  const latestAutomationSummary = parseJson<{
+    infrastructureErrors?: Array<{ stage?: string; code?: string; message?: string }>;
+  }>(latestAutomation?.summaryJson ?? "{}", {});
+  const infrastructureErrors = Array.isArray(latestAutomationSummary.infrastructureErrors)
+    ? latestAutomationSummary.infrastructureErrors.filter((item) => item && typeof item === "object").map((item) => ({
+      stage: String(item.stage ?? "infrastructure"),
+      code: String(item.code ?? "INFRASTRUCTURE_PARTIAL"),
+      message: String(item.message ?? "Veri kaynağı kısmi tamamlandı."),
+    })).slice(0, 4)
+    : [];
   const latestPredictionFailures = predictionFailuresByFixture(latestAutomation?.summaryJson ?? "{}");
   const sourceProfile = liveSourceProfile(latestFeed?.adapterVersion ?? null);
   const freshness = assessLiveSlateFreshness({
@@ -230,6 +240,7 @@ async function loadTodayResearchSlate() {
       created: latestAutomation?.predictionsCreated ?? 0,
       reused: latestAutomation?.predictionsReused ?? 0,
       failed: latestAutomation?.predictionsFailed ?? 0,
+      infrastructureErrors,
       errorCode: latestAutomation?.errorCode ?? null,
       errorMessage: latestAutomation?.errorMessage ?? null,
       completedAt: latestAutomation?.completedAt ?? null,

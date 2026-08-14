@@ -7,12 +7,14 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.22 · Checkpoint 17AB · Resilient Automatic Analysis Pipeline**
+**v0.7.0-alpha.23 · Checkpoint 17AC · Bounded SportMonks Backfill & Decision Center UI**
 
-- Dashboard yenilemesindeki çift fikstür çekimini kaldırıp tek otomasyon turuna indiren; kaynak hatasında bile kayıtlı D1 maçları üzerinde analiz üretimini sürdüren dayanıklı akış
-- Yalnız beşten az geçmiş maçı bulunan SportMonks takımları için backfill çağrısı yaparak günlük API kullanımını ve çalışma süresini azaltan geçmiş önbelleği
-- Tek takım geçmişi veya tek tarih endpoint'i hata verdiğinde bütün snapshot'ı devirmeyen; kısmi hataları sağlayıcı özeti ve Worker logunda görünür tutan bağımsız hata izolasyonu
-- Aynı İstanbul gününde başarılı snapshot'ı yeniden kullanma, kalıcı provider takım kimliği ve kullanıcıya açık analiz blocker sözleşmelerini koruyan otomatik dashboard
+- Toplam ağ trafiğini birleşik snapshot boyutu sanan 32 MB kontrolünü düzelten; tek API sayfasını 8 MB, tekilleştirilmiş kalıcı snapshot'ı 32 MB ile ayrı ayrı sınırlayan v9 adaptörü
+- Yalnız geçmişi eksik takımlar için en güncel 12 maçı tutarak rakip endpoint'lerinden gelen tekrarları azaltan bounded backfill ve yeni günlük cache namespace'i
+- Altyapı hatası varken sıfır başarısız tahmini “0 maç başarısız” diye göstermeyen; kayıtlı veriyle devam durumunu ayrı projekte eden dürüst durum modeli
+- Kalıcı sidebar'ı kaldıran; koyu karar merkezi, öne çıkan analizler, taranabilir maç programı, kaynak sağlığı ve mobil alt navigasyonla baştan tasarlanan kullanıcı dashboardu
+
+Önceki checkpoint: **v0.7.0-alpha.22 · Checkpoint 17AB · Resilient Automatic Analysis Pipeline**
 
 Önceki checkpoint: **v0.7.0-alpha.21 · Checkpoint 17AA · Stable Team Identity & Visible Analysis Queue**
 
@@ -284,7 +286,8 @@ Satış hazırlığı ve koşullu dış kapılar: [`docs/FormEdge-Sales-Readines
 | **v0.7.0-alpha.19** | **CP17Y** | **SportMonks-only 30 lig çekimi, takım geçmişi/istatistik backfill'i ve dürüst analiz otomasyonu** | **Tamamlandı** |
 | **v0.7.0-alpha.20** | **CP17Z** | **SportMonks hesap kapsamı, lig bazlı kalite ve rate-limit kanıtı** | **Tamamlandı** |
 | **v0.7.0-alpha.21** | **CP17AA** | **Kalıcı SportMonks takım kimliği, otomatik geçmiş uzlaştırma ve açık analiz engelleri** | **Tamamlandı** |
-| **v0.7.0-alpha.22** | **CP17AB** | **Kısmi SportMonks hatalarına dayanıklı çekim, eksik-takım backfill'i ve kesintisiz analiz turu** | **Mevcut** |
+| **v0.7.0-alpha.22** | **CP17AB** | **Kısmi SportMonks hatalarına dayanıklı çekim, eksik-takım backfill'i ve kesintisiz analiz turu** | **Tamamlandı** |
+| **v0.7.0-alpha.23** | **CP17AC** | **32 MB snapshot düzeltmesi, bounded geçmiş backfill'i ve baştan tasarlanan karar merkezi UI** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 

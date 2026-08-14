@@ -46,10 +46,12 @@ import { getIstanbulSlateWindow } from "@/lib/today-slate";
 import { ModelLabValidationError } from "@/lib/model-lab";
 
 const AUTOMATION_ACTIVE_KEY = "research-forward-shadow:1x2";
-const FIXTURE_FEED_ACTIVE_KEY = "sportmonks:fixtures:v8";
+const FIXTURE_FEED_ACTIVE_KEY = "sportmonks:fixtures:v9";
 const FEED_WINDOW_MS = 10 * 60_000;
 const FETCH_TIMEOUT_MS = 20_000;
 const MIN_TEAM_HISTORY_MATCHES = 5;
+const MAX_HISTORY_FIXTURES_PER_TEAM = 12;
+const MAX_SPORTMONKS_PAGE_BYTES = 8_000_000;
 const MAX_PREDICTIONS_PER_CYCLE = 60;
 const MAX_SETTLEMENTS_PER_CYCLE = 300;
 
@@ -779,7 +781,7 @@ function buildSportMonksProvider(token: string | null, nowIso: string): SportMon
   const upstreamUrls = buildSportMonksDateUrls(nowIso);
   return {
     kind: "sportmonks",
-    key: "sportmonks-v8-stable-team-identity",
+    key: "sportmonks-v9-bounded-team-history",
     token,
     upstreamUrl: upstreamUrls[0],
     upstreamUrls,
@@ -801,7 +803,7 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
   const historyCounts: Array<{ teamId: number; fixtures: number }> = [];
   const dailyFailures: Array<{ date: string; code: string; message: string }> = [];
   const historyFailures: Array<{ teamId: number; code: string; message: string }> = [];
-  let aggregateBytes = 0;
+  let downloadedBytes = 0;
   let response!: Response;
   for (const dateUrl of provider.upstreamUrls) {
     const countBeforeDate = fixtures.size;
@@ -812,8 +814,8 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
         const pageResult = await fetchSportMonksPage(sportMonksPageUrl(dateUrl, page), headers, "SPORTMONKS_HTTP_ERROR");
         response = pageResult.response;
         rateLimits.push(pageResult.rateLimit);
-        aggregateBytes += pageResult.bytes.byteLength;
-        requireSportMonksByteBudget(aggregateBytes, provider.maximumBytes);
+        requireSportMonksPageBudget(pageResult.bytes.byteLength);
+        downloadedBytes += pageResult.bytes.byteLength;
         pagesFetched = page;
         addSportMonksFixtures(fixtures, pageResult.data);
         if (!pageResult.hasMore) break;
@@ -880,16 +882,17 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
       const { teamId, result } = settled.value;
       response = result.response;
       rateLimits.push(result.rateLimit);
-      aggregateBytes += result.bytes.byteLength;
-      requireSportMonksByteBudget(aggregateBytes, provider.maximumBytes);
+      requireSportMonksPageBudget(result.bytes.byteLength);
+      downloadedBytes += result.bytes.byteLength;
       const countBeforeTeam = fixtures.size;
-      addSportMonksFixtures(fixtures, result.data);
+      addSportMonksFixtures(fixtures, result.data.slice(0, MAX_HISTORY_FIXTURES_PER_TEAM));
       historyCounts.push({ teamId, fixtures: fixtures.size - countBeforeTeam });
     }
   }
   const historyFixtureCount = fixtures.size - dailyFixtureCount;
 
   const responseBuffer = new TextEncoder().encode(JSON.stringify({ data: [...fixtures.values()] })).buffer as ArrayBuffer;
+  requireSportMonksByteBudget(responseBuffer.byteLength, provider.maximumBytes);
   const parsed = parseSportMonksFixtures({
     json: new TextDecoder("utf-8").decode(responseBuffer),
     capturedAt: new Date().toISOString(),
@@ -911,6 +914,8 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
       historyTeamCount: historyCounts.filter((item) => item.fixtures > 0).length,
       historyFixtureCount,
       historyFailures,
+      downloadedBytes,
+      mergedSnapshotBytes: responseBuffer.byteLength,
       rawFixtureCount: fixtures.size,
       importedFixtureCount: parsed.pilotRowCount,
       leagueCount: importedLeagueCount,
@@ -944,6 +949,8 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
     historyTeamCount: historyCounts.filter((item) => item.fixtures > 0).length,
     historyFixtureCount,
     historyFailureCount: historyFailures.length,
+    downloadedBytes,
+    mergedSnapshotBytes: responseBuffer.byteLength,
     rawFixtureCount: fixtures.size,
     importedFixtureCount: parsed.pilotRowCount,
     leagueCount: importedLeagueCount,
@@ -1032,7 +1039,13 @@ function addSportMonksFixtures(target: Map<string, unknown>, rows: unknown[]) {
 
 function requireSportMonksByteBudget(receivedBytes: number, maximumBytes: number) {
   if (receivedBytes > maximumBytes) {
-    throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "Birleşik SportMonks fikstür ve geçmiş yanıtı 32 MB güvenlik sınırını aşıyor.");
+    throw new ResearchAutomationHttpError(502, "FIXTURE_FEED_TOO_LARGE", "İşlenecek SportMonks snapshot'ı 32 MB güvenlik sınırını aşıyor.");
+  }
+}
+
+function requireSportMonksPageBudget(receivedBytes: number) {
+  if (receivedBytes > MAX_SPORTMONKS_PAGE_BYTES) {
+    throw new ResearchAutomationHttpError(502, "SPORTMONKS_PAGE_TOO_LARGE", "Tek SportMonks API sayfası 8 MB güvenlik sınırını aşıyor.");
   }
 }
 

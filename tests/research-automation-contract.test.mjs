@@ -25,7 +25,7 @@ test("forward and historical research automation use separate hourly fail-closed
   assert.match(store, /buildSportMonksTeamHistoryUrl/);
   assert.match(store, /sportMonksPlanTeamIds/);
   assert.match(store, /fixture-feed-daily-cache-hit/);
-  assert.match(store, /sportmonks-v8-stable-team-identity/);
+  assert.match(store, /sportmonks-v9-bounded-team-history/);
   assert.match(store, /FORECAST_HISTORY_INSUFFICIENT/);
   assert.match(store, /cacheScope:\s*"istanbul_day"/);
   assert.match(store, /research-automation-completed/);
@@ -39,6 +39,10 @@ test("forward and historical research automation use separate hourly fail-closed
   assert.match(store, /SPORTMONKS_EMPTY_WINDOW/);
   assert.match(store, /Promise\.allSettled\(batch\.map/);
   assert.match(store, /MIN_TEAM_HISTORY_MATCHES = 5/);
+  assert.match(store, /MAX_HISTORY_FIXTURES_PER_TEAM = 12/);
+  assert.match(store, /result\.data\.slice\(0, MAX_HISTORY_FIXTURES_PER_TEAM\)/);
+  assert.match(store, /requireSportMonksByteBudget\(responseBuffer\.byteLength/);
+  assert.doesNotMatch(store, /requireSportMonksByteBudget\(aggregateBytes/);
   assert.match(store, /historyTeamsAlreadyReady/);
   assert.match(store, /historyFailures/);
   assert.doesNotMatch(store, /SPORTMONKS_HISTORY_EMPTY/);

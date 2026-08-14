@@ -1,6 +1,6 @@
 {
   "name": "mac-form-analizi",
-  "version": "0.7.0-alpha.22",
+  "version": "0.7.0-alpha.23",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
