@@ -62,7 +62,7 @@ test("dashboard exposes research fixtures without weakening recommendation gates
   assert.match(store, /failed:\s*latestAutomation\?\.predictionsFailed/);
   assert.match(route, /getChatGPTUser\(\)/);
   assert.match(route, /membership\.membership\.productAccess/);
-  assert.match(route, /pullResearchFixtureFeed\(SYSTEM_RESEARCH_ACTOR\)/);
+  assert.doesNotMatch(route, /pullResearchFixtureFeed\(SYSTEM_RESEARCH_ACTOR\)/);
   assert.match(route, /runResearchAutomationCycle\(SYSTEM_RESEARCH_ACTOR, "scheduler"\)/);
   assert.match(dashboard, /Önerilen analizler/);
   assert.match(dashboard, /Tüm maçlar/);

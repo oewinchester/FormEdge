@@ -7,12 +7,14 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.21 · Checkpoint 17AA · Stable Team Identity & Visible Analysis Queue**
+**v0.7.0-alpha.22 · Checkpoint 17AB · Resilient Automatic Analysis Pipeline**
 
-- SportMonks takım adını kimlik olarak kullanmayı bırakan; lig ve sezonlar arasında kalıcı provider takım ID'siyle fikstür geçmişini bugünkü maçlara bağlayan v8 adaptörü
-- Eski fikstürlerin ev/deplasman kimliklerini güvenilir yeniden import sırasında güncelleyerek modelin geçmiş maçları bulmasını sağlayan D1 uzlaştırması
-- Her analiz denemesini maç kimliğiyle eşleyip yetersiz geçmiş, model doğrulama veya kuyruk durumunu genel “bekleniyor” etiketi yerine açık Türkçe nedenle gösteren dashboard
-- Adapter/cache namespace değişikliğiyle yeni kimlik modelini bir kez yeniden çeken; aynı İstanbul günündeki sonraki yenilemeleri kayıtlı snapshot üzerinde çalıştıran API bütçe koruması
+- Dashboard yenilemesindeki çift fikstür çekimini kaldırıp tek otomasyon turuna indiren; kaynak hatasında bile kayıtlı D1 maçları üzerinde analiz üretimini sürdüren dayanıklı akış
+- Yalnız beşten az geçmiş maçı bulunan SportMonks takımları için backfill çağrısı yaparak günlük API kullanımını ve çalışma süresini azaltan geçmiş önbelleği
+- Tek takım geçmişi veya tek tarih endpoint'i hata verdiğinde bütün snapshot'ı devirmeyen; kısmi hataları sağlayıcı özeti ve Worker logunda görünür tutan bağımsız hata izolasyonu
+- Aynı İstanbul gününde başarılı snapshot'ı yeniden kullanma, kalıcı provider takım kimliği ve kullanıcıya açık analiz blocker sözleşmelerini koruyan otomatik dashboard
+
+Önceki checkpoint: **v0.7.0-alpha.21 · Checkpoint 17AA · Stable Team Identity & Visible Analysis Queue**
 
 Önceki checkpoint: **v0.7.0-alpha.20 · Checkpoint 17Z · SportMonks Coverage & Quota Evidence**
 
@@ -281,7 +283,8 @@ Satış hazırlığı ve koşullu dış kapılar: [`docs/FormEdge-Sales-Readines
 | **v0.7.0-alpha.17** | **CP17W** | **Günlük SportMonks snapshot'ı, aktif-lig geçmiş backfill'i ve point-in-time analiz üretimi** | **Tamamlandı** |
 | **v0.7.0-alpha.19** | **CP17Y** | **SportMonks-only 30 lig çekimi, takım geçmişi/istatistik backfill'i ve dürüst analiz otomasyonu** | **Tamamlandı** |
 | **v0.7.0-alpha.20** | **CP17Z** | **SportMonks hesap kapsamı, lig bazlı kalite ve rate-limit kanıtı** | **Tamamlandı** |
-| **v0.7.0-alpha.21** | **CP17AA** | **Kalıcı SportMonks takım kimliği, otomatik geçmiş uzlaştırma ve açık analiz engelleri** | **Mevcut** |
+| **v0.7.0-alpha.21** | **CP17AA** | **Kalıcı SportMonks takım kimliği, otomatik geçmiş uzlaştırma ve açık analiz engelleri** | **Tamamlandı** |
+| **v0.7.0-alpha.22** | **CP17AB** | **Kısmi SportMonks hatalarına dayanıklı çekim, eksik-takım backfill'i ve kesintisiz analiz turu** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 

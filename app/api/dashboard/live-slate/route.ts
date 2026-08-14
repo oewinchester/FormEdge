@@ -1,9 +1,7 @@
 import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { toAdminApiError } from "@/lib/admin-data";
-import { ResearchFeedHttpError } from "@/lib/football-data-source-store";
 import { getUserMembershipCenter } from "@/lib/membership-store";
 import {
-  pullResearchFixtureFeed,
   ResearchAutomationHttpError,
   runResearchAutomationCycle,
   SYSTEM_RESEARCH_ACTOR,
@@ -28,15 +26,13 @@ export async function POST() {
         headers: NO_STORE_HEADERS,
       });
     }
-    const fixtureFeed = await pullResearchFixtureFeed(SYSTEM_RESEARCH_ACTOR);
     const automation = await runResearchAutomationCycle(SYSTEM_RESEARCH_ACTOR, "scheduler");
     return Response.json({
       ok: true,
-      fixtureFeed,
       automation,
     }, { headers: NO_STORE_HEADERS });
   } catch (error) {
-    if (error instanceof ResearchAutomationHttpError || error instanceof ResearchFeedHttpError) {
+    if (error instanceof ResearchAutomationHttpError) {
       return Response.json({ error: error.message, code: error.code }, {
         status: error.status,
         headers: NO_STORE_HEADERS,

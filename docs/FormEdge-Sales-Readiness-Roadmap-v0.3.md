@@ -19,7 +19,7 @@ FormEdge'in ürün yüzeyi, otomatik maç merkezi, model sürümleme, veri linea
 - Şirket, vergi, faturalama, ödeme, iade ve ülke bazlı bahis/analiz hukuku incelemesi
 - Üretim yedekleme/geri yükleme tatbikatı, alarm/SLO, E2E ve mobil görsel regresyon kanıtı
 
-## Faz 0 — CP17Y–CP17AA: SportMonks tek kaynak ve otomatik analiz hattı
+## Faz 0 — CP17Y–CP17AB: SportMonks tek kaynak ve otomatik analiz hattı
 
 Durum: Uygulandı ve üretime dağıtıldı; gerçek günlük run kabul ölçütleri izleniyor.
 
@@ -33,6 +33,8 @@ Durum: Uygulandı ve üretime dağıtıldı; gerçek günlük run kabul ölçüt
 - Bir tahmin üretilemezse nedeni log ve run özetinde göster; turu sahte yeşil başarıya çevirmeme.
 - SportMonks takım adlarını kimlik olarak kullanma; provider takım ID'sini kalıcı kanonik anahtar yap ve güvenilir yeniden importta eski fikstür bağlarını uzlaştır.
 - Analizi olmayan her maç kartında son otomasyon denemesinin kesin engelini veya kuyruk durumunu göster.
+- Dashboard yenilemesindeki çift kaynak çağrısını kaldır; kaynak çekimi kısmen bozulsa bile kayıtlı D1 verisi üzerinde model turunu sürdür.
+- Geçmişi yeterli takımlar için aynı backfill'i tekrar çağırma; eksik takımları bağımsız işle ve tek takım hatasını tüm snapshot hatasına dönüştürme.
 
 Kabul ölçütleri:
 
@@ -44,7 +46,7 @@ Kabul ölçütleri:
 
 ## Faz 1 — SportMonks veri kapsamı ve kalite kapıları
 
-Durum: Devam ediyor; hesap/rate-limit/lig kapsam kanıtı ve kalıcı takım kimliği CP17Z–CP17AA ile uygulandı.
+Durum: Devam ediyor; hesap/rate-limit/lig kapsam kanıtı, kalıcı takım kimliği ve dayanıklı backfill CP17Z–CP17AB ile uygulandı.
 
 - [x] Hesap kapsamını `/my` ve coverage endpoint'leriyle sunucu tarafında doğrula; secret değerini saklama veya istemciye çıkarma.
 - Statistics, lineups, sidelined/injury ve xG kapsamını lig bazında ölç.

@@ -37,7 +37,11 @@ test("forward and historical research automation use separate hourly fail-closed
   assert.match(store, /fetchSportMonksFixtures/);
   assert.match(store, /SPORTMONKS_NOT_CONFIGURED/);
   assert.match(store, /SPORTMONKS_EMPTY_WINDOW/);
-  assert.match(store, /SPORTMONKS_HISTORY_EMPTY/);
+  assert.match(store, /Promise\.allSettled\(batch\.map/);
+  assert.match(store, /MIN_TEAM_HISTORY_MATCHES = 5/);
+  assert.match(store, /historyTeamsAlreadyReady/);
+  assert.match(store, /historyFailures/);
+  assert.doesNotMatch(store, /SPORTMONKS_HISTORY_EMPTY/);
   assert.doesNotMatch(store, /fixture-provider-fallback/);
   assert.doesNotMatch(store, /API_FOOTBALL_API_KEY/);
   assert.doesNotMatch(store, /FOOTBALL_DATA_ORG_API_TOKEN/);

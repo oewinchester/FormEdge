@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   auditLogs,
@@ -7,6 +7,7 @@ import {
   modelEvidenceRuns,
   researchAutomationRuns,
   researchFixtureFeedRuns,
+  teamMatchStats,
 } from "@/db/schema";
 import {
   importFootballSnapshot,
@@ -27,6 +28,7 @@ import {
   sportMonksAuthorizationHeader,
   sportMonksPageUrl,
   sportMonksPlanTeamIds,
+  sportMonksTeamId,
 } from "@/lib/sportmonks-live";
 import {
   createPredictionVersion,
@@ -47,6 +49,7 @@ const AUTOMATION_ACTIVE_KEY = "research-forward-shadow:1x2";
 const FIXTURE_FEED_ACTIVE_KEY = "sportmonks:fixtures:v8";
 const FEED_WINDOW_MS = 10 * 60_000;
 const FETCH_TIMEOUT_MS = 20_000;
+const MIN_TEAM_HISTORY_MATCHES = 5;
 const MAX_PREDICTIONS_PER_CYCLE = 60;
 const MAX_SETTLEMENTS_PER_CYCLE = 300;
 
@@ -233,6 +236,13 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
     return { run: await loadPublicFixtureFeedRun(runId), reused: false };
   } catch (error) {
     const normalized = normalizeAutomationError(error, "FIXTURE_FEED_FAILED", "Fikstür akışı güvenli biçimde alınamadı.");
+    console.error("fixture-feed-failed", JSON.stringify({
+      provider: provider.kind,
+      adapterVersion,
+      code: normalized.code,
+      message: normalized.message,
+      responseStatus,
+    }));
     await db.update(researchFixtureFeedRuns).set({
       activeKey: null,
       status: "failed",
@@ -302,7 +312,9 @@ export async function runResearchAutomationCycle(
       const feed = await pullResearchFixtureFeed(actor);
       fixtureFeedRunId = feed.run?.id ?? null;
     } catch (error) {
-      errors.push(errorSummary("fixture_feed", error));
+      const failure = errorSummary("fixture_feed", error);
+      errors.push(failure);
+      console.error("research-automation-fixture-feed-failed", JSON.stringify(failure));
     }
 
     const runtime = await getResearchAutomationRuntime();
@@ -787,40 +799,69 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
   const account = await fetchSportMonksAccountCoverage(headers, rateLimits);
   const dailyCounts: Array<{ date: string; fixtures: number; pages: number }> = [];
   const historyCounts: Array<{ teamId: number; fixtures: number }> = [];
+  const dailyFailures: Array<{ date: string; code: string; message: string }> = [];
+  const historyFailures: Array<{ teamId: number; code: string; message: string }> = [];
   let aggregateBytes = 0;
   let response!: Response;
   for (const dateUrl of provider.upstreamUrls) {
     const countBeforeDate = fixtures.size;
     let pagesFetched = 0;
-    for (let page = 1; page <= SPORTMONKS_MAX_PAGES_PER_DATE; page += 1) {
-      const pageResult = await fetchSportMonksPage(sportMonksPageUrl(dateUrl, page), headers, "SPORTMONKS_HTTP_ERROR");
-      response = pageResult.response;
-      rateLimits.push(pageResult.rateLimit);
-      aggregateBytes += pageResult.bytes.byteLength;
-      requireSportMonksByteBudget(aggregateBytes, provider.maximumBytes);
-      pagesFetched = page;
-      addSportMonksFixtures(fixtures, pageResult.data);
-      if (!pageResult.hasMore) break;
-      if (page === SPORTMONKS_MAX_PAGES_PER_DATE) {
-        throw new ResearchAutomationHttpError(502, "SPORTMONKS_PAGE_BUDGET_EXCEEDED", "SportMonks günlük fikstürleri sekiz sayfalık güvenli çağrı bütçesini aştı.");
+    const date = new URL(dateUrl).pathname.split("/").at(-1) ?? "unknown";
+    try {
+      for (let page = 1; page <= SPORTMONKS_MAX_PAGES_PER_DATE; page += 1) {
+        const pageResult = await fetchSportMonksPage(sportMonksPageUrl(dateUrl, page), headers, "SPORTMONKS_HTTP_ERROR");
+        response = pageResult.response;
+        rateLimits.push(pageResult.rateLimit);
+        aggregateBytes += pageResult.bytes.byteLength;
+        requireSportMonksByteBudget(aggregateBytes, provider.maximumBytes);
+        pagesFetched = page;
+        addSportMonksFixtures(fixtures, pageResult.data);
+        if (!pageResult.hasMore) break;
+        if (page === SPORTMONKS_MAX_PAGES_PER_DATE) {
+          throw new ResearchAutomationHttpError(502, "SPORTMONKS_PAGE_BUDGET_EXCEEDED", "SportMonks günlük fikstürleri sekiz sayfalık güvenli çağrı bütçesini aştı.");
+        }
       }
+    } catch (error) {
+      const failure = errorSummary(`fixtures:${date}`, error);
+      dailyFailures.push({ date, code: failure.code, message: failure.message });
     }
     dailyCounts.push({
-      date: new URL(dateUrl).pathname.split("/").at(-1) ?? "unknown",
+      date,
       fixtures: fixtures.size - countBeforeDate,
       pages: pagesFetched,
     });
   }
   const dailyFixtureCount = fixtures.size;
   if (dailyFixtureCount === 0) {
+    if (dailyFailures.length === provider.upstreamUrls.length) {
+      const firstFailure = dailyFailures[0];
+      throw new ResearchAutomationHttpError(
+        502,
+        firstFailure?.code ?? "SPORTMONKS_HTTP_ERROR",
+        firstFailure?.message ?? "SportMonks günlük fikstür endpoint'lerinin tamamına erişilemedi.",
+      );
+    }
     throw new ResearchAutomationHttpError(502, "SPORTMONKS_EMPTY_WINDOW", "SportMonks seçili 30 lig için dört günlük pencerede fikstür döndürmedi.");
   }
 
   const activeTeamIds = sportMonksPlanTeamIds([...fixtures.values()]);
+  const knownHistoryRows = activeTeamIds.length
+    ? await (await getDb()).select({
+      teamId: teamMatchStats.teamId,
+      total: count(),
+    }).from(teamMatchStats).where(inArray(
+      teamMatchStats.teamId,
+      activeTeamIds.map((teamId) => sportMonksTeamId(teamId)),
+    )).groupBy(teamMatchStats.teamId)
+    : [];
+  const knownHistoryByTeam = new Map(knownHistoryRows.map((row) => [row.teamId, Number(row.total)]));
+  const historyTeamIds = activeTeamIds.filter((teamId) => (
+    (knownHistoryByTeam.get(sportMonksTeamId(teamId)) ?? 0) < MIN_TEAM_HISTORY_MATCHES
+  ));
   const historyReferenceAt = new Date().toISOString();
-  for (let index = 0; index < activeTeamIds.length; index += 6) {
-    const batch = activeTeamIds.slice(index, index + 6);
-    const results = await Promise.all(batch.map(async (teamId) => ({
+  for (let index = 0; index < historyTeamIds.length; index += 6) {
+    const batch = historyTeamIds.slice(index, index + 6);
+    const results = await Promise.allSettled(batch.map(async (teamId) => ({
       teamId,
       result: await fetchSportMonksPage(
         buildSportMonksTeamHistoryUrl(historyReferenceAt, teamId),
@@ -828,7 +869,15 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
         "SPORTMONKS_HISTORY_HTTP_ERROR",
       ),
     })));
-    for (const { teamId, result } of results) {
+    for (let resultIndex = 0; resultIndex < results.length; resultIndex += 1) {
+      const settled = results[resultIndex];
+      const requestedTeamId = batch[resultIndex];
+      if (settled.status === "rejected") {
+        const failure = errorSummary(`history:${requestedTeamId}`, settled.reason);
+        historyFailures.push({ teamId: requestedTeamId, code: failure.code, message: failure.message });
+        continue;
+      }
+      const { teamId, result } = settled.value;
       response = result.response;
       rateLimits.push(result.rateLimit);
       aggregateBytes += result.bytes.byteLength;
@@ -839,9 +888,6 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
     }
   }
   const historyFixtureCount = fixtures.size - dailyFixtureCount;
-  if (activeTeamIds.length > 0 && historyFixtureCount === 0) {
-    throw new ResearchAutomationHttpError(502, "SPORTMONKS_HISTORY_EMPTY", "SportMonks yaklaşan takımlar için geçmiş maç döndürmedi; analiz üretimi güvenli biçimde durduruldu.");
-  }
 
   const responseBuffer = new TextEncoder().encode(JSON.stringify({ data: [...fixtures.values()] })).buffer as ArrayBuffer;
   const parsed = parseSportMonksFixtures({
@@ -858,9 +904,13 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
     rateLimit: mergeSportMonksRateLimits(rateLimits),
     fetch: {
       dailyCounts,
+      dailyFailures,
       activeTeamCount: activeTeamIds.length,
+      historyTeamsAlreadyReady: activeTeamIds.length - historyTeamIds.length,
+      historyTeamsRequested: historyTeamIds.length,
       historyTeamCount: historyCounts.filter((item) => item.fixtures > 0).length,
       historyFixtureCount,
+      historyFailures,
       rawFixtureCount: fixtures.size,
       importedFixtureCount: parsed.pilotRowCount,
       leagueCount: importedLeagueCount,
@@ -887,9 +937,13 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
   };
   console.info("sportmonks-fetch-summary", JSON.stringify({
     dailyCounts,
+    dailyFailureCount: dailyFailures.length,
     activeTeamCount: activeTeamIds.length,
+    historyTeamsAlreadyReady: activeTeamIds.length - historyTeamIds.length,
+    historyTeamsRequested: historyTeamIds.length,
     historyTeamCount: historyCounts.filter((item) => item.fixtures > 0).length,
     historyFixtureCount,
+    historyFailureCount: historyFailures.length,
     rawFixtureCount: fixtures.size,
     importedFixtureCount: parsed.pilotRowCount,
     leagueCount: importedLeagueCount,
