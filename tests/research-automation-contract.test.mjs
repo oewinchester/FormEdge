@@ -23,9 +23,9 @@ test("forward and historical research automation use separate hourly fail-closed
   assert.match(store, /getResearchAutomationRuntime\(\)/);
   assert.match(store, /buildSportMonksDateUrls\(nowIso\)/);
   assert.match(store, /buildSportMonksTeamHistoryUrl/);
-  assert.match(store, /sportMonksPlanTeamIds/);
+  assert.match(store, /sportMonksPlanTeamTargets/);
   assert.match(store, /fixture-feed-daily-cache-hit/);
-  assert.match(store, /sportmonks-v9-bounded-team-history/);
+  assert.match(store, /sportmonks-v10-budgeted-team-history/);
   assert.match(store, /FORECAST_HISTORY_INSUFFICIENT/);
   assert.match(store, /cacheScope:\s*"istanbul_day"/);
   assert.match(store, /research-automation-completed/);
@@ -40,7 +40,11 @@ test("forward and historical research automation use separate hourly fail-closed
   assert.match(store, /Promise\.allSettled\(batch\.map/);
   assert.match(store, /MIN_TEAM_HISTORY_MATCHES = 5/);
   assert.match(store, /MAX_HISTORY_FIXTURES_PER_TEAM = 12/);
-  assert.match(store, /result\.data\.slice\(0, MAX_HISTORY_FIXTURES_PER_TEAM\)/);
+  assert.match(store, /MAX_HISTORY_TEAM_REQUESTS_PER_RUN = 24/);
+  assert.match(store, /MAX_UPSTREAM_SUBREQUESTS_PER_RUN = 40/);
+  assert.match(store, /selectSportMonksTeamHistory/);
+  assert.match(store, /historyTeamsDeferred/);
+  assert.match(store, /fixtureFeedHistoryBackfillComplete/);
   assert.match(store, /requireSportMonksByteBudget\(responseBuffer\.byteLength/);
   assert.doesNotMatch(store, /requireSportMonksByteBudget\(aggregateBytes/);
   assert.match(store, /historyTeamsAlreadyReady/);

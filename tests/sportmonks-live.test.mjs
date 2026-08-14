@@ -12,11 +12,13 @@ import {
   parseSportMonksAccountCoverage,
   parseSportMonksFixtures,
   readSportMonksRateLimit,
+  selectSportMonksTeamHistory,
   sportMonksAuthorizationHeader,
   sportMonksPageUrl,
   sportMonksPlanTeamIds,
   sportMonksTeamId,
 } from "../lib/sportmonks-live.ts";
+import { buildUpcomingPointInTimeForecast } from "../lib/point-in-time-dataset.ts";
 
 const payload = JSON.stringify({
   data: [
@@ -60,7 +62,7 @@ const payload = JSON.stringify({
 });
 
 test("SportMonks plan coverage is the exact 30-league subscription", () => {
-  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v9");
+  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v10");
   assert.equal(SPORTMONKS_PLAN_LEAGUES.length, 30);
   assert.equal(new Set(SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId)).size, 30);
   assert.deepEqual(
@@ -104,15 +106,27 @@ test("SportMonks account and rate-limit evidence fails visibly instead of becomi
   assert.deepEqual(mergeSportMonksRateLimits([first, second]), { limit: 3000, remaining: 2862, reset: "42", observedResponses: 2 });
 });
 
-test("SportMonks team history URL backfills one year with match statistics", () => {
-  const url = buildSportMonksTeamHistoryUrl("2026-08-10T12:00:00.000Z", 1001);
+test("SportMonks team history URL backfills one licensed league with match statistics", () => {
+  const url = buildSportMonksTeamHistoryUrl("2026-08-10T12:00:00.000Z", 1001, 600);
   assert.match(url, /fixtures\/between\/2025-08-10\/2026-08-09\/1001/);
   assert.match(url, /include=participants%3Bscores%3Bstate%3Bstatistics/);
   assert.match(url, /order=desc/);
   assert.match(url, /per_page=50/);
+  assert.match(url, /filters=fixtureLeagues%3A600/);
   assert.doesNotMatch(url, /api_token/i);
   assert.equal(SPORTMONKS_TEAM_HISTORY_DAYS, 365);
   assert.throws(() => buildSportMonksTeamHistoryUrl("2026-08-10T12:00:00.000Z", 0), /team id/);
+  assert.throws(() => buildSportMonksTeamHistoryUrl("2026-08-10T12:00:00.000Z", 1001, 999999), /league id/);
+});
+
+test("SportMonks history keeps only recent finished fixtures from the target league", () => {
+  const rows = [
+    { id: 1, league_id: 600, state_id: 5, starting_at: "2026-08-01 18:00:00" },
+    { id: 2, league_id: 600, state_id: 1, starting_at: "2026-08-02 18:00:00" },
+    { id: 3, league_id: 8, state_id: 5, starting_at: "2026-08-03 18:00:00" },
+    { id: 4, league_id: 600, state_id: 5, starting_at: "2026-08-04 18:00:00" },
+  ];
+  assert.deepEqual(selectSportMonksTeamHistory(rows, 600, 2).map((row) => row.id), [4, 1]);
 });
 
 test("SportMonks daily URLs keep the token out of logs and enforce pagination", () => {
@@ -178,4 +192,77 @@ test("SportMonks invalid envelopes fail closed", () => {
     capturedAt: "2026-08-10T12:00:00.000Z",
     upstreamUrl: "https://api.sportmonks.com/v3/football/fixtures",
   }), /data array/);
+});
+
+test("a normalized SportMonks slate produces a real point-in-time probability", async () => {
+  const finished = (id, kickoff, homeId, awayId, homeGoals, awayGoals) => ({
+    id,
+    league_id: 600,
+    season_id: 25501,
+    state_id: 5,
+    starting_at: kickoff,
+    participants: [
+      { id: homeId, name: `Team ${homeId}`, meta: { location: "home" } },
+      { id: awayId, name: `Team ${awayId}`, meta: { location: "away" } },
+    ],
+    scores: [
+      { description: "CURRENT", score: { goals: homeGoals, participant: "home" } },
+      { description: "CURRENT", score: { goals: awayGoals, participant: "away" } },
+    ],
+  });
+  const rows = [
+    {
+      id: 9999,
+      league_id: 600,
+      season_id: 25501,
+      state_id: 1,
+      starting_at: "2026-08-10 19:00:00",
+      participants: [
+        { id: 1, name: "Home FC", meta: { location: "home" } },
+        { id: 2, name: "Away FC", meta: { location: "away" } },
+      ],
+      scores: [],
+    },
+    ...Array.from({ length: 5 }, (_, index) => finished(
+      1000 + index,
+      `2026-07-${String(30 - index * 3).padStart(2, "0")} 16:00:00`,
+      1,
+      100 + index,
+      2,
+      index % 2,
+    )),
+    ...Array.from({ length: 5 }, (_, index) => finished(
+      2000 + index,
+      `2026-07-${String(29 - index * 3).padStart(2, "0")} 16:00:00`,
+      200 + index,
+      2,
+      index % 2,
+      1,
+    )),
+  ];
+  const parsed = parseSportMonksFixtures({
+    json: JSON.stringify({ data: rows }),
+    capturedAt: "2026-08-10T12:00:00.000Z",
+    upstreamUrl: buildSportMonksDateUrls("2026-08-10T12:00:00.000Z")[0],
+  });
+  const envelope = parsed.envelopes.find((item) => item.payload.league.id === "tr-super-lig");
+  assert.ok(envelope);
+  const fixtures = envelope.payload.fixtures.map((fixture) => ({
+    ...fixture,
+    leagueId: envelope.payload.league.id,
+    season: envelope.payload.season,
+    ingestionRunId: "sportmonks-test-run",
+  }));
+  const forecast = await buildUpcomingPointInTimeForecast({
+    fixtures,
+    stats: [],
+    odds: [],
+    targetFixtureId: fixtures.find((fixture) => fixture.status === "scheduled").id,
+    predictionAt: "2026-08-10T12:00:00.000Z",
+  });
+  const total = forecast.probabilities.home + forecast.probabilities.draw + forecast.probabilities.away;
+  assert.ok(Math.abs(total - 1) < 1e-8);
+  assert.equal(forecast.featurePayload.provenance.homeHistoryFixtureIds.length, 5);
+  assert.equal(forecast.featurePayload.provenance.awayHistoryFixtureIds.length, 5);
+  assert.ok(Math.max(forecast.probabilities.home, forecast.probabilities.draw, forecast.probabilities.away) > 0.34);
 });

@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, lte, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   auditLogs,
@@ -7,7 +7,6 @@ import {
   modelEvidenceRuns,
   researchAutomationRuns,
   researchFixtureFeedRuns,
-  teamMatchStats,
 } from "@/db/schema";
 import {
   importFootballSnapshot,
@@ -25,9 +24,10 @@ import {
   parseSportMonksAccountCoverage,
   parseSportMonksFixtures,
   readSportMonksRateLimit,
+  selectSportMonksTeamHistory,
   sportMonksAuthorizationHeader,
   sportMonksPageUrl,
-  sportMonksPlanTeamIds,
+  sportMonksPlanTeamTargets,
   sportMonksTeamId,
 } from "@/lib/sportmonks-live";
 import {
@@ -46,11 +46,13 @@ import { getIstanbulSlateWindow } from "@/lib/today-slate";
 import { ModelLabValidationError } from "@/lib/model-lab";
 
 const AUTOMATION_ACTIVE_KEY = "research-forward-shadow:1x2";
-const FIXTURE_FEED_ACTIVE_KEY = "sportmonks:fixtures:v9";
+const FIXTURE_FEED_ACTIVE_KEY = "sportmonks:fixtures:v10";
 const FEED_WINDOW_MS = 10 * 60_000;
 const FETCH_TIMEOUT_MS = 20_000;
 const MIN_TEAM_HISTORY_MATCHES = 5;
 const MAX_HISTORY_FIXTURES_PER_TEAM = 12;
+const MAX_HISTORY_TEAM_REQUESTS_PER_RUN = 24;
+const MAX_UPSTREAM_SUBREQUESTS_PER_RUN = 40;
 const MAX_SPORTMONKS_PAGE_BYTES = 8_000_000;
 const MAX_PREDICTIONS_PER_CYCLE = 60;
 const MAX_SETTLEMENTS_PER_CYCLE = 300;
@@ -104,6 +106,7 @@ export async function pullResearchFixtureFeed(actor: AdminActor) {
     .orderBy(desc(researchFixtureFeedRuns.startedAt)).limit(30);
   const dailySnapshot = successfulToday.find((row) => (
     row.id.startsWith(`fdfix:${providerKey}:`) && (row.pilotRowCount ?? 0) > 0
+    && fixtureFeedHistoryBackfillComplete(row.providerSummaryJson)
   ));
   if (dailySnapshot) {
     console.info("fixture-feed-daily-cache-hit", JSON.stringify({
@@ -781,7 +784,7 @@ function buildSportMonksProvider(token: string | null, nowIso: string): SportMon
   const upstreamUrls = buildSportMonksDateUrls(nowIso);
   return {
     kind: "sportmonks",
-    key: "sportmonks-v9-bounded-team-history",
+    key: "sportmonks-v10-budgeted-team-history",
     token,
     upstreamUrl: upstreamUrls[0],
     upstreamUrls,
@@ -796,9 +799,10 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
     "Cache-Control": "no-cache",
     Authorization: sportMonksAuthorizationHeader(provider.token),
   };
-  const fixtures = new Map<string, unknown>();
+  const fixtureMap = new Map<string, unknown>();
   const rateLimits = [] as ReturnType<typeof readSportMonksRateLimit>[];
   const account = await fetchSportMonksAccountCoverage(headers, rateLimits);
+  let upstreamSubrequests = Object.keys(buildSportMonksAccountUrls()).length;
   const dailyCounts: Array<{ date: string; fixtures: number; pages: number }> = [];
   const historyCounts: Array<{ teamId: number; fixtures: number }> = [];
   const dailyFailures: Array<{ date: string; code: string; message: string }> = [];
@@ -806,18 +810,19 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
   let downloadedBytes = 0;
   let response!: Response;
   for (const dateUrl of provider.upstreamUrls) {
-    const countBeforeDate = fixtures.size;
+    const countBeforeDate = fixtureMap.size;
     let pagesFetched = 0;
     const date = new URL(dateUrl).pathname.split("/").at(-1) ?? "unknown";
     try {
       for (let page = 1; page <= SPORTMONKS_MAX_PAGES_PER_DATE; page += 1) {
+        upstreamSubrequests += 1;
         const pageResult = await fetchSportMonksPage(sportMonksPageUrl(dateUrl, page), headers, "SPORTMONKS_HTTP_ERROR");
         response = pageResult.response;
         rateLimits.push(pageResult.rateLimit);
         requireSportMonksPageBudget(pageResult.bytes.byteLength);
         downloadedBytes += pageResult.bytes.byteLength;
         pagesFetched = page;
-        addSportMonksFixtures(fixtures, pageResult.data);
+        addSportMonksFixtures(fixtureMap, pageResult.data);
         if (!pageResult.hasMore) break;
         if (page === SPORTMONKS_MAX_PAGES_PER_DATE) {
           throw new ResearchAutomationHttpError(502, "SPORTMONKS_PAGE_BUDGET_EXCEEDED", "SportMonks günlük fikstürleri sekiz sayfalık güvenli çağrı bütçesini aştı.");
@@ -826,14 +831,15 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
     } catch (error) {
       const failure = errorSummary(`fixtures:${date}`, error);
       dailyFailures.push({ date, code: failure.code, message: failure.message });
+      console.error("sportmonks-daily-fetch-failed", JSON.stringify({ date, code: failure.code, message: failure.message }));
     }
     dailyCounts.push({
       date,
-      fixtures: fixtures.size - countBeforeDate,
+      fixtures: fixtureMap.size - countBeforeDate,
       pages: pagesFetched,
     });
   }
-  const dailyFixtureCount = fixtures.size;
+  const dailyFixtureCount = fixtureMap.size;
   if (dailyFixtureCount === 0) {
     if (dailyFailures.length === provider.upstreamUrls.length) {
       const firstFailure = dailyFailures[0];
@@ -846,52 +852,69 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
     throw new ResearchAutomationHttpError(502, "SPORTMONKS_EMPTY_WINDOW", "SportMonks seçili 30 lig için dört günlük pencerede fikstür döndürmedi.");
   }
 
-  const activeTeamIds = sportMonksPlanTeamIds([...fixtures.values()]);
+  const dailyFixtures = [...fixtureMap.values()];
+  const activeTeamTargets = sportMonksPlanTeamTargets(dailyFixtures);
+  const activeTeamIds = [...new Set(activeTeamTargets.map((target) => sportMonksTeamId(target.teamId)))];
   const knownHistoryRows = activeTeamIds.length
     ? await (await getDb()).select({
-      teamId: teamMatchStats.teamId,
-      total: count(),
-    }).from(teamMatchStats).where(inArray(
-      teamMatchStats.teamId,
-      activeTeamIds.map((teamId) => sportMonksTeamId(teamId)),
-    )).groupBy(teamMatchStats.teamId)
+      leagueId: fixtures.leagueId,
+      homeTeamId: fixtures.homeTeamId,
+      awayTeamId: fixtures.awayTeamId,
+    }).from(fixtures).where(and(
+      eq(fixtures.status, "finished"),
+      or(inArray(fixtures.homeTeamId, activeTeamIds), inArray(fixtures.awayTeamId, activeTeamIds)),
+    ))
     : [];
-  const knownHistoryByTeam = new Map(knownHistoryRows.map((row) => [row.teamId, Number(row.total)]));
-  const historyTeamIds = activeTeamIds.filter((teamId) => (
-    (knownHistoryByTeam.get(sportMonksTeamId(teamId)) ?? 0) < MIN_TEAM_HISTORY_MATCHES
+  const knownHistoryByTeamLeague = new Map<string, number>();
+  for (const row of knownHistoryRows) {
+    for (const teamId of [row.homeTeamId, row.awayTeamId]) {
+      const key = `${row.leagueId}:${teamId}`;
+      knownHistoryByTeamLeague.set(key, (knownHistoryByTeamLeague.get(key) ?? 0) + 1);
+    }
+  }
+  const historyTeamTargets = activeTeamTargets.filter((target) => (
+    (knownHistoryByTeamLeague.get(`${target.leagueId}:${sportMonksTeamId(target.teamId)}`) ?? 0) < MIN_TEAM_HISTORY_MATCHES
   ));
+  const availableHistoryBudget = Math.max(0, MAX_UPSTREAM_SUBREQUESTS_PER_RUN - upstreamSubrequests);
+  const requestedHistoryTargets = historyTeamTargets.slice(0, Math.min(MAX_HISTORY_TEAM_REQUESTS_PER_RUN, availableHistoryBudget));
+  const historyTeamsDeferred = historyTeamTargets.length - requestedHistoryTargets.length;
   const historyReferenceAt = new Date().toISOString();
-  for (let index = 0; index < historyTeamIds.length; index += 6) {
-    const batch = historyTeamIds.slice(index, index + 6);
-    const results = await Promise.allSettled(batch.map(async (teamId) => ({
-      teamId,
+  for (let index = 0; index < requestedHistoryTargets.length; index += 6) {
+    const batch = requestedHistoryTargets.slice(index, index + 6);
+    const results = await Promise.allSettled(batch.map(async (target) => ({
+      target,
       result: await fetchSportMonksPage(
-        buildSportMonksTeamHistoryUrl(historyReferenceAt, teamId),
+        buildSportMonksTeamHistoryUrl(historyReferenceAt, target.teamId, target.sportmonksLeagueId),
         headers,
         "SPORTMONKS_HISTORY_HTTP_ERROR",
       ),
     })));
+    upstreamSubrequests += batch.length;
     for (let resultIndex = 0; resultIndex < results.length; resultIndex += 1) {
       const settled = results[resultIndex];
-      const requestedTeamId = batch[resultIndex];
+      const requestedTarget = batch[resultIndex];
       if (settled.status === "rejected") {
-        const failure = errorSummary(`history:${requestedTeamId}`, settled.reason);
-        historyFailures.push({ teamId: requestedTeamId, code: failure.code, message: failure.message });
+        const failure = errorSummary(`history:${requestedTarget.teamId}`, settled.reason);
+        historyFailures.push({ teamId: requestedTarget.teamId, code: failure.code, message: failure.message });
         continue;
       }
-      const { teamId, result } = settled.value;
+      const { target, result } = settled.value;
       response = result.response;
       rateLimits.push(result.rateLimit);
       requireSportMonksPageBudget(result.bytes.byteLength);
       downloadedBytes += result.bytes.byteLength;
-      const countBeforeTeam = fixtures.size;
-      addSportMonksFixtures(fixtures, result.data.slice(0, MAX_HISTORY_FIXTURES_PER_TEAM));
-      historyCounts.push({ teamId, fixtures: fixtures.size - countBeforeTeam });
+      const countBeforeTeam = fixtureMap.size;
+      addSportMonksFixtures(fixtureMap, selectSportMonksTeamHistory(
+        result.data,
+        target.sportmonksLeagueId,
+        MAX_HISTORY_FIXTURES_PER_TEAM,
+      ));
+      historyCounts.push({ teamId: target.teamId, fixtures: fixtureMap.size - countBeforeTeam });
     }
   }
-  const historyFixtureCount = fixtures.size - dailyFixtureCount;
+  const historyFixtureCount = fixtureMap.size - dailyFixtureCount;
 
-  const responseBuffer = new TextEncoder().encode(JSON.stringify({ data: [...fixtures.values()] })).buffer as ArrayBuffer;
+  const responseBuffer = new TextEncoder().encode(JSON.stringify({ data: [...fixtureMap.values()] })).buffer as ArrayBuffer;
   requireSportMonksByteBudget(responseBuffer.byteLength, provider.maximumBytes);
   const parsed = parseSportMonksFixtures({
     json: new TextDecoder("utf-8").decode(responseBuffer),
@@ -908,19 +931,21 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
     fetch: {
       dailyCounts,
       dailyFailures,
-      activeTeamCount: activeTeamIds.length,
-      historyTeamsAlreadyReady: activeTeamIds.length - historyTeamIds.length,
-      historyTeamsRequested: historyTeamIds.length,
+      activeTeamCount: activeTeamTargets.length,
+      historyTeamsAlreadyReady: activeTeamTargets.length - historyTeamTargets.length,
+      historyTeamsRequested: requestedHistoryTargets.length,
+      historyTeamsDeferred,
       historyTeamCount: historyCounts.filter((item) => item.fixtures > 0).length,
       historyFixtureCount,
       historyFailures,
       downloadedBytes,
       mergedSnapshotBytes: responseBuffer.byteLength,
-      rawFixtureCount: fixtures.size,
+      rawFixtureCount: fixtureMap.size,
       importedFixtureCount: parsed.pilotRowCount,
       leagueCount: importedLeagueCount,
       statisticRowCount,
       ignoredFixtureCount: parsed.ignoredCount,
+      upstreamSubrequests,
     },
     leagues: SPORTMONKS_PLAN_LEAGUES.map((league) => {
       const envelopes = parsed.envelopes.filter((item) => item.payload.league.id === league.id);
@@ -943,15 +968,16 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
   console.info("sportmonks-fetch-summary", JSON.stringify({
     dailyCounts,
     dailyFailureCount: dailyFailures.length,
-    activeTeamCount: activeTeamIds.length,
-    historyTeamsAlreadyReady: activeTeamIds.length - historyTeamIds.length,
-    historyTeamsRequested: historyTeamIds.length,
+    activeTeamCount: activeTeamTargets.length,
+    historyTeamsAlreadyReady: activeTeamTargets.length - historyTeamTargets.length,
+    historyTeamsRequested: requestedHistoryTargets.length,
+    historyTeamsDeferred,
     historyTeamCount: historyCounts.filter((item) => item.fixtures > 0).length,
     historyFixtureCount,
     historyFailureCount: historyFailures.length,
     downloadedBytes,
     mergedSnapshotBytes: responseBuffer.byteLength,
-    rawFixtureCount: fixtures.size,
+    rawFixtureCount: fixtureMap.size,
     importedFixtureCount: parsed.pilotRowCount,
     leagueCount: importedLeagueCount,
     statisticRowCount,
@@ -959,12 +985,13 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
     accountStatus: account.status,
     licensedLeagueCount: account.licensedLeagueIds.length,
     rateLimitRemaining: providerSummary.rateLimit.remaining,
+    upstreamSubrequests,
   }));
   if (parsed.pilotRowCount === 0) {
     throw new ResearchAutomationHttpError(
       502,
       "SPORTMONKS_UNMAPPABLE_FIXTURES",
-      `SportMonks ${fixtures.size} ham fikstür döndürdü ancak seçili 30 lig için işlenebilir maç bulunamadı.`,
+      `SportMonks ${fixtureMap.size} ham fikstür döndürdü ancak seçili 30 lig için işlenebilir maç bulunamadı.`,
     );
   }
   return {
@@ -979,13 +1006,34 @@ async function fetchSportMonksFixtures(provider: SportMonksProvider) {
 }
 
 async function fetchSportMonksPage(url: string, headers: Record<string, string>, errorCode: string) {
-  const response = await fetch(url, {
-    headers,
-    redirect: "follow",
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers,
+      redirect: "follow",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "";
+    const subrequestLimit = /subrequest|too many requests/i.test(detail);
+    throw new ResearchAutomationHttpError(
+      502,
+      subrequestLimit ? "SPORTMONKS_SUBREQUEST_BUDGET_EXCEEDED" : "SPORTMONKS_NETWORK_ERROR",
+      subrequestLimit
+        ? "SportMonks geçmiş çağrıları güvenli dış istek bütçesini aştı."
+        : "SportMonks bağlantısı kurulamadı veya zaman aşımına uğradı.",
+    );
+  }
   if (!response.ok || response.status !== 200) {
-    const code = response.status === 429 ? "SPORTMONKS_RATE_LIMITED" : errorCode;
+    const code = response.status === 400
+      ? "SPORTMONKS_REQUEST_INVALID"
+      : response.status === 401
+        ? "SPORTMONKS_AUTH_FAILED"
+        : response.status === 403
+          ? "SPORTMONKS_COVERAGE_DENIED"
+          : response.status === 429
+            ? "SPORTMONKS_RATE_LIMITED"
+            : errorCode;
     throw new ResearchAutomationHttpError(502, code, `SportMonks HTTP ${response.status} yanıtı verdi.`);
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
@@ -1074,6 +1122,13 @@ function changedRows(value: unknown) {
 
 function parseJson<T>(value: string, fallback: T): T {
   try { return JSON.parse(value) as T; } catch { return fallback; }
+}
+
+function fixtureFeedHistoryBackfillComplete(summaryJson: string) {
+  const summary = parseJson<{ fetch?: { historyTeamsDeferred?: unknown } }>(summaryJson, {});
+  return typeof summary.fetch?.historyTeamsDeferred === "number"
+    && Number.isFinite(summary.fetch.historyTeamsDeferred)
+    && summary.fetch.historyTeamsDeferred <= 0;
 }
 
 export type ResearchAutomationOverview = Awaited<ReturnType<typeof getResearchAutomationOverview>>;

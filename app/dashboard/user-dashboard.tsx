@@ -41,12 +41,14 @@ export function UserDashboard({
   const [filter, setFilter] = useState<MatchFilter>("all");
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const autoRefreshAttempted = useRef(false);
 
   const refreshLiveSlate = useCallback(async () => {
     setRefreshing(true);
     setError(null);
+    setWarning(null);
     setNotice(null);
     try {
       const response = await fetch("/api/dashboard/live-slate", {
@@ -63,9 +65,11 @@ export function UserDashboard({
       if (nextOverview.todaySlate.analysisPipeline.failed > 0) {
         setError(`${nextOverview.todaySlate.analysisPipeline.failed} maçın analizi tamamlanamadı. Maç kartındaki nedeni kontrol edin.`);
       } else if (infrastructureFailure) {
-        setNotice("Güncel maçlar gösteriliyor; kaynak yenilemesi kısmi kaldı ve kayıtlı veriyle analiz sürüyor.");
+        setWarning(infrastructureFailure.message || "SportMonks yenilemesi tamamlanmadı; kayıtlı maçlar gösteriliyor.");
+      } else if (nextOverview.todaySlate.counts.analyzed === 0) {
+        setWarning("Fikstür alındı ancak henüz gerçek model olasılığı üretilmedi; geçmiş veri tamamlanıyor.");
       } else {
-        setNotice("Maçlar ve analizler güncel.");
+        setNotice(`${nextOverview.todaySlate.counts.analyzed} gerçek maç analizi güncel.`);
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Maç merkezi güncellenemedi.");
@@ -150,6 +154,7 @@ export function UserDashboard({
         </section>
 
         {error && <div className="fd-alert danger"><ShieldAlert size={18} /><span><b>İşlem tamamlanamadı</b><small>{error}</small></span></div>}
+        {warning && <div className="fd-alert warning"><ShieldAlert size={18} /><span><b>Yenileme tamamlanmadı</b><small>{warning}</small></span></div>}
         {notice && <div className="fd-alert success"><Check size={18} /><span><b>Sistem güncel</b><small>{notice}</small></span><button type="button" onClick={() => setNotice(null)}>×</button></div>}
         {!overview.membership.productAccess && <div className="fd-alert warning"><LockKeyhole size={18} /><span><b>Beta erişimi bekleniyor</b><small>Canlı analizler davet ve ürün erişimi açıldıktan sonra görünür.</small></span><a href="/dashboard/membership">Üyeliği aç <ChevronRight size={13} /></a></div>}
 

@@ -2,7 +2,7 @@ import type { DataQualityIssue } from "./data-quality.ts";
 import type { AdminImportEnvelope, NormalizedFootballPayload } from "./import-contract.ts";
 import { footballDataFixtureId } from "./football-data-source.ts";
 
-export const SPORTMONKS_ADAPTER_VERSION = "sportmonks-v3-fixtures-v9" as const;
+export const SPORTMONKS_ADAPTER_VERSION = "sportmonks-v3-fixtures-v10" as const;
 export const SPORTMONKS_BASE_URL = "https://api.sportmonks.com/v3/football/fixtures" as const;
 export const SPORTMONKS_ACCOUNT_BASE_URL = "https://api.sportmonks.com/v3/my" as const;
 export const SPORTMONKS_MAX_BYTES = 32_000_000;
@@ -173,7 +173,7 @@ export function buildSportMonksDateUrls(referenceAt: string) {
   });
 }
 
-export function buildSportMonksTeamHistoryUrl(referenceAt: string, teamId: number) {
+export function buildSportMonksTeamHistoryUrl(referenceAt: string, teamId: number, leagueId?: number) {
   const now = new Date(referenceAt);
   if (Number.isNaN(now.getTime())) throw new Error("A valid SportMonks reference time is required.");
   if (!Number.isInteger(teamId) || teamId <= 0) throw new Error("A valid SportMonks team id is required.");
@@ -187,22 +187,79 @@ export function buildSportMonksTeamHistoryUrl(referenceAt: string, teamId: numbe
     order: "desc",
     per_page: "50",
   });
+  if (leagueId !== undefined) {
+    if (!LEAGUE_BY_ID.has(leagueId)) throw new Error("A licensed SportMonks league id is required.");
+    query.set("filters", `fixtureLeagues:${leagueId}`);
+  }
   return `${SPORTMONKS_BASE_URL}/between/${startDate}/${endDate}/${teamId}?${query.toString()}`;
 }
 
 export function sportMonksPlanTeamIds(fixtures: unknown[]) {
-  const allowedLeagueIds = new Set(SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId));
-  const teamIds = new Set<number>();
-  for (const item of fixtures) {
+  return [...new Set(sportMonksPlanTeamTargets(fixtures).map((target) => target.teamId))];
+}
+
+export type SportMonksTeamTarget = {
+  teamId: number;
+  sportmonksLeagueId: number;
+  leagueId: string;
+  kickoffAt: string;
+};
+
+export function sportMonksPlanTeamTargets(fixtures: unknown[]): SportMonksTeamTarget[] {
+  const ordered = [...fixtures].sort((first, second) => (
+    fixturePriority(first) - fixturePriority(second)
+    || sortableKickoff(first).localeCompare(sortableKickoff(second))
+    || String((first as SportMonksFixture)?.id ?? "").localeCompare(String((second as SportMonksFixture)?.id ?? ""))
+  ));
+  const seen = new Set<string>();
+  const targets: SportMonksTeamTarget[] = [];
+  for (const item of ordered) {
     const fixture = item as SportMonksFixture;
-    const leagueId = integerValue(fixture.league_id);
-    if (leagueId === null || !allowedLeagueIds.has(leagueId)) continue;
-    for (const participant of fixture.participants ?? []) {
+    const sportmonksLeagueId = integerValue(fixture.league_id);
+    const league = sportmonksLeagueId === null ? undefined : LEAGUE_BY_ID.get(sportmonksLeagueId);
+    const kickoffAt = normalizeKickoff(textValue(fixture.starting_at));
+    if (!league || !kickoffAt) continue;
+    const participants = [...(fixture.participants ?? [])].sort((first, second) => (
+      participantPriority(first) - participantPriority(second)
+    ));
+    for (const participant of participants) {
       const teamId = integerValue(participant.id);
-      if (teamId !== null && teamId > 0) teamIds.add(teamId);
+      if (teamId === null || teamId <= 0) continue;
+      const key = `${league.id}:${teamId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      targets.push({ teamId, sportmonksLeagueId, leagueId: league.id, kickoffAt });
     }
   }
-  return [...teamIds].sort((first, second) => first - second);
+  return targets;
+}
+
+export function selectSportMonksTeamHistory(rows: unknown[], leagueId: number, limit: number) {
+  if (!LEAGUE_BY_ID.has(leagueId)) throw new Error("A licensed SportMonks league id is required.");
+  const safeLimit = Math.max(0, Math.floor(limit));
+  return rows
+    .filter((item) => {
+      const fixture = item as SportMonksFixture;
+      return integerValue(fixture.league_id) === leagueId && mapStatus(fixture.state_id, fixture.state) === "finished";
+    })
+    .sort((first, second) => sortableKickoff(second).localeCompare(sortableKickoff(first)))
+    .slice(0, safeLimit);
+}
+
+function sortableKickoff(value: unknown) {
+  const fixture = value as SportMonksFixture;
+  return normalizeKickoff(textValue(fixture?.starting_at)) ?? "9999-12-31T23:59:59.999Z";
+}
+
+function fixturePriority(value: unknown) {
+  const fixture = value as SportMonksFixture;
+  const status = mapStatus(fixture?.state_id, fixture?.state);
+  return status === "scheduled" ? 0 : status === "live" ? 1 : status === "finished" ? 2 : 3;
+}
+
+function participantPriority(participant: NonNullable<SportMonksFixture["participants"]>[number]) {
+  const location = textValue(participant.meta?.location)?.toLowerCase();
+  return location === "home" ? 0 : location === "away" ? 1 : 2;
 }
 
 export function sportMonksTeamId(providerTeamId: number) {

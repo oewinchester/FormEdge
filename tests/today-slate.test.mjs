@@ -72,6 +72,8 @@ test("dashboard exposes research fixtures without weakening recommendation gates
   assert.match(dashboard, /autoRefreshAttempted/);
   assert.match(dashboard, /pipelineLabel/);
   assert.match(dashboard, /infrastructureErrors/);
+  assert.match(dashboard, /Yenileme tamamlanmadı/);
+  assert.match(dashboard, /gerçek maç analizi güncel/);
   assert.match(dashboard, /void refreshLiveSlate\(\)/);
   assert.doesNotMatch(dashboard, /Veriyi şimdi yenile/);
   assert.match(dashboard, /bahis önerisi değildir/i);

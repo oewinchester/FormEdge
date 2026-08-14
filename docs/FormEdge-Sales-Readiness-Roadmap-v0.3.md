@@ -19,7 +19,7 @@ FormEdge'in ürün yüzeyi, otomatik maç merkezi, model sürümleme, veri linea
 - Şirket, vergi, faturalama, ödeme, iade ve ülke bazlı bahis/analiz hukuku incelemesi
 - Üretim yedekleme/geri yükleme tatbikatı, alarm/SLO, E2E ve mobil görsel regresyon kanıtı
 
-## Faz 0 — CP17Y–CP17AC: SportMonks tek kaynak ve otomatik analiz hattı
+## Faz 0 — CP17Y–CP17AD: SportMonks tek kaynak ve otomatik analiz hattı
 
 Durum: Uygulandı ve üretime dağıtıldı; gerçek günlük run kabul ölçütleri izleniyor.
 
@@ -37,6 +37,9 @@ Durum: Uygulandı ve üretime dağıtıldı; gerçek günlük run kabul ölçüt
 - Geçmişi yeterli takımlar için aynı backfill'i tekrar çağırma; eksik takımları bağımsız işle ve tek takım hatasını tüm snapshot hatasına dönüştürme.
 - Toplam indirilen byte ile bellekte tutulacak tekilleştirilmiş snapshot boyutunu ayır; takım başına bounded geçmiş seçimiyle 32 MB taşmasını önle.
 - Kullanıcı dashboardunu kalıcı operasyon sidebar'ından arındır; otomatik maç programı, hazır analiz, kaynak sağlığı ve tek tık derin analizi ana bilgi mimarisi yap.
+- Worker dış istek bütçesini aşmamak için yaklaşan maçları önceliklendir; takım geçmişi çağrılarını tur başına sınırla ve ertelenen takımları sonraki aynı-gün turunda ilerlemeli tamamla.
+- Takım geçmişini hedef lig ve tamamlanmış maçlarla sınırla; istatistik add-on'u olmasa bile yeterli skor geçmişini gerçek model girdisi olarak kabul et.
+- En az bir gerçek 1/X/2 model olasılığı oluşmadan dashboard kaynak durumunu yeşil “güncel” gösterme.
 
 Kabul ölçütleri:
 
@@ -45,6 +48,7 @@ Kabul ölçütleri:
 - Analizi olmayan her maç için açık blocker veya analiz sürümü vardır.
 - API-Football, football-data.org ve CSV hiçbir canlı otomasyon kararında çalışmaz.
 - Eski Football-Data çekim endpoint'i kapalıdır; mevcut tarihsel kayıtlar yalnız salt-okunur kanıt arşivi olarak korunur.
+- SportMonks kaynaklı en az bir üretim fikstürü için dashboard ve maç ayrıntısında normalize 1/X/2 olasılığı görünür.
 
 ## Faz 1 — SportMonks veri kapsamı ve kalite kapıları
 
