@@ -19,7 +19,7 @@ FormEdge'in ürün yüzeyi, otomatik maç merkezi, model sürümleme, veri linea
 - Şirket, vergi, faturalama, ödeme, iade ve ülke bazlı bahis/analiz hukuku incelemesi
 - Üretim yedekleme/geri yükleme tatbikatı, alarm/SLO, E2E ve mobil görsel regresyon kanıtı
 
-## Faz 0 — CP17Y–CP17AE: SportMonks tek kaynak ve otomatik analiz hattı
+## Faz 0 — CP17Y–CP17AF: SportMonks tek kaynak ve otomatik analiz hattı
 
 Durum: Uygulandı ve üretime dağıtıldı; gerçek günlük run kabul ölçütleri izleniyor.
 
@@ -110,6 +110,7 @@ Durum: Dış bağımlılıklar açık.
 Durum: CI ve temel güvenlik var; operasyon kanıtı eksik.
 
 - Scheduler teslim kanıtı, başarısız iş retry/dead-letter politikası ve rate-limit alarmı.
+- Sites cron teslimi görünmediğinde aynı D1 kilidini kullanan, ayrı sunucu sırrıyla korunan research scheduler endpoint'ini dış zamanlayıcı ve operasyon doğrulaması için kullan.
 - D1/R2 yedekleme, geri yükleme tatbikatı ve RPO/RTO hedefleri.
 - Sentry/PostHog benzeri hata ve ürün telemetrisi; secret ve kişisel veri redaksiyonu.
 - API, dashboard ve satın alma akışı için E2E; Samsung/iOS/desktop görsel regresyon.

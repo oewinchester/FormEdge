@@ -7,13 +7,16 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.25 · Checkpoint 17AE · Minimal SportMonks History Contract**
+**v0.7.0-alpha.26 · Checkpoint 17AF · Authenticated Research Scheduler**
 
+- Sites cron teslimi geciktiğinde aynı kilitli otomasyon motorunu güvenle çalıştıran, ayrı 256-bit secret ve sabit-zamanlı karşılaştırmayla korunan research scheduler endpoint'i
 - Takım geçmişi isteğini model için zorunlu `participants;scores;state` ilişkileriyle sınırlayan; isteğe bağlı statistics add-on'unu ilk gerçek tahmin yolundan çıkaran v11 SportMonks adaptörü
 - Cloudflare Worker dış istek bütçesini aşmamak için en yakın fikstürleri önceleyen, tur başına geçmiş takım ve toplam upstream çağrılarını açıkça sınırlayan çekim planı
 - Yalnız hedef ligdeki tamamlanmış maçları geçmiş sayan; skor geçmişinden gerçek point-in-time olasılık üretebilen lig filtreli backfill
 - Eksik takım gruplarını aynı İstanbul günü içinde ilerlemeli biçimde tamamlayan; geçmiş işi bitmeden günlük snapshot'ı nihai cache saymayan `historyTeamsDeferred` sözleşmesi
 - Dashboard'u ancak en az bir gerçek model analizi oluştuğunda yeşile çeviren; normalize SportMonks verisinin 1/X/2 olasılığı ürettiğini kanıtlayan sözleşme testi
+
+Önceki checkpoint: **v0.7.0-alpha.25 · Checkpoint 17AE · Minimal SportMonks History Contract**
 
 Önceki checkpoint: **v0.7.0-alpha.24 · Checkpoint 17AD · Budgeted SportMonks History & Real Prediction Gate**
 
@@ -294,7 +297,8 @@ Satış hazırlığı ve koşullu dış kapılar: [`docs/FormEdge-Sales-Readines
 | **v0.7.0-alpha.22** | **CP17AB** | **Kısmi SportMonks hatalarına dayanıklı çekim, eksik-takım backfill'i ve kesintisiz analiz turu** | **Tamamlandı** |
 | **v0.7.0-alpha.23** | **CP17AC** | **32 MB snapshot düzeltmesi, bounded geçmiş backfill'i ve baştan tasarlanan karar merkezi UI** | **Tamamlandı** |
 | **v0.7.0-alpha.24** | **CP17AD** | **Worker-safe SportMonks geçmiş bütçesi, lig filtreli sonuç backfill'i ve gerçek tahmin başarı kapısı** | **Tamamlandı** |
-| **v0.7.0-alpha.25** | **CP17AE** | **Add-on bağımsız takım geçmişi ve minimum sözleşmeyle gerçek tahmin yolu** | **Mevcut** |
+| **v0.7.0-alpha.25** | **CP17AE** | **Add-on bağımsız takım geçmişi ve minimum sözleşmeyle gerçek tahmin yolu** | **Tamamlandı** |
+| **v0.7.0-alpha.26** | **CP17AF** | **Secret-korumalı research scheduler ve üretim tahmin doğrulama yolu** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 
@@ -414,7 +418,7 @@ CP16 davet operasyonunu varsayılan olarak kapalı getirir. Açılabilmesi için
 - Mevcut Sites kimlik yolu için `PUBLIC_IDENTITY_PROVIDER=chatgpt_siwc`; Google, Apple ve e-posta/şifre ayrı sağlayıcı entegrasyonu tamamlanana kadar planlı kalır
 - HTTPS canonical adresi için `PUBLIC_APP_ORIGIN`
 - Relay sözleşmesi için `INVITE_EMAIL_ENDPOINT`, `INVITE_EMAIL_TOKEN` ve `INVITE_EMAIL_FROM`
-- Birbirinden bağımsız, en az 32 karakterlik `INVITE_TOKEN_SECRET`, `WAITLIST_RATE_LIMIT_SECRET` ve `MEMBERSHIP_SCHEDULER_SECRET`
+- Birbirinden bağımsız, en az 32 karakterlik `INVITE_TOKEN_SECRET`, `WAITLIST_RATE_LIMIT_SECRET`, `MEMBERSHIP_SCHEDULER_SECRET` ve `RESEARCH_SCHEDULER_SECRET`
 
 Scheduler, `POST /api/integrations/membership/scheduler` isteğinde `x-formedge-scheduler-secret` başlığını doğrular. Hiçbir secret kaynak koda, migration’a veya istemci yanıtına yazılmaz.
 

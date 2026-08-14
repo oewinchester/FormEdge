@@ -3,10 +3,11 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("forward and historical research automation use separate hourly fail-closed worker contracts", async () => {
-  const [viteConfig, worker, route, schema, store, shadowStore] = await Promise.all([
+  const [viteConfig, worker, route, schedulerRoute, schema, store, shadowStore] = await Promise.all([
     readFile(new URL("../vite.config.ts", import.meta.url), "utf8"),
     readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/shadow-validation/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/integrations/research/scheduler/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/research-automation-store.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/shadow-validation-store.ts", import.meta.url), "utf8"),
@@ -16,6 +17,11 @@ test("forward and historical research automation use separate hourly fail-closed
   assert.match(worker, /controller\.cron === "47 \* \* \* \*"[\s\S]*runHistoricalValidationAutomationCycle[\s\S]*runResearchAutomationCycle/);
   assert.match(route, /body\.action === "run_automation"/);
   assert.match(route, /body\.action === "run_historical_automation"/);
+  assert.match(schedulerRoute, /RESEARCH_SCHEDULER_SECRET/);
+  assert.match(schedulerRoute, /x-formedge-research-scheduler-secret/);
+  assert.match(schedulerRoute, /secureEqual/);
+  assert.match(schedulerRoute, /runResearchAutomationCycle\(SYSTEM_RESEARCH_ACTOR, "scheduler"\)/);
+  assert.doesNotMatch(schedulerRoute, /process\.env/);
   assert.match(schema, /forward_shadow_observations_fixture_unique/);
   assert.match(schema, /enum:\s*\["forward_shadow", "historical_validation"\]/);
   assert.match(store, /researchOnly:\s*true/);
