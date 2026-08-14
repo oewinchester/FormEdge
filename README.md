@@ -7,13 +7,15 @@ FormEdge; maç formu, oyun üstünlüğü ve bağlamsal verileri olasılık tahm
 
 ## Mevcut checkpoint
 
-**v0.7.0-alpha.24 · Checkpoint 17AD · Budgeted SportMonks History & Real Prediction Gate**
+**v0.7.0-alpha.25 · Checkpoint 17AE · Minimal SportMonks History Contract**
 
-- Cloudflare Worker dış istek bütçisini aşmamak için en yakın fikstürleri önceleyen, tur başına geçmiş takım ve toplam upstream çağrılarını açıkça sınırlayan SportMonks v10 adaptörü
-- Yalnız hedef ligdeki tamamlanmış maçları geçmiş sayan; istatistik add-on'u bulunmasa bile skor geçmişinden gerçek point-in-time olasılık üretebilen lig filtreli backfill
+- Takım geçmişi isteğini model için zorunlu `participants;scores;state` ilişkileriyle sınırlayan; isteğe bağlı statistics add-on'unu ilk gerçek tahmin yolundan çıkaran v11 SportMonks adaptörü
+- Cloudflare Worker dış istek bütçesini aşmamak için en yakın fikstürleri önceleyen, tur başına geçmiş takım ve toplam upstream çağrılarını açıkça sınırlayan çekim planı
+- Yalnız hedef ligdeki tamamlanmış maçları geçmiş sayan; skor geçmişinden gerçek point-in-time olasılık üretebilen lig filtreli backfill
 - Eksik takım gruplarını aynı İstanbul günü içinde ilerlemeli biçimde tamamlayan; geçmiş işi bitmeden günlük snapshot'ı nihai cache saymayan `historyTeamsDeferred` sözleşmesi
-- Dashboard'u ancak en az bir gerçek model analizi oluştuğunda yeşile çeviren; kısmi kaynak yenilemesini ve analiz kuyruğunu turuncu uyarıyla ayıran dürüst durum kapısı
-- Normalize SportMonks fikstür ve takım geçmişinin doğrudan 1/X/2 olasılığı ürettiğini kanıtlayan uçtan uca model sözleşme testi
+- Dashboard'u ancak en az bir gerçek model analizi oluştuğunda yeşile çeviren; normalize SportMonks verisinin 1/X/2 olasılığı ürettiğini kanıtlayan sözleşme testi
+
+Önceki checkpoint: **v0.7.0-alpha.24 · Checkpoint 17AD · Budgeted SportMonks History & Real Prediction Gate**
 
 Önceki checkpoint: **v0.7.0-alpha.23 · Checkpoint 17AC · Bounded SportMonks Backfill & Decision Center UI**
 
@@ -291,7 +293,8 @@ Satış hazırlığı ve koşullu dış kapılar: [`docs/FormEdge-Sales-Readines
 | **v0.7.0-alpha.21** | **CP17AA** | **Kalıcı SportMonks takım kimliği, otomatik geçmiş uzlaştırma ve açık analiz engelleri** | **Tamamlandı** |
 | **v0.7.0-alpha.22** | **CP17AB** | **Kısmi SportMonks hatalarına dayanıklı çekim, eksik-takım backfill'i ve kesintisiz analiz turu** | **Tamamlandı** |
 | **v0.7.0-alpha.23** | **CP17AC** | **32 MB snapshot düzeltmesi, bounded geçmiş backfill'i ve baştan tasarlanan karar merkezi UI** | **Tamamlandı** |
-| **v0.7.0-alpha.24** | **CP17AD** | **Worker-safe SportMonks geçmiş bütçesi, lig filtreli sonuç backfill'i ve gerçek tahmin başarı kapısı** | **Mevcut** |
+| **v0.7.0-alpha.24** | **CP17AD** | **Worker-safe SportMonks geçmiş bütçesi, lig filtreli sonuç backfill'i ve gerçek tahmin başarı kapısı** | **Tamamlandı** |
+| **v0.7.0-alpha.25** | **CP17AE** | **Add-on bağımsız takım geçmişi ve minimum sözleşmeyle gerçek tahmin yolu** | **Mevcut** |
 | v1.0 | CP18 | Hukuk/veri lisansı/şirket/ödeme kapıları geçilirse ücretli web lansmanı | Koşullu |
 | v2.0 | — | Web MVP doğrulandıktan sonra iOS ve Android istemcileri | Gelecek |
 

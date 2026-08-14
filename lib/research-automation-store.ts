@@ -46,7 +46,7 @@ import { getIstanbulSlateWindow } from "@/lib/today-slate";
 import { ModelLabValidationError } from "@/lib/model-lab";
 
 const AUTOMATION_ACTIVE_KEY = "research-forward-shadow:1x2";
-const FIXTURE_FEED_ACTIVE_KEY = "sportmonks:fixtures:v10";
+const FIXTURE_FEED_ACTIVE_KEY = "sportmonks:fixtures:v11";
 const FEED_WINDOW_MS = 10 * 60_000;
 const FETCH_TIMEOUT_MS = 20_000;
 const MIN_TEAM_HISTORY_MATCHES = 5;
@@ -784,7 +784,7 @@ function buildSportMonksProvider(token: string | null, nowIso: string): SportMon
   const upstreamUrls = buildSportMonksDateUrls(nowIso);
   return {
     kind: "sportmonks",
-    key: "sportmonks-v10-budgeted-team-history",
+    key: "sportmonks-v11-minimal-team-history",
     token,
     upstreamUrl: upstreamUrls[0],
     upstreamUrls,

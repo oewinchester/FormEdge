@@ -19,7 +19,7 @@ FormEdge'in ürün yüzeyi, otomatik maç merkezi, model sürümleme, veri linea
 - Şirket, vergi, faturalama, ödeme, iade ve ülke bazlı bahis/analiz hukuku incelemesi
 - Üretim yedekleme/geri yükleme tatbikatı, alarm/SLO, E2E ve mobil görsel regresyon kanıtı
 
-## Faz 0 — CP17Y–CP17AD: SportMonks tek kaynak ve otomatik analiz hattı
+## Faz 0 — CP17Y–CP17AE: SportMonks tek kaynak ve otomatik analiz hattı
 
 Durum: Uygulandı ve üretime dağıtıldı; gerçek günlük run kabul ölçütleri izleniyor.
 
@@ -39,6 +39,7 @@ Durum: Uygulandı ve üretime dağıtıldı; gerçek günlük run kabul ölçüt
 - Kullanıcı dashboardunu kalıcı operasyon sidebar'ından arındır; otomatik maç programı, hazır analiz, kaynak sağlığı ve tek tık derin analizi ana bilgi mimarisi yap.
 - Worker dış istek bütçesini aşmamak için yaklaşan maçları önceliklendir; takım geçmişi çağrılarını tur başına sınırla ve ertelenen takımları sonraki aynı-gün turunda ilerlemeli tamamla.
 - Takım geçmişini hedef lig ve tamamlanmış maçlarla sınırla; istatistik add-on'u olmasa bile yeterli skor geçmişini gerçek model girdisi olarak kabul et.
+- İlk tahmin yolunda yalnız zorunlu fikstür, katılımcı, skor ve durum ilişkilerini çek; gelişmiş statistics zenginleştirmesini bağımsız kapsam kapısına bırak.
 - En az bir gerçek 1/X/2 model olasılığı oluşmadan dashboard kaynak durumunu yeşil “güncel” gösterme.
 
 Kabul ölçütleri:

@@ -25,7 +25,7 @@ test("forward and historical research automation use separate hourly fail-closed
   assert.match(store, /buildSportMonksTeamHistoryUrl/);
   assert.match(store, /sportMonksPlanTeamTargets/);
   assert.match(store, /fixture-feed-daily-cache-hit/);
-  assert.match(store, /sportmonks-v10-budgeted-team-history/);
+  assert.match(store, /sportmonks-v11-minimal-team-history/);
   assert.match(store, /FORECAST_HISTORY_INSUFFICIENT/);
   assert.match(store, /cacheScope:\s*"istanbul_day"/);
   assert.match(store, /research-automation-completed/);

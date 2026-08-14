@@ -2,7 +2,7 @@ import type { DataQualityIssue } from "./data-quality.ts";
 import type { AdminImportEnvelope, NormalizedFootballPayload } from "./import-contract.ts";
 import { footballDataFixtureId } from "./football-data-source.ts";
 
-export const SPORTMONKS_ADAPTER_VERSION = "sportmonks-v3-fixtures-v10" as const;
+export const SPORTMONKS_ADAPTER_VERSION = "sportmonks-v3-fixtures-v11" as const;
 export const SPORTMONKS_BASE_URL = "https://api.sportmonks.com/v3/football/fixtures" as const;
 export const SPORTMONKS_ACCOUNT_BASE_URL = "https://api.sportmonks.com/v3/my" as const;
 export const SPORTMONKS_MAX_BYTES = 32_000_000;
@@ -183,7 +183,7 @@ export function buildSportMonksTeamHistoryUrl(referenceAt: string, teamId: numbe
   const startDate = new Date(localToday - SPORTMONKS_TEAM_HISTORY_DAYS * day).toISOString().slice(0, 10);
   const endDate = new Date(localToday - day).toISOString().slice(0, 10);
   const query = new URLSearchParams({
-    include: "participants;scores;state;statistics",
+    include: "participants;scores;state",
     order: "desc",
     per_page: "50",
   });

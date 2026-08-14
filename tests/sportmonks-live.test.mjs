@@ -62,7 +62,7 @@ const payload = JSON.stringify({
 });
 
 test("SportMonks plan coverage is the exact 30-league subscription", () => {
-  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v10");
+  assert.equal(SPORTMONKS_ADAPTER_VERSION, "sportmonks-v3-fixtures-v11");
   assert.equal(SPORTMONKS_PLAN_LEAGUES.length, 30);
   assert.equal(new Set(SPORTMONKS_PLAN_LEAGUES.map((league) => league.sportmonksId)).size, 30);
   assert.deepEqual(
@@ -106,10 +106,11 @@ test("SportMonks account and rate-limit evidence fails visibly instead of becomi
   assert.deepEqual(mergeSportMonksRateLimits([first, second]), { limit: 3000, remaining: 2862, reset: "42", observedResponses: 2 });
 });
 
-test("SportMonks team history URL backfills one licensed league with match statistics", () => {
+test("SportMonks team history URL backfills one licensed league without optional add-ons", () => {
   const url = buildSportMonksTeamHistoryUrl("2026-08-10T12:00:00.000Z", 1001, 600);
   assert.match(url, /fixtures\/between\/2025-08-10\/2026-08-09\/1001/);
-  assert.match(url, /include=participants%3Bscores%3Bstate%3Bstatistics/);
+  assert.match(url, /include=participants%3Bscores%3Bstate/);
+  assert.doesNotMatch(url, /statistics/);
   assert.match(url, /order=desc/);
   assert.match(url, /per_page=50/);
   assert.match(url, /filters=fixtureLeagues%3A600/);
